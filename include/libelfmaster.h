@@ -17,6 +17,36 @@ typedef enum elf_arch {
 	x64
 } elf_arch_t;
 
+/*
+ * Portable ELF section type. Contains pointer to
+ * actual string. These sections are also stored in
+ * a sorted array which can be searched with bsearch
+ * by name, address, or offset.
+ */
+struct elf_section {
+	char *name;
+	uint32_t type;
+	uint32_t link;
+	uint32_t info;
+	uint64_t flags;
+	uint64_t align;
+	uint64_t entsize;
+	uint64_t offset;
+	uint64_t address;
+	size_t size;
+};
+
+struct elf_segment {
+	uint32_t type;
+	uint32_t flags;
+	uint64_t offset;
+	uint64_t paddr;
+	uint64_t vaddr;
+	uint64_t filesz;
+	uint64_t memsz;
+	uint64_t align;
+};
+
 typedef struct elfobj {
 	elf_arch_t arch;
 	unsigned int type;
@@ -44,6 +74,15 @@ typedef struct elfobj {
 		Elf32_Dyn *dynamic32;
 		Elf64_Dyn *dynamic64;
 	};
+	/*
+	 * Sorted sections and segments
+	 */
+	struct elf_section **sections;
+	struct elf_segment **segments;
+
+	/*
+	 * Pointers to .dynstr, .strtab, and .shstrtab
+	 */
 	char *dynstr;
 	char *strtab;
 	char *shstrtab;

@@ -44,6 +44,7 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 	uint8_t *mem;
 	uint16_t e_machine;
 	struct stat st;
+	size_t shstrtab_size, section_count;
 
 	ElfW(Ehdr) *ehdr;
 	ElfW(Phdr) *phdr;
@@ -101,7 +102,9 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 			goto err;
 		}
 		obj->shstrtab =
-		    (char *)&mem[shdr[obj->ehdr32->e_shstrndx].sh_offset];
+		    (char *)&mem[obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset];
+		shstrtab_size = obj->shdr32[obj->ehdr32->e_shstrndx].sh_size;
+		section_count = obj->ehdr32->e_shnum;
 		if ((obj->ehdr32->e_phoff +
 		    (obj->ehdr32->e_phnum * sizeof(Elf32_Phdr))) > obj->size) {
 			elf_error_set(error, "unsafe phdr values");
@@ -113,12 +116,12 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 			goto err;
 		}
 		if (obj->ehdr32->e_phentsize != sizeof(Elf32_Phdr)) {
-			elf_error_set(error, "invalid e_phentsize: %u\n",
+			elf_error_set(error, "invalid e_phentsize: %u",
 			    obj->ehdr32->e_phentsize);
 			goto err;
 		}
 		if (obj->ehdr32->e_shentsize != sizeof(Elf32_Shdr)) {
-			elf_error_set(error, "invalid e_shentsize: %u\n",
+			elf_error_set(error, "invalid e_shentsize: %u",
 			    obj->ehdr32->e_shentsize);
 			goto err;
 		}
@@ -129,12 +132,14 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		obj->phdr64 = (Elf64_Phdr *)&mem[ehdr->e_phoff];
 		obj->shdr64 = (Elf64_Shdr *)&mem[ehdr->e_shoff];
 		if (obj->ehdr64->e_shstrndx > obj->size) {
-			elf_error_set(error, "invalid e_shstrndx: %lu\n",
+			elf_error_set(error, "invalid e_shstrndx: %lu",
 			    obj->ehdr64->e_shstrndx);
 			goto err;
 		}
 		obj->shstrtab =
-		    (char *)&mem[shdr[obj->ehdr64->e_shstrndx].sh_offset];
+		    (char *)&mem[obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset];
+		shstrtab_size = obj->shdr64[obj->ehdr64->e_shstrndx].sh_size;
+		section_count = obj->ehdr64->e_shnum;
 		if ((obj->ehdr64->e_phoff +
 		    (obj->ehdr64->e_phnum * sizeof(Elf64_Phdr))) > obj->size) {
 			elf_error_set(error, "unsafe phdr values");
@@ -146,21 +151,58 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 			goto err;
 		}
 		if (obj->ehdr64->e_phentsize != sizeof(Elf64_Phdr)) {
-			elf_error_set(error, "invalid e_phentsize: %u\n",
+			elf_error_set(error, "invalid e_phentsize: %u",
 			    obj->ehdr64->e_phentsize);
 			goto err;
 		}
 		if (obj->ehdr64->e_shentsize != sizeof(Elf64_Shdr)) {
-			elf_error_set(error, "invalid_e_shentsize: %u\n",
+			elf_error_set(error, "invalid_e_shentsize: %u",
 			    obj->ehdr64->e_shentsize);
 			goto err;
 		}
 		break;
 	default:
-		elf_error_set(error, "unsupported ELF architecture", strerror(errno));
+		elf_error_set(error, "unsupported ELF architecture",
+		    strerror(errno));
 		goto err;
 	}
 
+	/*
+	 * Lets sort the section header string table.
+	 */
+	obj->sections = (struct elf_section **)
+	    malloc(sizeof(struct elf_section *) * section_count);
+	if (obj->sections == NULL) {
+		elf_error_set(error, "malloc: %s", strerror(errno));
+		goto err;
+	}
+	for (i = 0; i < section_count; i++) {
+		switch(obj->arch) {
+		case i386:
+			obj->sections[i]->name =
+			    strdup(&obj->shstrtab[obj->shdr32[obj->ehdr32[i].sh_name].sh_offset]);
+			obj->sections[i]->type = obj->shdr32[i].sh_type;
+			obj->sections[i]->link = obj->shdr32[i].sh_link;
+			obj->sections[i]->info = obj->shdr32[i].sh_info;
+			obj->sections[i]->flags = obj->shdr32[i].sh_flags;
+			obj->sections[i]->align = obj->shdr32[i].sh_align;
+			obj->sections[i]->entsize = obj->shdr32[i].sh_entsize;
+			obj->sections[i]->offset = obj->shdr32[i].sh_offset;
+			obj->sections[i]->address = obj->shdr32[i].sh_address;
+			obj->sections[i]->size = obj->shdr32[i].sh_size;
+			break;
+		case x64:
+			obj->sections[i]->name =
+			    strdup(&obj->shstrtab[obj->shdr64[obj->ehdr64[i].sh_name].sh_offset]);
+			obj->sections[i]->type = obj->shdr64[i].sh_type;
+			break;
+		}
+	}
+
+	/*
+	 * Set the remaining elf object pointers to the various data structures in the
+	 * ELF file.
+	 */
 	for (i = 0; i < ehdr->e_shnum; i++) {
 		if (strcmp(&obj->shstrtab[shdr[i].sh_name], ".strtab") == 0) {
 			obj->strtab = (char *)&mem[shdr[i].sh_offset];
@@ -202,4 +244,5 @@ err:
 	munmap(mem, st.st_size);
 	return false;
 }
+
 
