@@ -89,5 +89,7 @@ typedef struct elfobj {
 	char *shstrtab;
 	uint8_t *mem;
 	size_t size;
+	size_t section_count;
+	size_t segment_count;
 } elfobj_t;
 

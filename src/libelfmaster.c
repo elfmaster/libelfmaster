@@ -40,6 +40,21 @@ section_name_cmp(const void *p0, const void *p1)
 	return strcmp(s1, s2);
 }
 
+bool
+get_elf_section_by_name(struct elfobj *obj, const char *name,
+    struct elf_section *out)
+{
+	struct elf_section key, *res;
+
+	key.name = (char *)name;
+	res = bsearch(&key, obj->sections, obj->section_count,
+	    sizeof(struct elf_section), section_name_cmp);
+	if (res == NULL)
+		return false;
+	memcpy(out, res, sizeof(*out));
+	return true;
+}
+
 /*
  * Secure ELF loader.
  */
@@ -102,6 +117,7 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		obj->ehdr32 = (Elf32_Ehdr *)mem;
 		obj->phdr32 = (Elf32_Phdr *)&mem[obj->ehdr32->e_phoff];
 		obj->shdr32 = (Elf32_Shdr *)&mem[obj->ehdr32->e_shoff];
+		obj->segment_count = obj->ehdr32->e_phnum;
 		if (obj->ehdr32->e_shstrndx > obj->size) {
 			elf_error_set(error, "invalid e_shstrndx: %u\n",
 			    obj->ehdr32->e_shstrndx);
@@ -110,7 +126,7 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		obj->shstrtab =
 		    (char *)&mem[obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset];
 		shstrtab_size = obj->shdr32[obj->ehdr32->e_shstrndx].sh_size;
-		section_count = obj->ehdr32->e_shnum;
+		obj->section_count = section_count = obj->ehdr32->e_shnum;
 		if ((obj->ehdr32->e_phoff +
 		    (obj->ehdr32->e_phnum * sizeof(Elf32_Phdr))) > obj->size) {
 			elf_error_set(error, "unsafe phdr values");
@@ -137,6 +153,7 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		obj->ehdr64 = (Elf64_Ehdr *)mem;
 		obj->phdr64 = (Elf64_Phdr *)&mem[obj->ehdr64->e_phoff];
 		obj->shdr64 = (Elf64_Shdr *)&mem[obj->ehdr64->e_shoff];
+		obj->segment_count = obj->ehdr64->e_phnum;
 		if (obj->ehdr64->e_shstrndx > obj->size) {
 			elf_error_set(error, "invalid e_shstrndx: %lu",
 			    obj->ehdr64->e_shstrndx);
@@ -145,7 +162,7 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		obj->shstrtab =
 		    (char *)&mem[obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset];
 		shstrtab_size = obj->shdr64[obj->ehdr64->e_shstrndx].sh_size;
-		section_count = obj->ehdr64->e_shnum;
+		obj->section_count = section_count = obj->ehdr64->e_shnum;
 		if ((obj->ehdr64->e_phoff +
 		    (obj->ehdr64->e_phnum * sizeof(Elf64_Phdr))) > obj->size) {
 			elf_error_set(error, "unsafe phdr values");
