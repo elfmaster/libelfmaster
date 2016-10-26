@@ -30,6 +30,16 @@ elf_error_msg(elf_error_t *error)
 	return (const char *)error->string;
 }
 
+static int
+section_name_cmp(const void *p0, const void *p1)
+{
+
+	const char *s1 = (*(struct elf_section **)p0)->name;
+	const char *s2 = (*(struct elf_section **)p1)->name;
+
+	return strcmp(s1, s2);
+}
+
 /*
  * Secure ELF loader.
  */
@@ -45,10 +55,6 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 	uint16_t e_machine;
 	struct stat st;
 	size_t shstrtab_size, section_count;
-
-	ElfW(Ehdr) *ehdr;
-	ElfW(Phdr) *phdr;
-	ElfW(Shdr) *shdr;
 
 	if (modify == true) {
 		open_flags = O_RDWR;
@@ -94,8 +100,8 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 	case EM_386:
 		obj->arch = i386;
 		obj->ehdr32 = (Elf32_Ehdr *)mem;
-		obj->phdr32 = (Elf32_Phdr *)&mem[ehdr->e_phoff];
-		obj->shdr32 = (Elf32_Shdr *)&mem[ehdr->e_shoff];
+		obj->phdr32 = (Elf32_Phdr *)&mem[obj->ehdr32->e_phoff];
+		obj->shdr32 = (Elf32_Shdr *)&mem[obj->ehdr32->e_shoff];
 		if (obj->ehdr32->e_shstrndx > obj->size) {
 			elf_error_set(error, "invalid e_shstrndx: %u\n",
 			    obj->ehdr32->e_shstrndx);
@@ -129,8 +135,8 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 	case EM_X86_64:
 		obj->arch = x64;
 		obj->ehdr64 = (Elf64_Ehdr *)mem;
-		obj->phdr64 = (Elf64_Phdr *)&mem[ehdr->e_phoff];
-		obj->shdr64 = (Elf64_Shdr *)&mem[ehdr->e_shoff];
+		obj->phdr64 = (Elf64_Phdr *)&mem[obj->ehdr64->e_phoff];
+		obj->shdr64 = (Elf64_Shdr *)&mem[obj->ehdr64->e_shoff];
 		if (obj->ehdr64->e_shstrndx > obj->size) {
 			elf_error_set(error, "invalid e_shstrndx: %lu",
 			    obj->ehdr64->e_shstrndx);
@@ -180,62 +186,79 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		switch(obj->arch) {
 		case i386:
 			obj->sections[i]->name =
-			    strdup(&obj->shstrtab[obj->shdr32[obj->ehdr32[i].sh_name].sh_offset]);
+			    strdup(&obj->shstrtab[obj->shdr32[obj->shdr32[i].sh_name].sh_offset]);
 			obj->sections[i]->type = obj->shdr32[i].sh_type;
 			obj->sections[i]->link = obj->shdr32[i].sh_link;
 			obj->sections[i]->info = obj->shdr32[i].sh_info;
 			obj->sections[i]->flags = obj->shdr32[i].sh_flags;
-			obj->sections[i]->align = obj->shdr32[i].sh_align;
+			obj->sections[i]->align = obj->shdr32[i].sh_addralign;
 			obj->sections[i]->entsize = obj->shdr32[i].sh_entsize;
 			obj->sections[i]->offset = obj->shdr32[i].sh_offset;
-			obj->sections[i]->address = obj->shdr32[i].sh_address;
+			obj->sections[i]->address = obj->shdr32[i].sh_addr;
 			obj->sections[i]->size = obj->shdr32[i].sh_size;
 			break;
 		case x64:
 			obj->sections[i]->name =
-			    strdup(&obj->shstrtab[obj->shdr64[obj->ehdr64[i].sh_name].sh_offset]);
+			    strdup(&obj->shstrtab[obj->shdr64[obj->shdr64[i].sh_name].sh_offset]);
 			obj->sections[i]->type = obj->shdr64[i].sh_type;
+			obj->sections[i]->link = obj->shdr64[i].sh_link;
+			obj->sections[i]->info = obj->shdr64[i].sh_info;
+			obj->sections[i]->flags = obj->shdr64[i].sh_flags;
+			obj->sections[i]->align = obj->shdr64[i].sh_addralign;
+			obj->sections[i]->entsize = obj->shdr64[i].sh_entsize;
+			obj->sections[i]->offset = obj->shdr64[i].sh_offset;
+			obj->sections[i]->address = obj->shdr64[i].sh_addr;
+			obj->sections[i]->size = obj->shdr64[i].sh_size;
 			break;
 		}
 	}
+
+	qsort(obj->sections, section_count,
+	    sizeof(struct elf_section), section_name_cmp);
 
 	/*
 	 * Set the remaining elf object pointers to the various data structures in the
 	 * ELF file.
 	 */
-	for (i = 0; i < ehdr->e_shnum; i++) {
-		if (strcmp(&obj->shstrtab[shdr[i].sh_name], ".strtab") == 0) {
-			obj->strtab = (char *)&mem[shdr[i].sh_offset];
-		} else if (strcmp(&obj->shstrtab[shdr[i].sh_name],
-		    ".symtab") == 0) {
+	for (i = 0; i < section_count; i++) {
+		const char *sname = (obj->arch == i386) ?
+		    &obj->shstrtab[obj->shdr32[i].sh_name] :
+		    &obj->shstrtab[obj->shdr64[i].sh_name];
+		uint64_t sh_offset = (obj->arch == i386) ?
+		    obj->shdr32[i].sh_offset : obj->shdr64[i].sh_offset;
+
+		if (strcmp(sname, ".strtab") == 0) {
+			obj->strtab = (char *)&mem[sh_offset];
+		/*
+		 * Setup the symbol table, dynamic symbol table,
+		 * and string table pointers.
+		 */
+		} else if (strcmp(sname, ".symtab") == 0) {
 			switch(obj->arch) {
 			case i386:
 				obj->symtab32 =
-				    (Elf32_Sym *)&mem[shdr[i].sh_offset];
+				    (Elf32_Sym *)&mem[sh_offset];
 				break;
 			case x64:
 				obj->symtab64 =
-				    (Elf64_Sym *)&mem[shdr[i].sh_offset];
+				    (Elf64_Sym *)&mem[sh_offset];
 				break;
 			}
-		} else if (strcmp(&obj->shstrtab[shdr[i].sh_name],
-		    ".dynsym") == 0) {
+		} else if (strcmp(sname, ".dynsym") == 0) {
 			switch(obj->arch) {
 			case i386:
 				obj->dynsym32 =
-				    (Elf32_Sym *)&mem[shdr[i].sh_offset];
+				    (Elf32_Sym *)&mem[sh_offset];
 				break;
 			case x64:
 				obj->dynsym64 =
-				    (Elf64_Sym *)&mem[shdr[i].sh_offset];
+				    (Elf64_Sym *)&mem[sh_offset];
 				break;
 			}
-		} else if (strcmp(&obj->shstrtab[shdr[i].sh_name],
-		    ".dynstr") == 0) {
-			obj->dynstr = (char *)&mem[shdr[i].sh_offset];
-		} else if (strcmp(&obj->shstrtab[shdr[i].sh_name],
-		    ".strtab") == 0) {
-			obj->strtab = (char *)&mem[shdr[i].sh_offset];
+		} else if (strcmp(sname, ".dynstr") == 0) {
+			obj->dynstr = (char *)&mem[sh_offset];
+		} else if (strcmp(sname, ".strtab") == 0) {
+			obj->strtab = (char *)&mem[sh_offset];
 		}
 	}
 	return true;

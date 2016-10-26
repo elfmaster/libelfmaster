@@ -74,6 +74,7 @@ typedef struct elfobj {
 		Elf32_Dyn *dynamic32;
 		Elf64_Dyn *dynamic64;
 	};
+
 	/*
 	 * Sorted sections and segments
 	 */
