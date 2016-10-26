@@ -30,10 +30,14 @@ elf_error_msg(elf_error_t *error)
 	return (const char *)error->string;
 }
 
+/*
+ * TODO, switch to using qsort_r, and add two separate sorted arrays
+ * of pointers to section structs. One which is sorted by address, and
+ * one sorted by name.
+ */
 static int
 section_name_cmp(const void *p0, const void *p1)
 {
-
 	const char *s1 = (*(struct elf_section **)p0)->name;
 	const char *s2 = (*(struct elf_section **)p1)->name;
 
@@ -55,6 +59,44 @@ get_elf_section_by_name(struct elfobj *obj, const char *name,
 	return true;
 }
 
+void
+elf_section_iterator_init(struct elfobj *obj, struct elf_section_iterator *iter)
+{
+
+	iter->index = 0;
+	iter->obj = obj;
+	return;
+}
+
+/*
+ * We don't use obj->sections, since that is sorted. Instead we re-create an 'struct
+ * elf_section' for each entry, and print them in the order the actual section headers
+ * are listed in the binary.
+ */
+elf_iterator_t
+elf_section_iterator_next(struct elf_section_iterator *iter, struct elf_section *section)
+{
+
+	if (iter->index >= iter->obj->section_count)
+		return ELF_ITER_DONE;
+	switch(obj->arch) {
+	case i386:
+		section->name = &obj->shstrtab[obj->shdr32[iter->index].sh_offset];
+		section->type = obj->shdr32[iter->index].sh_type;
+		section->link = obj->shdr32[iter->index].sh_link;
+		section->info = obj->shdr32[iter->index].sh_info;
+		section->flags = obj->shdr32[iter->index].sh_flags;
+		section->align = obj->shdr32[iter->index].sh_addralign;
+		section->entsize = obj->shdr32[iter->index].sh_entsize;
+		section->offset = obj->shdr32[iter->index].sh_offset;
+		section->address = obj->shdr32[iter->index].sh_addr;
+		section->size = obj->shdr32[iter->index].sh_size;
+		break;
+	case x64:
+		break;
+	}
+	return ELF_ITER_OK;
+}
 /*
  * Secure ELF loader.
  */
