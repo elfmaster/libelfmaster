@@ -103,3 +103,32 @@ typedef enum elf_iterator_res {
 	ELF_ITER_DONE,
 	ELF_ITER_ERROR
 } elf_iterator_res_t;
+
+/*
+ * Loads an ELF object of any type, for reading or modifying.
+ * arg1: file path
+ * arg2: ELF object handle to be filled in
+ * arg3: Going to modify this object? true/false
+ * arg4: error object handle to be filled in upon failure.
+ */
+bool load_elf_object(const char *path, elfobj_t *, bool, elf_error_t *);
+
+/*
+ * Returns a string containing an error message for any failed libelfmaster
+ * API functions.
+ */
+const char * elf_error_msg(elf_error_t *);
+
+/*
+ * Fills in 'struct elf_section *'  on success.
+ * Performs a binary search on sorted section headers.
+ */
+bool get_elf_section_by_name(elfobj_t *, const char *, struct elf_section *);
+
+/*
+ * ELF Section iterator
+ * Iterates over each section header, filling in a struct elf_section upon each
+ * iteration.
+ */
+void elf_section_iterator_init(elfobj_t *, elf_section_iterator_t *);
+elf_iterator_res_t elf_section_iterator_next(elf_section_iterator_t *, struct elf_section *);

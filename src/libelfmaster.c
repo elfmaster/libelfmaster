@@ -11,7 +11,7 @@
 
 #include "../include/libelfmaster.h"
 
-bool
+static bool
 elf_error_set(elf_error_t *error, const char *fmt, ...)
 {
 	va_list va;
@@ -118,14 +118,15 @@ bool
 load_elf_object(const char *path, struct elfobj *obj, bool modify,
     elf_error_t *error)
 {
-	int fd, i;
+	int fd;
+	uint32_t i;
 	unsigned int open_flags = O_RDONLY;
 	unsigned int mmap_perms = PROT_READ;
 	unsigned int mmap_flags = MAP_PRIVATE;
 	uint8_t *mem;
 	uint16_t e_machine;
 	struct stat st;
-	size_t shstrtab_size, section_count;
+	size_t section_count;
 
 	if (modify == true) {
 		open_flags = O_RDWR;
@@ -181,7 +182,6 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		}
 		obj->shstrtab =
 		    (char *)&mem[obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset];
-		shstrtab_size = obj->shdr32[obj->ehdr32->e_shstrndx].sh_size;
 		obj->section_count = section_count = obj->ehdr32->e_shnum;
 		if ((obj->ehdr32->e_phoff +
 		    (obj->ehdr32->e_phnum * sizeof(Elf32_Phdr))) > obj->size) {
@@ -217,7 +217,6 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		}
 		obj->shstrtab =
 		    (char *)&mem[obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset];
-		shstrtab_size = obj->shdr64[obj->ehdr64->e_shstrndx].sh_size;
 		obj->section_count = section_count = obj->ehdr64->e_shnum;
 		if ((obj->ehdr64->e_phoff +
 		    (obj->ehdr64->e_phnum * sizeof(Elf64_Phdr))) > obj->size) {

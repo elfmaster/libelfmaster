@@ -1,0 +1,33 @@
+PHONY: clean check
+
+include @BUILD_DIR@/build/libelfmaster.build
+
+TARGET_DIR=$(BUILD_DIR)/regressions
+SDIR=$(SRC_DIR)/regressions
+INCLUDE_DIR=$(BUILD_DIR)/include $(BUILD_DIR)/regressions
+LIB_DIR=$(BUILD_DIR)/src
+CFLAGS+=-ggdb -fPIC -O0
+
+CFLAGS+=-fno-optimize-sibling-calls -Wl,-rpath,$(LIB_DIR) -Wl,-rpath,$(TARGET_DIR) -I@BUILD_DIR@/regressions
+LDFLAGS=@LDFLAGS@ $(LIB_DIR)/libelfmaster.a @LDOBJECT@
+
+CFLAGS := -L$(LIB_DIR) $(CFLAGS)
+
+OBJECTS=                \
+	parse_elfmaster
+
+all: $(OBJECTS)
+
+parse_elfmaster: parse_elfmaster.c
+	$(CC) parse_elfmaster.c -o parse_elfmaster $(LDFLAGS) $(CFLAGS)
+
+check: all
+	for d in $(OBJECTS); do                                 \
+		printf -- "----[ $$d\n";                        \
+		./$$d || rc=1;                                  \
+		echo;                                           \
+	done;                                                   \
+	exit $$rc
+clean:
+	rm -rf $(TARGET_DIR)/*.dSYM $(TARGET_DIR)/*~ $(TARGET_DIR)/*.o
+	rm -rf $(OBJECTS)

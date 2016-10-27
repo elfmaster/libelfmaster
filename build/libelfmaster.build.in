@@ -1,0 +1,12 @@
+CC=@CC@
+CXX=@CXX@
+MAKE=@MAKE@
+SRC_DIR=@SRC_DIR@
+BUILD_DIR=@BUILD_DIR@
+CFLAGS=@CFLAGS@ -I$(SRC_DIR)/include -I$(BUILD_DIR)/include
+CXXFLAGS=@CXXFLAGS@ -I$(SRC_DIR)/include -I$(BUILD_DIR)/include -I.
+LDFLAGS=@LDFLAGS@
+LD=@LD@
+
+include $(BUILD_DIR)/build/libelfmaster.build.@PROFILE@
+

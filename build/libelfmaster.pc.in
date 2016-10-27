@@ -1,0 +1,10 @@
+prefix=@PREFIX@
+includedir=@HEADERS@
+libdir=@LIBRARY@
+
+Name: Backtrace I/O pdb parsing library
+Description: Library for the loading and parsing of pdb files
+URL: http://backtrace.io/
+Version: @VERSION@
+Cflags: -D__@PROFILE@__ -I${includedir} -D_GNU_SOURCE
+
