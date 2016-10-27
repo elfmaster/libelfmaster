@@ -93,3 +93,13 @@ typedef struct elfobj {
 	size_t segment_count;
 } elfobj_t;
 
+typedef struct elf_section_iterator {
+	unsigned int index;
+	elfobj_t *obj;
+} elf_section_iterator_t;
+
+typedef enum elf_iterator_res {
+	ELF_ITER_OK,
+	ELF_ITER_DONE,
+	ELF_ITER_ERROR
+} elf_iterator_res_t;

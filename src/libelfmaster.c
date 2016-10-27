@@ -73,12 +73,14 @@ elf_section_iterator_init(struct elfobj *obj, struct elf_section_iterator *iter)
  * elf_section' for each entry, and print them in the order the actual section headers
  * are listed in the binary.
  */
-elf_iterator_t
+elf_iterator_res_t
 elf_section_iterator_next(struct elf_section_iterator *iter, struct elf_section *section)
 {
+	elfobj_t *obj = iter->obj;
 
-	if (iter->index >= iter->obj->section_count)
+	if (iter->index >= obj->section_count)
 		return ELF_ITER_DONE;
+
 	switch(obj->arch) {
 	case i386:
 		section->name = &obj->shstrtab[obj->shdr32[iter->index].sh_offset];
@@ -93,7 +95,19 @@ elf_section_iterator_next(struct elf_section_iterator *iter, struct elf_section 
 		section->size = obj->shdr32[iter->index].sh_size;
 		break;
 	case x64:
+		section->name = &obj->shstrtab[obj->shdr64[iter->index].sh_offset];
+		section->type = obj->shdr64[iter->index].sh_type;
+		section->link = obj->shdr64[iter->index].sh_link;
+		section->info = obj->shdr64[iter->index].sh_info;
+		section->flags = obj->shdr64[iter->index].sh_flags;
+		section->align = obj->shdr64[iter->index].sh_addralign;
+		section->entsize = obj->shdr64[iter->index].sh_entsize;
+		section->offset = obj->shdr64[iter->index].sh_offset;
+		section->address = obj->shdr64[iter->index].sh_addr;
+		section->size = obj->shdr64[iter->index].sh_offset;
 		break;
+	default:
+		return ELF_ITER_ERROR;
 	}
 	return ELF_ITER_OK;
 }
