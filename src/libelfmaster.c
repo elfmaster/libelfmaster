@@ -60,6 +60,45 @@ get_elf_section_by_name(struct elfobj *obj, const char *name,
 	return true;
 }
 
+void
+elf_dynamic_iterator_init(struct elfobj *obj, struct elf_dynamic_iterator *iter)
+{
+
+	iter->obj = obj;
+	iter->index = 0;
+	return;
+}
+
+elf_iterator_res_t
+elf_dynamic_iterator_next(struct elf_dynamic_iterator *iter,
+    struct elf_dynamic_entry *entry)
+{
+	unsigned int i = iter->index;
+
+	switch(iter->obj->arch) {
+	case i386:
+		if (iter->obj->dynamic32 == NULL)
+			return ELF_ITER_DONE;
+		if (iter->obj->dynamic32[i].d_tag == DT_NULL)
+			return ELF_ITER_DONE;
+		entry->tag = iter->obj->dynamic32[i].d_tag;
+		entry->value = iter->obj->dynamic32[i].d_un.d_val;
+		break;
+	case x64:
+		if (iter->obj->dynamic64 == NULL)
+			return ELF_ITER_DONE;
+		if (iter->obj->dynamic64[i].d_tag == DT_NULL)
+			return ELF_ITER_DONE;
+		entry->tag = iter->obj->dynamic64[i].d_tag;
+		entry->value = iter->obj->dynamic64[i].d_un.d_val;
+		break;
+	default:
+		return ELF_ITER_ERROR;
+	}
+	iter->index++;
+	return ELF_ITER_OK;
+}
+
 bool
 elf_note_iterator_init(struct elfobj *obj, struct elf_note_iterator *iter)
 {
@@ -71,7 +110,6 @@ elf_note_iterator_init(struct elfobj *obj, struct elf_note_iterator *iter)
 		iter->note32 = iter->obj->note32;
 		break;
 	case x64:
-		printf("Setting note to %p\n", iter->obj->note64);
 		iter->note64 = iter->obj->note64;
 		break;
 	default:
@@ -81,7 +119,8 @@ elf_note_iterator_init(struct elfobj *obj, struct elf_note_iterator *iter)
 }
 
 elf_iterator_res_t
-elf_note_iterator_next(struct elf_note_iterator *iter, elf_note_entry_t *entry)
+elf_note_iterator_next(struct elf_note_iterator *iter,
+    struct elf_note_entry *entry)
 {
 	size_t entry_len;
 
@@ -90,6 +129,8 @@ elf_note_iterator_next(struct elf_note_iterator *iter, elf_note_entry_t *entry)
 
 	switch(iter->obj->arch) {
 	case i386:
+		if (iter->note32 == NULL)
+			return ELF_ITER_DONE;
 		entry->mem = ELFNOTE_DESC(iter->note32);
 		entry->size = iter->note32->n_descsz;
 		entry->type = iter->note32->n_type;
@@ -98,6 +139,8 @@ elf_note_iterator_next(struct elf_note_iterator *iter, elf_note_entry_t *entry)
 		iter->note32 = ELFNOTE32_NEXT(iter->note32);
 		break;
 	case x64:
+		if (iter->note64 == NULL)
+			return ELF_ITER_DONE;
 		entry->mem = ELFNOTE_DESC(iter->note64);
 		entry->size = iter->note64->n_descsz;
 		entry->type = iter->note64->n_type;
@@ -132,6 +175,8 @@ elf_segment_iterator_next(struct elf_segment_iterator *iter,
 
 	switch(obj->arch) {
 	case i386:
+		if (obj->phdr32 == NULL)
+			return ELF_ITER_DONE;
 		segment->type = obj->phdr32[iter->index].p_type;
 		segment->flags = obj->phdr32[iter->index].p_flags;
 		segment->offset = obj->phdr32[iter->index].p_offset;
@@ -142,6 +187,8 @@ elf_segment_iterator_next(struct elf_segment_iterator *iter,
 		segment->align = obj->phdr32[iter->index].p_align;
 		break;
 	case x64:
+		if (obj->phdr64 == NULL)
+			return ELF_ITER_DONE;
 		segment->type = obj->phdr64[iter->index].p_type;
 		segment->flags = obj->phdr64[iter->index].p_flags;
 		segment->offset = obj->phdr64[iter->index].p_offset;
@@ -183,6 +230,8 @@ elf_section_iterator_next(struct elf_section_iterator *iter,
 
 	switch(obj->arch) {
 	case i386:
+		if (obj->shdr32 == NULL || obj->shstrtab == NULL)
+			return ELF_ITER_DONE;
 		section->name = &obj->shstrtab[obj->shdr32[iter->index].sh_name];
 		section->type = obj->shdr32[iter->index].sh_type;
 		section->link = obj->shdr32[iter->index].sh_link;
@@ -195,6 +244,8 @@ elf_section_iterator_next(struct elf_section_iterator *iter,
 		section->size = obj->shdr32[iter->index].sh_size;
 		break;
 	case x64:
+		if (obj->shdr64 == NULL || obj->shstrtab == NULL)
+			return ELF_ITER_DONE;
 		section->name = &obj->shstrtab[obj->shdr64[iter->index].sh_name];
 		section->type = obj->shdr64[iter->index].sh_type;
 		section->link = obj->shdr64[iter->index].sh_link;
@@ -228,6 +279,11 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 	uint16_t e_machine;
 	struct stat st;
 	size_t section_count;
+
+	/*
+	 * We count on this being initialized for various sanity checks.
+	 */
+	memset(obj, 0, sizeof(*obj));
 
 	if (modify == true) {
 		open_flags = O_RDWR;
@@ -354,7 +410,6 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		}
 		for (i = 0; i < obj->ehdr64->e_phnum; i++) {
 			if (obj->phdr64[i].p_type == PT_NOTE) {
-				printf("Setting note segment: %p\n", &obj->mem[obj->phdr64[i].p_offset]);
 				obj->note64 = (Elf64_Nhdr *)&obj->mem[obj->phdr64[i].p_offset];
 				obj->note_size = obj->phdr64[i].p_filesz;
 			} else if (obj->phdr64[i].p_type == PT_DYNAMIC) {

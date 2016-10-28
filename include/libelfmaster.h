@@ -132,6 +132,16 @@ typedef struct elf_note_entry {
 	void *mem;
 } elf_note_entry_t;
 
+typedef struct elf_dynamic_iterator {
+	unsigned int index;
+	elfobj_t *obj;
+} elf_dynamic_iterator_t;
+
+typedef struct elf_dynamic_entry {
+	unsigned int tag;
+	uint64_t value;
+} elf_dynamic_entry_t;
+
 typedef enum elf_iterator_res {
 	ELF_ITER_OK,
 	ELF_ITER_DONE,
@@ -178,3 +188,5 @@ elf_iterator_res_t elf_segment_iterator_next(elf_segment_iterator_t *, struct el
 bool elf_note_iterator_init(elfobj_t *, elf_note_iterator_t *);
 elf_iterator_res_t elf_note_iterator_next(elf_note_iterator_t *, elf_note_entry_t *);
 
+void elf_dynamic_iterator_init(elfobj_t *, elf_dynamic_iterator_t *);
+elf_iterator_res_t elf_dynamic_iterator_next(elf_dynamic_iterator_t *, elf_dynamic_entry_t *);
