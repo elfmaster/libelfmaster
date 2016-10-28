@@ -102,6 +102,7 @@ elf_segment_iterator_next(struct elf_segment_iterator *iter,
 	default:
 		return ELF_ITER_ERROR;
 	}
+	iter->index++;
 	return ELF_ITER_OK;
 }
 
@@ -156,6 +157,7 @@ elf_section_iterator_next(struct elf_section_iterator *iter,
 	default:
 		return ELF_ITER_ERROR;
 	}
+	iter->index++;
 	return ELF_ITER_OK;
 }
 /*
