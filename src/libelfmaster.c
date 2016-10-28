@@ -60,6 +60,50 @@ get_elf_section_by_name(struct elfobj *obj, const char *name,
 }
 
 void
+elf_segment_iterator_init(struct elfobj *obj, struct elf_segment_iterator *iter)
+{
+
+	iter->index = 0;
+	iter->obj = obj;
+	return;
+}
+
+elf_iterator_res_t
+elf_segment_iterator_next(struct elf_segment_iterator *iter,
+    struct elf_segment *segment)
+{
+	elfobj_t *obj = iter->obj;
+
+	if (iter->index >= obj->segment_count)
+		return ELF_ITER_DONE;
+	switch(obj->arch) {
+	case i386:
+		segment->type = obj->phdr32[iter->index].p_type;
+		segment->flags = obj->phdr32[iter->index].p_flags;
+		segment->offset = obj->phdr32[iter->index].p_offset;
+		segment->paddr = obj->phdr32[iter->index].p_paddr;
+		segment->vaddr = obj->phdr32[iter->index].p_vaddr;
+		segment->filesz = obj->phdr32[iter->index].p_filesz;
+		segment->memsz = obj->phdr32[iter->index].p_memsz;
+		segment->align = obj->phdr32[iter->index].p_align;
+		break;
+	case x64:
+		segment->type = obj->phdr64[iter->index].p_type;
+		segment->flags = obj->phdr64[iter->index].p_flags;
+		segment->offset = obj->phdr64[iter->index].p_offset;
+		segment->paddr = obj->phdr64[iter->index].p_paddr;
+		segment->vaddr = obj->phdr64[iter->index].p_vaddr;
+		segment->filesz = obj->phdr64[iter->index].p_filesz;
+		segment->memsz = obj->phdr64[iter->index].p_memsz;
+		segment->align = obj->phdr64[iter->index].p_align;
+		break;
+	default:
+		return ELF_ITER_ERROR;
+	}
+	return ELF_ITER_OK;
+}
+
+void
 elf_section_iterator_init(struct elfobj *obj, struct elf_section_iterator *iter)
 {
 
@@ -69,12 +113,13 @@ elf_section_iterator_init(struct elfobj *obj, struct elf_section_iterator *iter)
 }
 
 /*
- * We don't use obj->sections, since that is sorted. Instead we re-create an 'struct
- * elf_section' for each entry, and print them in the order the actual section headers
+ * We don't use obj->sections, since that is sorted. We re-create an 'struct
+ * elf_section' for each entry, and print them in the order the actual shdrs
  * are listed in the binary.
  */
 elf_iterator_res_t
-elf_section_iterator_next(struct elf_section_iterator *iter, struct elf_section *section)
+elf_section_iterator_next(struct elf_section_iterator *iter,
+    struct elf_section *section)
 {
 	elfobj_t *obj = iter->obj;
 

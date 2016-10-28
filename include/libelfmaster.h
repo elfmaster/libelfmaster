@@ -98,6 +98,11 @@ typedef struct elf_section_iterator {
 	elfobj_t *obj;
 } elf_section_iterator_t;
 
+typedef struct elf_segment_iterator {
+	unsigned int index;
+	elfobj_t *obj;
+} elf_segment_iterator_t;
+
 typedef enum elf_iterator_res {
 	ELF_ITER_OK,
 	ELF_ITER_DONE,
@@ -132,3 +137,11 @@ bool get_elf_section_by_name(elfobj_t *, const char *, struct elf_section *);
  */
 void elf_section_iterator_init(elfobj_t *, elf_section_iterator_t *);
 elf_iterator_res_t elf_section_iterator_next(elf_section_iterator_t *, struct elf_section *);
+
+/*
+ * ELF Segment (Program header) iterator
+ * Iterates over each program header (which describe segment), filling in a struct elf_segment
+ * upon each successful iteration.
+ */
+void elf_segment_iterator_init(elfobj_t *, elf_segment_iterator_t *);
+elf_iterator_res_t elf_segment_iterator_next(elf_segment_iterator_t *, struct elf_segment *);
