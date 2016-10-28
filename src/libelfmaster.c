@@ -38,24 +38,25 @@ elf_error_msg(elf_error_t *error)
 static int
 section_name_cmp(const void *p0, const void *p1)
 {
-	const char *s1 = (*(struct elf_section **)p0)->name;
-	const char *s2 = (*(struct elf_section **)p1)->name;
+	const struct elf_section *s0 = *(void **)p0;
+	const struct elf_section *s1 = *(void **)p1;
 
-	return strcmp(s1, s2);
+	return strcmp(s0->name, s1->name);
 }
 
 bool
 get_elf_section_by_name(struct elfobj *obj, const char *name,
     struct elf_section *out)
 {
-	struct elf_section key, *res;
+	struct elf_section tmp = { .name = (char *)name };
+	struct elf_section *key = &tmp;
+	struct elf_section **res;
 
-	key.name = (char *)name;
 	res = bsearch(&key, obj->sections, obj->section_count,
-	    sizeof(struct elf_section), section_name_cmp);
+	    sizeof(struct elf_section *), section_name_cmp);
 	if (res == NULL)
 		return false;
-	memcpy(out, res, sizeof(*out));
+	memcpy(out, *res, sizeof(*out));
 	return true;
 }
 
@@ -76,6 +77,7 @@ elf_segment_iterator_next(struct elf_segment_iterator *iter,
 
 	if (iter->index >= obj->segment_count)
 		return ELF_ITER_DONE;
+
 	switch(obj->arch) {
 	case i386:
 		segment->type = obj->phdr32[iter->index].p_type;
@@ -128,7 +130,7 @@ elf_section_iterator_next(struct elf_section_iterator *iter,
 
 	switch(obj->arch) {
 	case i386:
-		section->name = &obj->shstrtab[obj->shdr32[iter->index].sh_offset];
+		section->name = &obj->shstrtab[obj->shdr32[iter->index].sh_name];
 		section->type = obj->shdr32[iter->index].sh_type;
 		section->link = obj->shdr32[iter->index].sh_link;
 		section->info = obj->shdr32[iter->index].sh_info;
@@ -140,7 +142,7 @@ elf_section_iterator_next(struct elf_section_iterator *iter,
 		section->size = obj->shdr32[iter->index].sh_size;
 		break;
 	case x64:
-		section->name = &obj->shstrtab[obj->shdr64[iter->index].sh_offset];
+		section->name = &obj->shstrtab[obj->shdr64[iter->index].sh_name];
 		section->type = obj->shdr64[iter->index].sh_type;
 		section->link = obj->shdr64[iter->index].sh_link;
 		section->info = obj->shdr64[iter->index].sh_info;
@@ -294,16 +296,21 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 	 * Lets sort the section header string table.
 	 */
 	obj->sections = (struct elf_section **)
-	    malloc(sizeof(struct elf_section *) * section_count);
+	    malloc(sizeof(struct elf_section *) * (section_count + 1));
 	if (obj->sections == NULL) {
 		elf_error_set(error, "malloc: %s", strerror(errno));
 		goto err;
 	}
 	for (i = 0; i < section_count; i++) {
+		obj->sections[i] = malloc(sizeof(struct elf_section));
+		if (obj->sections[i] == NULL) {
+			elf_error_set(error, "malloc: %s", strerror(errno));
+			goto err;
+		}
 		switch(obj->arch) {
 		case i386:
 			obj->sections[i]->name =
-			    strdup(&obj->shstrtab[obj->shdr32[obj->shdr32[i].sh_name].sh_offset]);
+			    strdup(&obj->shstrtab[obj->shdr32[i].sh_name]);
 			obj->sections[i]->type = obj->shdr32[i].sh_type;
 			obj->sections[i]->link = obj->shdr32[i].sh_link;
 			obj->sections[i]->info = obj->shdr32[i].sh_info;
@@ -316,7 +323,8 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 			break;
 		case x64:
 			obj->sections[i]->name =
-			    strdup(&obj->shstrtab[obj->shdr64[obj->shdr64[i].sh_name].sh_offset]);
+			    strdup(&obj->shstrtab[obj->shdr64[i].sh_name]);
+			printf("setting it to %s\n", obj->sections[i]->name);
 			obj->sections[i]->type = obj->shdr64[i].sh_type;
 			obj->sections[i]->link = obj->shdr64[i].sh_link;
 			obj->sections[i]->info = obj->shdr64[i].sh_info;
@@ -331,7 +339,7 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 	}
 
 	qsort(obj->sections, section_count,
-	    sizeof(struct elf_section), section_name_cmp);
+	    sizeof(struct elf_section *), section_name_cmp);
 
 	/*
 	 * Set the remaining elf object pointers to the various data structures in the
