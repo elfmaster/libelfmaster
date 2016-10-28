@@ -60,6 +60,58 @@ get_elf_section_by_name(struct elfobj *obj, const char *name,
 	return true;
 }
 
+bool
+elf_note_iterator_init(struct elfobj *obj, struct elf_note_iterator *iter)
+{
+
+	iter->obj = obj;
+	iter->index = 0;
+	switch(iter->obj->arch) {
+	case i386:
+		iter->note32 = iter->obj->note32;
+		break;
+	case x64:
+		printf("Setting note to %p\n", iter->obj->note64);
+		iter->note64 = iter->obj->note64;
+		break;
+	default:
+		return false;
+	}
+	return true;
+}
+
+elf_iterator_res_t
+elf_note_iterator_next(struct elf_note_iterator *iter, elf_note_entry_t *entry)
+{
+	size_t entry_len;
+
+	if (iter->index >= iter->obj->note_size)
+		return ELF_ITER_DONE;
+
+	switch(iter->obj->arch) {
+	case i386:
+		entry->mem = ELFNOTE_DESC(iter->note32);
+		entry->size = iter->note32->n_descsz;
+		entry->type = iter->note32->n_type;
+		entry_len = ELFNOTE_ALIGN(iter->note32->n_descsz +
+		    iter->note32->n_namesz + sizeof(long));
+		iter->note32 = ELFNOTE32_NEXT(iter->note32);
+		break;
+	case x64:
+		entry->mem = ELFNOTE_DESC(iter->note64);
+		entry->size = iter->note64->n_descsz;
+		entry->type = iter->note64->n_type;
+		entry_len = ELFNOTE_ALIGN(iter->note64->n_descsz +
+		    iter->note64->n_namesz + sizeof(long));
+		iter->note64 = ELFNOTE64_NEXT(iter->note64);
+		break;
+	default:
+		return ELF_ITER_ERROR;
+	}
+	iter->index += entry_len;
+	return ELF_ITER_OK;
+}
+
 void
 elf_segment_iterator_init(struct elfobj *obj, struct elf_segment_iterator *iter)
 {
@@ -203,6 +255,7 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		close(fd);
 		return false;
 	}
+	obj->mem = mem;
 
 	if (memcmp(mem, "\x7f\x45\x4c\x46", 4) != 0) {
 		elf_error_set(error, "invalid ELF file magic", strerror(errno));
@@ -252,6 +305,18 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 			    obj->ehdr32->e_shentsize);
 			goto err;
 		}
+		for (i = 0; i < obj->ehdr32->e_phnum; i++) {
+			if (obj->phdr32[i].p_type == PT_NOTE) {
+				obj->note32 = (Elf32_Nhdr *)&obj->mem[obj->phdr32[i].p_offset];
+				obj->note_size = obj->phdr32[i].p_filesz;
+			} else if (obj->phdr32[i].p_type == PT_DYNAMIC) {
+				obj->dynamic32 = (Elf32_Dyn *)&obj->mem[obj->phdr32[i].p_offset];
+				obj->dynamic_size = obj->phdr32[i].p_filesz;
+			} else if (obj->phdr32[i].p_type == PT_GNU_EH_FRAME) {
+				obj->eh_frame = &obj->mem[obj->phdr32[i].p_offset];
+				obj->eh_frame_size = obj->phdr32[i].p_filesz;
+			}
+		}
 		break;
 	case EM_X86_64:
 		obj->arch = x64;
@@ -286,6 +351,19 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 			elf_error_set(error, "invalid_e_shentsize: %u",
 			    obj->ehdr64->e_shentsize);
 			goto err;
+		}
+		for (i = 0; i < obj->ehdr64->e_phnum; i++) {
+			if (obj->phdr64[i].p_type == PT_NOTE) {
+				printf("Setting note segment: %p\n", &obj->mem[obj->phdr64[i].p_offset]);
+				obj->note64 = (Elf64_Nhdr *)&obj->mem[obj->phdr64[i].p_offset];
+				obj->note_size = obj->phdr64[i].p_filesz;
+			} else if (obj->phdr64[i].p_type == PT_DYNAMIC) {
+				obj->dynamic64 = (Elf64_Dyn *)&obj->mem[obj->phdr64[i].p_offset];
+				obj->dynamic_size = obj->phdr64[i].p_filesz;
+			} else if (obj->phdr64[i].p_type == PT_GNU_EH_FRAME) {
+				obj->eh_frame = &obj->mem[obj->phdr64[i].p_offset];
+				obj->eh_frame_size = obj->phdr64[i].p_filesz;
+			}
 		}
 		break;
 	default:
@@ -326,7 +404,6 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		case x64:
 			obj->sections[i]->name =
 			    strdup(&obj->shstrtab[obj->shdr64[i].sh_name]);
-			printf("setting it to %s\n", obj->sections[i]->name);
 			obj->sections[i]->type = obj->shdr64[i].sh_type;
 			obj->sections[i]->link = obj->shdr64[i].sh_link;
 			obj->sections[i]->info = obj->shdr64[i].sh_info;

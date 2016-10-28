@@ -7,6 +7,13 @@
 
 #define MAX_ERROR_STR_LEN 128
 
+#define ELFNOTE_NAME(_n_) ((unsigned char*)(_n_) + sizeof(*(_n_)))
+#define ELFNOTE_ALIGN(_n_) (((_n_)+3)&~3)
+#define ELFNOTE_NAME(_n_) ((unsigned char*)(_n_) + sizeof(*(_n_)))
+#define ELFNOTE_DESC(_n_) (ELFNOTE_NAME(_n_) + ELFNOTE_ALIGN((_n_)->n_namesz))
+#define ELFNOTE32_NEXT(_n_) ((Elf32_Nhdr *)(ELFNOTE_DESC(_n_) + ELFNOTE_ALIGN((_n_)->n_descsz)))
+#define ELFNOTE64_NEXT(_n_) ((Elf64_Nhdr *)(ELFNOTE_DESC(_n_) + ELFNOTE_ALIGN((_n_)->n_descsz)))
+
 typedef struct elf_error {
         char string[MAX_ERROR_STR_LEN];
         int _errno;
@@ -74,7 +81,11 @@ typedef struct elfobj {
 		Elf32_Dyn *dynamic32;
 		Elf64_Dyn *dynamic64;
 	};
-
+	union {
+		Elf32_Nhdr *note32;
+		Elf64_Nhdr *note64;
+	};
+	void *eh_frame;
 	/*
 	 * Sorted sections and segments
 	 */
@@ -91,6 +102,9 @@ typedef struct elfobj {
 	size_t size;
 	size_t section_count;
 	size_t segment_count;
+	size_t note_size;
+	size_t dynamic_size;
+	size_t eh_frame_size;
 } elfobj_t;
 
 typedef struct elf_section_iterator {
@@ -102,6 +116,21 @@ typedef struct elf_segment_iterator {
 	unsigned int index;
 	elfobj_t *obj;
 } elf_segment_iterator_t;
+
+typedef struct elf_note_iterator {
+	unsigned int index;
+	elfobj_t *obj;
+	union {
+		Elf32_Nhdr *note32;
+		Elf64_Nhdr *note64;
+	};
+} elf_note_iterator_t;
+
+typedef struct elf_note_entry {
+	unsigned int type;
+	size_t size;
+	void *mem;
+} elf_note_entry_t;
 
 typedef enum elf_iterator_res {
 	ELF_ITER_OK,
@@ -145,3 +174,7 @@ elf_iterator_res_t elf_section_iterator_next(elf_section_iterator_t *, struct el
  */
 void elf_segment_iterator_init(elfobj_t *, elf_segment_iterator_t *);
 elf_iterator_res_t elf_segment_iterator_next(elf_segment_iterator_t *, struct elf_segment *);
+
+bool elf_note_iterator_init(elfobj_t *, elf_note_iterator_t *);
+elf_iterator_res_t elf_note_iterator_next(elf_note_iterator_t *, elf_note_entry_t *);
+
