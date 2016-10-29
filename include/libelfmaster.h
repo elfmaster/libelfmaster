@@ -7,6 +7,11 @@
 
 #define MAX_ERROR_STR_LEN 128
 
+/*
+ * In reality will never exceed 2,3, or 4 at the highest.
+ */
+#define MAX_LOADABLE_MAPPINGS 8
+
 #define ELFNOTE_NAME(_n_) ((unsigned char*)(_n_) + sizeof(*(_n_)))
 #define ELFNOTE_ALIGN(_n_) (((_n_)+3)&~3)
 #define ELFNOTE_NAME(_n_) ((unsigned char*)(_n_) + sizeof(*(_n_)))
@@ -52,6 +57,12 @@ struct elf_segment {
 	uint64_t filesz;
 	uint64_t memsz;
 	uint64_t align;
+};
+
+struct elf_mapping {
+	uint8_t *mem[MAX_LOADABLE_MAPPINGS];
+	unsigned int index;
+	size_t len;
 };
 
 typedef struct elfobj {
@@ -105,6 +116,7 @@ typedef struct elfobj {
 	size_t note_size;
 	size_t dynamic_size;
 	size_t eh_frame_size;
+	uint64_t entry_point;
 } elfobj_t;
 
 typedef struct elf_section_iterator {
@@ -190,3 +202,8 @@ elf_iterator_res_t elf_note_iterator_next(elf_note_iterator_t *, elf_note_entry_
 
 void elf_dynamic_iterator_init(elfobj_t *, elf_dynamic_iterator_t *);
 elf_iterator_res_t elf_dynamic_iterator_next(elf_dynamic_iterator_t *, elf_dynamic_entry_t *);
+
+uint64_t elf_entry_point(elfobj_t *);
+uint32_t elf_type(elfobj_t *);
+
+bool elf_map_loadable_segments(elfobj_t *, struct elf_mapping *, elf_error_t *);

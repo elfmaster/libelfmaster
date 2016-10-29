@@ -11,6 +11,8 @@
 
 #include "../include/libelfmaster.h"
 
+#define ROUNDUP(x, y) ((x + (y - 1)) & ~(y - 1))
+
 static bool
 elf_error_set(elf_error_t *error, const char *fmt, ...)
 {
@@ -57,6 +59,46 @@ get_elf_section_by_name(struct elfobj *obj, const char *name,
 	if (res == NULL)
 		return false;
 	memcpy(out, *res, sizeof(*out));
+	return true;
+}
+
+uint64_t elf_entry_point(struct elfobj *obj)
+{
+
+	return obj->entry_point;
+}
+
+uint32_t elf_type(struct elfobj *obj)
+{
+
+	return obj->type;
+}
+
+bool
+elf_map_loadable_segments(struct elfobj *obj, struct elf_mapping *mapping,
+    elf_error_t *error)
+{
+	elf_segment_iterator_t p_iter;
+	struct elf_segment segment;
+
+	elf_segment_iterator_init(obj, &p_iter);
+	while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
+		uintptr_t map_addr;
+		size_t map_size;
+
+		if (segment.type != PT_LOAD)
+			continue;
+		map_addr = segment.vaddr & ~4095;
+		map_size = segment.memsz + ((uint64_t)segment.vaddr %
+		    0x1000);
+		map_size = ROUNDUP(map_size, segment.align);
+		mapping->mem[mapping->index] = mmap((void *)map_addr,
+		    map_size, PROT_READ|PROT_WRITE|PROT_EXEC,
+		    MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+		if (mapping->mem[mapping->index] == MAP_FAILED) {
+			return elf_error_set(error, "mmap: %s", strerror(errno));
+		}
+	}
 	return true;
 }
 
@@ -332,6 +374,8 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		obj->ehdr32 = (Elf32_Ehdr *)mem;
 		obj->phdr32 = (Elf32_Phdr *)&mem[obj->ehdr32->e_phoff];
 		obj->shdr32 = (Elf32_Shdr *)&mem[obj->ehdr32->e_shoff];
+		obj->entry_point = obj->ehdr32->e_entry;
+		obj->type = obj->ehdr32->e_type;
 		obj->segment_count = obj->ehdr32->e_phnum;
 		if (obj->ehdr32->e_shstrndx > obj->size) {
 			elf_error_set(error, "invalid e_shstrndx: %u\n",
@@ -379,6 +423,8 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		obj->ehdr64 = (Elf64_Ehdr *)mem;
 		obj->phdr64 = (Elf64_Phdr *)&mem[obj->ehdr64->e_phoff];
 		obj->shdr64 = (Elf64_Shdr *)&mem[obj->ehdr64->e_shoff];
+		obj->entry_point = obj->ehdr64->e_entry;
+		obj->type = obj->ehdr64->e_type;
 		obj->segment_count = obj->ehdr64->e_phnum;
 		if (obj->ehdr64->e_shstrndx > obj->size) {
 			elf_error_set(error, "invalid e_shstrndx: %lu",
