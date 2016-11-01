@@ -246,8 +246,7 @@ void
 elf_symtab_iterator_init(struct elfobj *obj, struct elf_symtab_iterator *iter)
 {
 
-	iter->obj = obj;
-	iter->index = 0;
+	iter->current = LIST_FIRST(&obj->list.symtab);
 	return;
 }
 
@@ -255,16 +254,11 @@ elf_iterator_res_t
 elf_symtab_iterator_next(struct elf_symtab_iterator *iter,
     struct elf_symbol *symbol)
 {
-	ENTRY *entry = NULL;
 
-	if (iter->index >= iter->obj->cache.symtab.size) {
+	if (iter->current == NULL)
 		return ELF_ITER_DONE;
-	}
-	do {
-		entry = ((ENTRY *)iter->obj->cache.symtab.table + iter->index++);
-	} while (entry->data == NULL);
-
-	memcpy(symbol, entry->data, sizeof(*symbol));
+	memcpy(symbol, iter->current, sizeof(*symbol));
+	iter->current = LIST_NEXT(iter->current, _linkage);
 	return ELF_ITER_OK;
 }
 
@@ -272,8 +266,7 @@ void
 elf_dynsym_iterator_init(struct elfobj *obj, struct elf_dynsym_iterator *iter)
 {
 
-	iter->obj = obj;
-	iter->index = 0;
+	iter->current = LIST_FIRST(&obj->list.dynsym);
 	return;
 }
 
@@ -281,15 +274,11 @@ elf_iterator_res_t
 elf_dynsym_iterator_next(struct elf_dynsym_iterator *iter,
     struct elf_symbol *symbol)
 {
-	ENTRY *entry = NULL;
 
-	if (iter->index >= iter->obj->cache.symtab.size)
+	if (iter->current == NULL)
 		return ELF_ITER_DONE;
-	do {
-		entry = ((ENTRY *)iter->obj->cache.symtab.table + iter->index++);
-	} while (entry->data == NULL);
-
-	memcpy(symbol, entry->data, sizeof(*symbol));
+	memcpy(symbol, iter->current, sizeof(*symbol));
+	iter->current = LIST_NEXT(iter->current, _linkage);
 	return ELF_ITER_OK;
 }
 

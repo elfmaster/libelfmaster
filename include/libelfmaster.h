@@ -212,13 +212,11 @@ typedef struct elf_dynamic_entry {
 } elf_dynamic_entry_t;
 
 typedef struct elf_symtab_iterator {
-	unsigned int index;
-	elfobj_t *obj;
+	struct elf_symbol_node *current;
 } elf_symtab_iterator_t;
 
 typedef struct elf_dynsym_iterator {
-	unsigned int index;
-	elfobj_t *obj;
+	struct elf_symbol_node *current;
 } elf_dynsym_iterator_t;
 
 typedef enum elf_iterator_res {
