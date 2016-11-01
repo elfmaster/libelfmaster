@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <errno.h>
-
+#include <search.h>
 #include "../include/libelfmaster.h"
 
 #define ROUNDUP(x, y) ((x + (y - 1)) & ~(y - 1))
@@ -62,6 +62,32 @@ get_elf_section_by_name(struct elfobj *obj, const char *name,
 	return true;
 }
 
+bool
+elf_symbol_by_name(struct elfobj *obj, const char *name,
+    struct elf_symbol *out)
+{
+	ENTRY e = {.key = (char *)name, NULL}, *ep;
+	int n;
+
+	if (name == NULL)
+		return false;
+	if (obj->flags & ELF_HAS_SYMTAB) {
+		n = hsearch_r(e, FIND, &ep, &obj->cache.symtab);
+		if (n != 0) {
+			memcpy(out, ep->data, sizeof(*out));
+			return true;
+		}
+	}
+	if (obj->flags & ELF_HAS_DYNSYM) {
+		n = hsearch_r(e, FIND, &ep, &obj->cache.dynsym);
+		if (n != 0) {
+			memcpy(out, ep->data, sizeof(*out));
+			return true;
+		}
+	}
+	return false;
+}
+
 uint64_t elf_entry_point(struct elfobj *obj)
 {
 
@@ -74,6 +100,106 @@ uint32_t elf_type(struct elfobj *obj)
 	return obj->type;
 }
 
+static bool
+build_dynsym_data(struct elfobj *obj)
+{
+	ENTRY e, *ep;
+	unsigned int i;
+	Elf32_Sym *dsym32;
+	Elf64_Sym *dsym64;
+	struct elf_dynsym_list *list = &obj->list.dynsym;
+
+	LIST_INIT(&obj->list.symtab);
+
+	for (i = 0; i < obj->dynsym_count; i++) {
+		struct elf_symbol_node *symbol = malloc(sizeof(*symbol));
+
+		if (symbol == NULL)
+			return false;
+
+		switch(obj->arch) {
+		case i386:
+			dsym32 = obj->dynsym32;
+			symbol->name = &obj->dynstr[dsym32[i].st_name];
+			symbol->value = dsym32[i].st_value;
+			symbol->info = dsym32[i].st_info;
+			symbol->other = dsym32[i].st_other;
+			symbol->shndx = dsym32[i].st_shndx;
+			symbol->size = dsym32[i].st_size;
+			break;
+		case x64:
+			dsym64 = obj->dynsym64;
+			symbol->name = &obj->dynstr[dsym64[i].st_name];
+			symbol->value = dsym64[i].st_value;
+			symbol->info = dsym64[i].st_info;
+			symbol->other = dsym64[i].st_other;
+			symbol->shndx = dsym64[i].st_shndx;
+			symbol->size = dsym64[i].st_size;
+			break;
+		}
+		e.key = (char *)symbol->name;
+		e.data = (void *)symbol;
+		hsearch_r(e, ENTER, &ep, &obj->cache.dynsym);
+		if (ep == NULL && errno == ENOMEM)
+			return false;
+		/*
+		 * We also maintain a linked list for the iterator
+		 */
+		LIST_INSERT_HEAD(list, symbol, _linkage);
+	}
+	return true;
+}
+
+static bool
+build_symtab_data(struct elfobj *obj)
+{
+	ENTRY e, *ep;
+	unsigned int i;
+	Elf32_Sym *symtab32;
+	Elf64_Sym *symtab64;
+	struct elf_symtab_list *list = &obj->list.symtab;
+
+	LIST_INIT(&obj->list.symtab);
+
+	for (i = 0; i < obj->symtab_count; i++) {
+		struct elf_symbol_node *symbol = malloc(sizeof(*symbol));
+
+		if (symbol == NULL)
+			return false;
+
+		switch(obj->arch) {
+		case i386:
+			symtab32 = obj->symtab32;
+			symbol->name = &obj->strtab[symtab32[i].st_name];
+			symbol->value = symtab32[i].st_value;
+			symbol->info = symtab32[i].st_info;
+			symbol->other = symtab32[i].st_other;
+			symbol->shndx = symtab32[i].st_shndx;
+			symbol->size = symtab32[i].st_size;
+			break;
+		case x64:
+			symtab64 = obj->symtab64;
+			symbol->name = &obj->strtab[symtab64[i].st_name];
+			symbol->value = symtab64[i].st_value;
+			symbol->info = symtab64[i].st_info;
+			symbol->other = symtab64[i].st_other;
+			symbol->shndx = symtab64[i].st_shndx;
+			symbol->size = symtab64[i].st_size;
+			break;
+		}
+		e.key = (char *)symbol->name;
+		e.data = (char *)symbol;
+		hsearch_r(e, ENTER, &ep, &obj->cache.symtab);
+		if (ep == NULL && errno == ENOMEM)
+			return false;
+		/*
+		 * We also maintain a linked list for the iterator
+		 */
+		LIST_INSERT_HEAD(list, symbol, _linkage);
+	}
+	return true;
+}
+
 bool
 elf_map_loadable_segments(struct elfobj *obj, struct elf_mapping *mapping,
     elf_error_t *error)
@@ -81,25 +207,90 @@ elf_map_loadable_segments(struct elfobj *obj, struct elf_mapping *mapping,
 	elf_segment_iterator_t p_iter;
 	struct elf_segment segment;
 
+	memset(mapping, 0, sizeof(*mapping));
+
 	elf_segment_iterator_init(obj, &p_iter);
 	while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
 		uintptr_t map_addr;
 		size_t map_size;
+		uint64_t map_off;
 
 		if (segment.type != PT_LOAD)
 			continue;
-		map_addr = segment.vaddr & ~4095;
-		map_size = segment.memsz + ((uint64_t)segment.vaddr %
-		    0x1000);
-		map_size = ROUNDUP(map_size, segment.align);
+		map_addr = segment.vaddr & ~0xfff;
+		map_size = ROUNDUP(segment.memsz, 0x1000);
 		mapping->mem[mapping->index] = mmap((void *)map_addr,
 		    map_size, PROT_READ|PROT_WRITE|PROT_EXEC,
-		    MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+		    MAP_FIXED|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+
 		if (mapping->mem[mapping->index] == MAP_FAILED) {
 			return elf_error_set(error, "mmap: %s", strerror(errno));
 		}
+
+		map_off = segment.vaddr & 0xfff;
+		memcpy(&mapping->mem[mapping->index][map_off],
+		    &obj->mem[segment.offset], segment.filesz);
+
+		mapping->flags = segment.flags;
+		if (mprotect(mapping->mem[mapping->index], map_size,
+		    segment.flags) < 0) {
+			return elf_error_set(error, "mprotect: %s",
+			    strerror(errno));
+		}
+		mapping->index++;
 	}
 	return true;
+}
+
+void
+elf_symtab_iterator_init(struct elfobj *obj, struct elf_symtab_iterator *iter)
+{
+
+	iter->obj = obj;
+	iter->index = 0;
+	return;
+}
+
+elf_iterator_res_t
+elf_symtab_iterator_next(struct elf_symtab_iterator *iter,
+    struct elf_symbol *symbol)
+{
+	ENTRY *entry = NULL;
+
+	if (iter->index >= iter->obj->cache.symtab.size) {
+		return ELF_ITER_DONE;
+	}
+	do {
+		entry = ((ENTRY *)iter->obj->cache.symtab.table + iter->index++);
+	} while (entry->data == NULL);
+
+	memcpy(symbol, entry->data, sizeof(*symbol));
+	return ELF_ITER_OK;
+}
+
+void
+elf_dynsym_iterator_init(struct elfobj *obj, struct elf_dynsym_iterator *iter)
+{
+
+	iter->obj = obj;
+	iter->index = 0;
+	return;
+}
+
+elf_iterator_res_t
+elf_dynsym_iterator_next(struct elf_dynsym_iterator *iter,
+    struct elf_symbol *symbol)
+{
+	ENTRY *entry = NULL;
+
+	if (iter->index >= iter->obj->cache.symtab.size)
+		return ELF_ITER_DONE;
+	do {
+		entry = ((ENTRY *)iter->obj->cache.symtab.table + iter->index++);
+	} while (entry->data == NULL);
+
+	memcpy(symbol, entry->data, sizeof(*symbol));
+	return ELF_ITER_OK;
 }
 
 void
@@ -518,6 +709,9 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		}
 	}
 
+	/*
+	 * Sorting an array of pointers to struct elf_section
+	 */
 	qsort(obj->sections, section_count,
 	    sizeof(struct elf_section *), section_name_cmp);
 
@@ -541,10 +735,14 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		} else if (strcmp(sname, ".symtab") == 0) {
 			switch(obj->arch) {
 			case i386:
+				obj->symtab_count = obj->shdr32[i].sh_size /
+				    sizeof(Elf32_Sym);
 				obj->symtab32 =
 				    (Elf32_Sym *)&mem[sh_offset];
 				break;
 			case x64:
+				obj->symtab_count = obj->shdr64[i].sh_size /
+				    sizeof(Elf64_Sym);
 				obj->symtab64 =
 				    (Elf64_Sym *)&mem[sh_offset];
 				break;
@@ -552,10 +750,14 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		} else if (strcmp(sname, ".dynsym") == 0) {
 			switch(obj->arch) {
 			case i386:
+				obj->dynsym_count = obj->shdr32[i].sh_size /
+				    sizeof(Elf32_Sym);
 				obj->dynsym32 =
 				    (Elf32_Sym *)&mem[sh_offset];
 				break;
 			case x64:
+				obj->dynsym_count = obj->shdr64[i].sh_size /
+				    sizeof(Elf64_Sym);
 				obj->dynsym64 =
 				    (Elf64_Sym *)&mem[sh_offset];
 				break;
@@ -566,6 +768,24 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 			obj->strtab = (char *)&mem[sh_offset];
 		}
 	}
+	/*
+	 * Build a cache for symtab and dynsym as needed.
+	 */
+	hcreate_r(obj->symtab_count, &obj->cache.symtab);
+	hcreate_r(obj->dynsym_count, &obj->cache.dynsym);
+	if (build_dynsym_data(obj) == false) {
+		elf_error_set(error, "failed to build dynamic symbol data");
+		goto err;
+	}
+	if (build_symtab_data(obj) == false) {
+		elf_error_set(error, "failed to build symtab symbol data");
+		goto err;
+	}
+	if (obj->dynsym_count > 0)
+		obj->flags |= ELF_HAS_DYNSYM;
+	if (obj->symtab_count > 0)
+		obj->flags |= ELF_HAS_SYMTAB;
+
 	return true;
 err:
 	close(fd);

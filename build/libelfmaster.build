@@ -3,7 +3,7 @@ CXX=/usr/bin/g++
 MAKE=make
 SRC_DIR=/home/elfmaster/git/libelfmaster
 BUILD_DIR=/home/elfmaster/git/libelfmaster
-CFLAGS=-D_DEFAULT_SOURCE -D_GNU_SOURCE -D_BSD_SOURCE -std=gnu99 -Wall -W -Wundef -Wendif-labels -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Wstrict-prototypes -Wmissing-prototypes -Wnested-externs -Winline -Wdisabled-optimization -fstrict-aliasing -O2 -pipe -Wno-parentheses -g -rdynamic -fno-omit-frame-pointer -I/home/elfmaster/git/libelfmaster/include -I/home/elfmaster/git/libelfmaster/include -I/opt/elfmaster/include -D__x86_64__ -I/usr/local/include    -m64 -fPIC -I$(SRC_DIR)/include -I$(BUILD_DIR)/include
+CFLAGS=-D_DEFAULT_SOURCE -D_GNU_SOURCE -D_BSD_SOURCE -std=gnu99 -Wall -W -Wundef -Wendif-labels -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Wstrict-prototypes -Wmissing-prototypes -Wnested-externs -Winline -Wdisabled-optimization -fstrict-aliasing -O2 -pipe -Wno-parentheses -g -rdynamic -fno-omit-frame-pointer -I/home/elfmaster/git/libelfmaster/include -I/home/elfmaster/git/libelfmaster/include -I/opt/elfmaster/include -D__x86_64__ -I/usr/local/include  -D__x86_64__ -D_GNU_SOURCE -I/opt/elfmaster/include   -m64 -fPIC -I$(SRC_DIR)/include -I$(BUILD_DIR)/include
 CXXFLAGS=-D_DEFAULT_SOURCE -D_GNU_SOURCE -D_BSD_SOURCE -std=gnu++98 -Wall -W -Wundef -Wendif-labels -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Winline -Wdisabled-optimization -fstrict-aliasing -O2 -pipe -Wno-parentheses -g -rdynamic -fno-omit-frame-pointer -I/home/elfmaster/git/libelfmaster/include -I/home/elfmaster/git/libelfmaster/include -I/opt/elfmaster/include  -m64 -I$(SRC_DIR)/include -I$(BUILD_DIR)/include -I.
 LDFLAGS=-Wl,-rpath,/opt/elfmaster/lib -Wl,-rpath-link,/opt/elfmaster/lib  -fPIC
 LD=/usr/bin/cc

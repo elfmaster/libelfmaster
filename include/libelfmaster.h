@@ -1,9 +1,14 @@
+#ifndef _LIBELFMASTER_H_
+#define _LIBELFMASTER_H_
+
 #include <elf.h>
 #include <link.h>
 #include <stdint.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <search.h>
+#include <sys/queue.h>
 
 #define MAX_ERROR_STR_LEN 128
 
@@ -29,6 +34,14 @@ typedef enum elf_arch {
 	x64
 } elf_arch_t;
 
+typedef enum elf_obj_flags {
+	ELF_HAS_SYMTAB =		(1 << 0),
+	ELF_HAS_DYNSYM =		(1 << 1),
+	ELF_HAS_PHDRS =			(1 << 2),
+	ELF_HAS_SHDRS =			(1 << 3),
+	ELF_HAS_NOTE =			(1 << 4)
+} elf_obj_flags_t;
+
 /*
  * Portable ELF section type. Contains pointer to
  * actual string. These sections are also stored in
@@ -46,6 +59,7 @@ struct elf_section {
 	uint64_t offset;
 	uint64_t address;
 	size_t size;
+	unsigned int index;
 };
 
 struct elf_segment {
@@ -57,16 +71,43 @@ struct elf_segment {
 	uint64_t filesz;
 	uint64_t memsz;
 	uint64_t align;
+	unsigned int index;
 };
 
-struct elf_mapping {
+struct elf_symbol {
+	const char *name;
+	uint64_t value;
+	uint64_t size;
+	uint16_t shndx;
+	uint8_t info;
+	uint8_t other;
+};
+
+struct elf_symbol_node {
+	const char *name;
+	uint64_t value;
+	uint64_t size;
+	uint16_t shndx;
+	uint8_t info;
+	uint8_t other;
+	LIST_ENTRY(elf_symbol_node) _linkage;
+};
+
+typedef struct elf_mapping {
 	uint8_t *mem[MAX_LOADABLE_MAPPINGS];
 	unsigned int index;
+	unsigned int flags;
 	size_t len;
-};
+} elf_mapping_t;
 
+/*
+ * This struct is not meant to access directly. It is an opaque
+ * type. It is only accessed directly from within the API code
+ * itself (obviously).
+ */
 typedef struct elfobj {
 	elf_arch_t arch;
+	elf_obj_flags_t flags;
 	unsigned int type;
 	union {
 		Elf32_Ehdr *ehdr32;
@@ -104,6 +145,20 @@ typedef struct elfobj {
 	struct elf_segment **segments;
 
 	/*
+	 * caches
+	 */
+	struct {
+		struct hsearch_data symtab;
+		struct hsearch_data dynsym;
+	} cache;
+	/*
+	 * lists
+	 */
+	struct {
+		LIST_HEAD(elf_symtab_list, elf_symbol_node) symtab;
+		LIST_HEAD(elf_dynsym_list, elf_symbol_node) dynsym;
+	} list;
+	/*
 	 * Pointers to .dynstr, .strtab, and .shstrtab
 	 */
 	char *dynstr;
@@ -113,6 +168,8 @@ typedef struct elfobj {
 	size_t size;
 	size_t section_count;
 	size_t segment_count;
+	size_t symtab_count;
+	size_t dynsym_count;
 	size_t note_size;
 	size_t dynamic_size;
 	size_t eh_frame_size;
@@ -153,6 +210,16 @@ typedef struct elf_dynamic_entry {
 	unsigned int tag;
 	uint64_t value;
 } elf_dynamic_entry_t;
+
+typedef struct elf_symtab_iterator {
+	unsigned int index;
+	elfobj_t *obj;
+} elf_symtab_iterator_t;
+
+typedef struct elf_dynsym_iterator {
+	unsigned int index;
+	elfobj_t *obj;
+} elf_dynsym_iterator_t;
 
 typedef enum elf_iterator_res {
 	ELF_ITER_OK,
@@ -203,7 +270,16 @@ elf_iterator_res_t elf_note_iterator_next(elf_note_iterator_t *, elf_note_entry_
 void elf_dynamic_iterator_init(elfobj_t *, elf_dynamic_iterator_t *);
 elf_iterator_res_t elf_dynamic_iterator_next(elf_dynamic_iterator_t *, elf_dynamic_entry_t *);
 
+void elf_symtab_iterator_init(elfobj_t *, elf_symtab_iterator_t *);
+elf_iterator_res_t elf_symtab_iterator_next(elf_symtab_iterator_t *, struct elf_symbol *);
+
+void elf_dynsym_iterator_init(elfobj_t *, elf_dynsym_iterator_t *);
+elf_iterator_res_t elf_dynsym_iterator_next(elf_dynsym_iterator_t *, struct elf_symbol *);
+
 uint64_t elf_entry_point(elfobj_t *);
 uint32_t elf_type(elfobj_t *);
 
 bool elf_map_loadable_segments(elfobj_t *, struct elf_mapping *, elf_error_t *);
+
+bool elf_symbol_by_name(elfobj_t *, const char *, struct elf_symbol *);
+#endif
