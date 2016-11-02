@@ -12,18 +12,6 @@
 #include "../include/libelfmaster.h"
 
 #define ROUNDUP(x, y) ((x + (y - 1)) & ~(y - 1))
-#define SHDR_TO_ELF_SECTION(dst, src, obj)	\
-do {						\
-	dst->name = &obj->shstrtab[src->sh_name];\
-	dst->type = src->sh_type;		\
-	dst->link = src->sh_link;		\
-	dst->info = src->sh_info;		\
-	dst->flags = src->sh_flags;		\
-	dst->align = src->sh_addralign;		\
-	dst->entsize = src->sh_entsize;		\
-	dst->offset = src->sh_offset;		\
-	dst->size = src->sh_size;		\
-} while(0);					\
 
 static bool
 elf_error_set(elf_error_t *error, const char *fmt, ...)
@@ -110,16 +98,44 @@ elf_symbol_by_name(struct elfobj *obj, const char *name,
 	return false;
 }
 
-uint64_t elf_entry_point(struct elfobj *obj)
+uint64_t
+elf_entry_point(struct elfobj *obj)
 {
 
 	return obj->entry_point;
 }
 
-uint32_t elf_type(struct elfobj *obj)
+uint32_t
+elf_type(struct elfobj *obj)
 {
 
 	return obj->type;
+}
+
+void *
+elf_offset_to_pointer(elfobj_t *obj, uint64_t off)
+{
+
+	return (void *)((uint8_t *)&obj->mem[off]);
+}
+
+void *
+elf_section_pointer(elfobj_t *obj, void *shdr)
+{
+	union {
+		Elf32_Shdr *shdr32;
+		Elf64_Shdr *shdr64;
+	};
+
+	switch(obj->arch) {
+	case i386:
+		shdr32 = (Elf32_Shdr *)shdr;
+		return (void *)((uint8_t *)&obj->mem[shdr32[i].sh_offset]);
+	case x64:
+		shdr64 = (Elf64_Shdr *)shdr;
+		return (void *)((uint8_t *)&obj->mem[shdr64[i].sh_offset]);
+	}
+	return NULL;
 }
 
 static bool
@@ -264,21 +280,122 @@ elf_map_loadable_segments(struct elfobj *obj, struct elf_mapping *mapping,
 	return true;
 }
 
-void
+bool
 elf_relocation_iterator_init(struct elfobj *obj,
     struct elf_relocation_iterator *iter)
 {
 
-	iter->obj = obj;
-	iter->index = 0;
-	return;
+	LIST_INIT(&iter->list);
+	if (obj->arch == i386) {
+		Elf32_Ehdr *ehdr32 = obj->ehdr32;
+		Elf32_Shdr *shdr32 = obj->shdr32;
+
+		/*
+		 * We build a linked list which contains the relocation sections
+		 * that we must parse.
+		 */
+		for (i = 0; i <	ehdr32->e_shnum; i++) {
+			unsigned int type = shdr32[i].sh_type;
+
+			if (type == SHT_REL || type == SHT_RELA) {
+				struct elf_rel_helper_node *n =
+				    malloc(sizeof(*n));
+
+				if (n == NULL)
+					return false;
+
+				n->size = shdr32[i].sh_size;
+				if (type == SHT_REL) {
+					n->rel32 = elf_section_pointer(obj,
+					    &shdr32[i]);
+					if (n->rela32 == NULL)
+						return false;
+					n->addend = false;
+				} else if (type == SHT_RELA) {
+					n->rela32 = elf_section_pointer(obj,
+					    &shdr32[i]);
+					if (n->rela32 == NULL)
+						return false;
+					n->addend = true;
+				}a
+				n->section_name = elf_section_name_by_index(obj, i);
+				LIST_INSERT_HEAD(&iter->list, n, _linkage);
+			}
+		}
+	} else if (obj->arch == x64) {
+		Elf64_Ehdr *ehdr64 = obj->ehdr64;
+		Elf64_Shdr *shdr64 = obj->shdr64;
+
+		for (i = 0; i < ehdr64->e_shnum; i++) {
+			unsigned int type = shdr64[i].sh_type;
+
+			if (type == SHT_REL || type == SHT_RELA) {
+				struct elf_rel_helper_node *n =
+				    malloc(sizeof(*n));
+
+				if (n == NULL)
+					return false;
+
+				n->size = shdr64[i].sh_size;
+				if (type == SHT_REL) {
+					n->rel64 = elf_section_pointer(obj,
+					    &shdr64[i]);
+					if (n->rela64 == NULL)
+						return false;
+					n->addend = false;
+				} else if (type == SHT_RELA) {
+					n->rela64 = elf_section_pointer(obj,
+					    &shdr64[i]);
+					if (n->rela64 == NULL)
+						return false;
+					n->addend = true;
+				}
+				LIST_INSERT_HEAD(&iter->list, n, _linkage);
+			}
+		}
+	} else {
+		/*
+		 * Should never get here.
+		 */
+		return false;
+	}
+	iter->current = LIST_FIRST(&iter->list);
+	return true;
 }
 
 elf_iterator_res_t
 elf_relocation_iterator_next(struct elf_relocation_iterator *iter,
     struct elf_relocation *entry)
 {
+	struct elf_rel_helper_node *current;
 
+begin:
+	current = iter->current;
+	if (current == NULL)
+		return ELF_ITER_DONE;
+	if (iter->obj->arch == i386) {
+		unsigned int i = iter->index;
+		const size_t entsz = current->addend ? sizeof(Elf32_Rela) :
+		    sizeof(Elf32_Rel);
+
+		if (iter->index >= iter->current->size / entsz) {
+			iter->index = 0;
+			iter->current = LIST_NEXT(iter->current, _linkage);
+			goto begin;
+		}
+		if (current->addend == true) {
+			struct elf_symbol symbol;
+			const unsigned int symidx =
+			    ELF32_R_SYM(current->rela64[i].r_info);
+
+			if (elf_symbol_by_index(obj, symidx, &symbol) == false)
+				return false;
+			
+			entry->offset = current->rela64[i].r_offset;
+			entry->type = ELF32_R_TYPE(current->rela64[i].r_info);
+			entry->addend = current->rela64[i].r_addend;
+			entry->symname = symbol.name;
+			entry->shdrname = 
 }
 
 void

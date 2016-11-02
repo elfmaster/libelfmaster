@@ -104,6 +104,7 @@ struct elf_relocation {
 	uint64_t type;
 	int64_t addend;
 	char *symname;
+	char *shdrname;
 };
 
 typedef struct elf_mapping {
@@ -238,9 +239,26 @@ typedef enum elf_iterator_res {
 	ELF_ITER_ERROR
 } elf_iterator_res_t;
 
+struct elf_rel_helper_node {
+	union {
+		Elf32_Rel *rel32;
+		Elf64_Rel *rel64;
+	};
+	union {
+		Elf32_Rela *rela32;
+		Elf64_Rela *rela64;
+	};
+	size_t size;
+	bool addend;
+	char *section_name;
+	LIST_ENTRY(elf_rel_node) _linkage;
+};
+	
 typedef struct elf_relocation_iterator {
 	unsigned int index;
 	elfobj_t *obj;
+	LIST_HEAD(elf_rel_helper_list, elf_rel_helper_node) list;
+	elf_rel_helper_node *current;
 } elf_relocation_iterator_t;
 
 /*
