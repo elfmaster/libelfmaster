@@ -39,7 +39,10 @@ typedef enum elf_obj_flags {
 	ELF_HAS_DYNSYM =		(1 << 1),
 	ELF_HAS_PHDRS =			(1 << 2),
 	ELF_HAS_SHDRS =			(1 << 3),
-	ELF_HAS_NOTE =			(1 << 4)
+	ELF_HAS_NOTE =			(1 << 4),
+	ELF_HAS_PLT_RELOCS =		(1 << 5),
+	ELF_HAS_DYN_RELOCS =		(1 << 6),
+	ELF_HAS_TEXT_RELOCS =		(1 << 7)
 } elf_obj_flags_t;
 
 /*
@@ -83,6 +86,9 @@ struct elf_symbol {
 	uint8_t other;
 };
 
+/*
+ * This should only be used internally.
+ */
 struct elf_symbol_node {
 	const char *name;
 	uint64_t value;
@@ -91,6 +97,13 @@ struct elf_symbol_node {
 	uint8_t info;
 	uint8_t other;
 	LIST_ENTRY(elf_symbol_node) _linkage;
+};
+
+struct elf_relocation {
+	uint64_t offset;
+	uint64_t type;
+	int64_t addend;
+	char *symname;
 };
 
 typedef struct elf_mapping {
@@ -225,6 +238,11 @@ typedef enum elf_iterator_res {
 	ELF_ITER_ERROR
 } elf_iterator_res_t;
 
+typedef struct elf_relocation_iterator {
+	unsigned int index;
+	elfobj_t *obj;
+} elf_relocation_iterator_t;
+
 /*
  * Loads an ELF object of any type, for reading or modifying.
  * arg1: file path
@@ -244,7 +262,12 @@ const char * elf_error_msg(elf_error_t *);
  * Fills in 'struct elf_section *'  on success.
  * Performs a binary search on sorted section headers.
  */
-bool get_elf_section_by_name(elfobj_t *, const char *, struct elf_section *);
+bool elf_section_by_name(elfobj_t *, const char *, struct elf_section *);
+
+/*
+ * Fills in 'struct elf_section *' on success.
+ */
+bool elf_section_by_index(elfobj_t *, unsigned int index, struct elf_section *);
 
 /*
  * ELF Section iterator
@@ -280,4 +303,5 @@ uint32_t elf_type(elfobj_t *);
 bool elf_map_loadable_segments(elfobj_t *, struct elf_mapping *, elf_error_t *);
 
 bool elf_symbol_by_name(elfobj_t *, const char *, struct elf_symbol *);
+
 #endif

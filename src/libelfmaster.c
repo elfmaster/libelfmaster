@@ -12,6 +12,18 @@
 #include "../include/libelfmaster.h"
 
 #define ROUNDUP(x, y) ((x + (y - 1)) & ~(y - 1))
+#define SHDR_TO_ELF_SECTION(dst, src, obj)	\
+do {						\
+	dst->name = &obj->shstrtab[src->sh_name];\
+	dst->type = src->sh_type;		\
+	dst->link = src->sh_link;		\
+	dst->info = src->sh_info;		\
+	dst->flags = src->sh_flags;		\
+	dst->align = src->sh_addralign;		\
+	dst->entsize = src->sh_entsize;		\
+	dst->offset = src->sh_offset;		\
+	dst->size = src->sh_size;		\
+} while(0);					\
 
 static bool
 elf_error_set(elf_error_t *error, const char *fmt, ...)
@@ -59,6 +71,16 @@ get_elf_section_by_name(struct elfobj *obj, const char *name,
 	if (res == NULL)
 		return false;
 	memcpy(out, *res, sizeof(*out));
+	return true;
+}
+
+bool
+elf_section_by_index(struct elfobj *obj, uint32_t index,
+    struct elf_section *out)
+{
+	Elf32_Shdr *shdr32;
+	Elf64_Shdr *shdr64;
+
 	return true;
 }
 
@@ -240,6 +262,23 @@ elf_map_loadable_segments(struct elfobj *obj, struct elf_mapping *mapping,
 		mapping->index++;
 	}
 	return true;
+}
+
+void
+elf_relocation_iterator_init(struct elfobj *obj,
+    struct elf_relocation_iterator *iter)
+{
+
+	iter->obj = obj;
+	iter->index = 0;
+	return;
+}
+
+elf_iterator_res_t
+elf_relocation_iterator_next(struct elf_relocation_iterator *iter,
+    struct elf_relocation *entry)
+{
+
 }
 
 void
@@ -485,6 +524,47 @@ elf_section_iterator_next(struct elf_section_iterator *iter,
 	iter->index++;
 	return ELF_ITER_OK;
 }
+
+bool
+load_dynamic_segment_data(struct elfobj *obj)
+{
+
+	elf_dynamic_iterator_init(obj, &iter);
+	for (;;) {
+		res = elf_dynamic_iterator_next(&iter, &entry);
+		if (res == ELF_ITER_DONE)
+			return true;
+		if (res == ELF_ITER_ERROR)
+			return false;
+		switch(entry.tag) {
+		case DT_PLTGOT:
+			obj->internal.pltgot.addr = entry.value;
+			break;
+		case DT_PLTRELSZ:
+			obj->internal.pltrel.size = entry.value;
+			break;
+		case DT_SYMTAB:
+			obj->internal.dynsym.addr = entry.value;
+			break;
+		case DT_STRTAB:
+			obj->internal.dynstr.addr = entry.value;
+			break;
+		case DT_PLTREL:
+			obj->internal.pltrel.type = entry.value;
+			break;
+		case DT_JMPREL:
+			obj->internal.pltrel.addr = entry.value;
+			break;
+		case DT_INIT:
+		case DT_FINI:
+		case DT_NEEDED:
+			break;
+		default:
+		}
+	}
+	return true;
+}
+
 /*
  * Secure ELF loader.
  */
@@ -557,6 +637,7 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		obj->entry_point = obj->ehdr32->e_entry;
 		obj->type = obj->ehdr32->e_type;
 		obj->segment_count = obj->ehdr32->e_phnum;
+		obj->flags |= (obj->ehdr32->e_shnum > 0 ? ELF_HAS_SHDRS : 0);
 		if (obj->ehdr32->e_shstrndx > obj->size) {
 			elf_error_set(error, "invalid e_shstrndx: %u\n",
 			    obj->ehdr32->e_shstrndx);
@@ -606,6 +687,7 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		obj->entry_point = obj->ehdr64->e_entry;
 		obj->type = obj->ehdr64->e_type;
 		obj->segment_count = obj->ehdr64->e_phnum;
+		obj->flags |= (obj->ehdr64->e_shnum > 0 ? ELF_HAS_SHDRS : 0);
 		if (obj->ehdr64->e_shstrndx > obj->size) {
 			elf_error_set(error, "invalid e_shstrndx: %lu",
 			    obj->ehdr64->e_shstrndx);
@@ -755,6 +837,16 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 			obj->dynstr = (char *)&mem[sh_offset];
 		} else if (strcmp(sname, ".strtab") == 0) {
 			obj->strtab = (char *)&mem[sh_offset];
+		} else if (strcmp(sname, ".rela.dyn") == 0) {
+			obj->section_index.rela_dyn = i;
+		} else if (strcmp(sname, ".rela.plt") == 0) {
+			obj->section_index.rela_plt = i;
+		}
+	}
+	if ((obj->flags & ELF_HAS_SHDRS) == 0) {
+		if (load_dynamic_segment_data(obj) == false) {
+			elf_error_set(error, "failed to build dynamic segment data");
+			goto err;
 		}
 	}
 	/*
