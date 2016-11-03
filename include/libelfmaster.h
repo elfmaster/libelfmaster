@@ -82,8 +82,9 @@ struct elf_symbol {
 	uint64_t value;
 	uint64_t size;
 	uint16_t shndx;
-	uint8_t info;
-	uint8_t other;
+	uint8_t bind;
+	uint8_t type;
+	uint8_t visibility;
 };
 
 /*
@@ -94,8 +95,9 @@ struct elf_symbol_node {
 	uint64_t value;
 	uint64_t size;
 	uint16_t shndx;
-	uint8_t info;
-	uint8_t other;
+	uint8_t bind;
+	uint8_t type;
+	uint8_t visibility;
 	LIST_ENTRY(elf_symbol_node) _linkage;
 };
 
@@ -173,6 +175,29 @@ typedef struct elfobj {
 		LIST_HEAD(elf_dynsym_list, elf_symbol_node) dynsym;
 	} list;
 	/*
+	 * dynamic segment values
+	 */
+	struct {
+		struct {
+			uint64_t addr;
+		} pltgot;
+
+		struct {
+			uint64_t addr;
+			uint64_t size;
+			uint32_t type;
+		} pltrel;
+
+		struct {
+			uint64_t addr;
+		} dynsym;
+
+		struct {
+			uint64_t addr;
+		} dynstr;
+	} dynseg;
+
+	/*
 	 * Pointers to .dynstr, .strtab, and .shstrtab
 	 */
 	char *dynstr;
@@ -190,6 +215,9 @@ typedef struct elfobj {
 	uint64_t entry_point;
 } elfobj_t;
 
+/*
+ * Iterator types.
+ */
 typedef struct elf_section_iterator {
 	unsigned int index;
 	elfobj_t *obj;
@@ -251,14 +279,14 @@ struct elf_rel_helper_node {
 	size_t size;
 	bool addend;
 	char *section_name;
-	LIST_ENTRY(elf_rel_node) _linkage;
+	LIST_ENTRY(elf_rel_helper_node) _linkage;
 };
 	
 typedef struct elf_relocation_iterator {
 	unsigned int index;
 	elfobj_t *obj;
 	LIST_HEAD(elf_rel_helper_list, elf_rel_helper_node) list;
-	elf_rel_helper_node *current;
+	struct elf_rel_helper_node *current;
 } elf_relocation_iterator_t;
 
 /*
@@ -286,6 +314,7 @@ bool elf_section_by_name(elfobj_t *, const char *, struct elf_section *);
  * Fills in 'struct elf_section *' on success.
  */
 bool elf_section_by_index(elfobj_t *, unsigned int index, struct elf_section *);
+
 
 /*
  * ELF Section iterator
@@ -320,6 +349,47 @@ uint32_t elf_type(elfobj_t *);
 
 bool elf_map_loadable_segments(elfobj_t *, struct elf_mapping *, elf_error_t *);
 
+/*
+ * Fill in elf_symbol, through cache lookup by name.
+ */
 bool elf_symbol_by_name(elfobj_t *, const char *, struct elf_symbol *);
+
+bool elf_symbol_by_index(elfobj_t *, unsigned int, struct elf_symbol *);
+
+/*
+ * Return a pointer to an offset into the memory mapped ELF file.
+ */
+void * elf_offset_pointer(elfobj_t *, uint64_t);
+
+/*
+ * Return a pointer to the section passed in arg2.
+ * This function takes either a pointer to an Elf32_Shdr
+ * or an Elf64_Shdr as the second argument, and then uses
+ * the sh_offset field to locate the section within the ELF
+ * file, then returns a pointer to it.
+ */
+void * elf_section_pointer(elfobj_t *, void *);
+
+/*
+ * Success: returns section name
+ * failure: returns NULL
+ */
+const char * elf_section_name_by_index(elfobj_t *, uint32_t);
+/*
+ * initialize the relocation iterator.
+ */
+bool elf_relocation_iterator_init(elfobj_t *, struct elf_relocation_iterator *);
+
+/*
+ * iterate over every relocation entry in the entire ELF file. The elf_relocation struct
+ * is filled in upon each iteration, and it gives lots of information including which
+ * section the relocation applies to, which symbol, and what type of relocation it is.
+ */
+bool
+elf_relocation_iterator_init(struct elfobj *,
+    struct elf_relocation_iterator *);
+
+elf_iterator_res_t
+elf_relocation_iterator_next(elf_relocation_iterator_t *, struct elf_relocation *);
 
 #endif
