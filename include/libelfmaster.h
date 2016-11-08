@@ -116,6 +116,12 @@ typedef struct elf_mapping {
 	size_t len;
 } elf_mapping_t;
 
+typedef struct elf_shared_object {
+	const char *basename;
+	char *path;
+	LIST_ENTRY(elf_shared_object) _linkage;
+} elf_shared_object_t;
+
 /*
  * This struct is not meant to access directly. It is an opaque
  * type. It is only accessed directly from within the API code
@@ -173,6 +179,7 @@ typedef struct elfobj {
 	struct {
 		LIST_HEAD(elf_symtab_list, elf_symbol_node) symtab;
 		LIST_HEAD(elf_dynsym_list, elf_symbol_node) dynsym;
+		LIST_HEAD(elf_shared_object_list, elf_shared_object) shared_objects;
 	} list;
 	/*
 	 * dynamic segment values
@@ -195,6 +202,12 @@ typedef struct elfobj {
 		struct {
 			uint64_t addr;
 		} dynstr;
+		struct {
+			uint64_t addr;
+		} init;
+		struct {
+			uint64_t addr;
+		} fini;
 	} dynseg;
 
 	/*
@@ -391,5 +404,13 @@ elf_relocation_iterator_init(struct elfobj *,
 
 elf_iterator_res_t
 elf_relocation_iterator_next(elf_relocation_iterator_t *, struct elf_relocation *);
+
+/*
+ * return pointer to string table index for ELF sections (.shstrtab)
+ * dynamic symbols (.dynstr) and local symbols (.strtab)
+ */
+const char * elf_section_string(elfobj_t *, uint64_t);
+const char * elf_dynamic_string(elfobj_t *, uint64_t);
+const char * elf_symtab_string(elfobj_t *, uint64_t);
 
 #endif

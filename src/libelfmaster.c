@@ -52,6 +52,33 @@ section_name_cmp(const void *p0, const void *p1)
 	return strcmp(s0->name, s1->name);
 }
 
+const char *
+elf_section_string(struct elfobj *obj, uint64_t offset)
+{
+
+	if (offset >= obj->size)
+		return NULL;
+	return &obj->shstrtab[offset];
+}
+
+const char *
+elf_dynamic_string(struct elfobj *obj, uint64_t offset)
+{
+
+	if (offset >= obj->size)
+		return NULL;
+	return &obj->dynstr[offset];
+}
+
+const char *
+elf_symtab_string(struct elfobj *obj, uint64_t offset)
+{
+
+	if (offset >= obj->size)
+		return NULL;
+	return &obj->strtab[offset];
+}
+
 bool
 elf_section_by_name(struct elfobj *obj, const char *name,
     struct elf_section *out)
@@ -123,6 +150,15 @@ elf_symbol_by_index(struct elfobj *obj, unsigned int index,
 		Elf64_Sym *symtab64;
 	} e;
 
+	if (which == SHT_SYMTAB) {
+		if (index >= obj->symtab_count)
+			return false;
+	} else if (which == SHT_DYNSYM) {
+		if (index >= obj->dynsym_count)
+			return false;
+	} else {
+		return false;
+	}
 	switch(obj->arch) {
 	case i386:
 		e.symtab32 = which == SHT_SYMTAB ? &obj->symtab32[index] :
@@ -766,6 +802,15 @@ elf_section_iterator_init(struct elfobj *obj, struct elf_section_iterator *iter)
 	return;
 }
 
+#if 0
+void
+elf_pltgot_iterator_init(struct elfobj *obj, struct elf_pltgot_iterator *iter)
+{
+
+	iter->index = 0;
+	iter->obj = 0;
+}
+#endif
 /*
  * We don't use obj->sections, since that is sorted. We re-create an 'struct
  * elf_section' for each entry, and print them in the order the actual shdrs
@@ -825,7 +870,9 @@ load_dynamic_segment_data(struct elfobj *obj)
 	struct elf_dynamic_entry entry;
 	elf_dynamic_iterator_t iter;
 	elf_iterator_res_t res;
+	struct elf_shared_object *so;
 
+	LIST_INIT(&obj->list.shared_objects);
 	elf_dynamic_iterator_init(obj, &iter);
 	for (;;) {
 		res = elf_dynamic_iterator_next(&iter, &entry);
@@ -853,8 +900,18 @@ load_dynamic_segment_data(struct elfobj *obj)
 			obj->dynseg.pltrel.addr = entry.value;
 			break;
 		case DT_INIT:
+			obj->dynseg.init.addr = entry.value;
+			break;
 		case DT_FINI:
+			obj->dynseg.fini.addr = entry.value;
+			break;
 		case DT_NEEDED:
+			so = malloc(sizeof(*so));
+			if (so == NULL)
+				return false;
+			so->basename = elf_dynamic_string(obj, entry.value);
+			LIST_INSERT_HEAD(&obj->list.shared_objects, so,
+			    _linkage);
 			break;
 		default:
 			break;
