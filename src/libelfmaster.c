@@ -13,6 +13,12 @@
 
 #define ROUNDUP(x, y) ((x + (y - 1)) & ~(y - 1))
 
+#ifdef DEBUG
+#define DPRINTF(...) do { fprintf(stderr, __VA_ARGS__); } while(0)
+#else
+#define DPRINTF(...) do {} while(0)
+#endif
+
 static bool
 elf_error_set(elf_error_t *error, const char *fmt, ...)
 {
@@ -110,7 +116,7 @@ elf_section_name_by_index(struct elfobj *obj, uint32_t index)
 
 bool
 elf_symbol_by_index(struct elfobj *obj, unsigned int index,
-    struct elf_symbol *out)
+    struct elf_symbol *out, const int which)
 {
 	union {
 		Elf32_Sym *symtab32;
@@ -119,8 +125,10 @@ elf_symbol_by_index(struct elfobj *obj, unsigned int index,
 
 	switch(obj->arch) {
 	case i386:
-		e.symtab32 = &obj->symtab32[index];
-		out->name = &obj->strtab[e.symtab32->st_name];
+		e.symtab32 = which == SHT_SYMTAB ? &obj->symtab32[index] :
+		    &obj->dynsym32[index];
+		out->name = which == SHT_SYMTAB ? &obj->strtab[e.symtab32->st_name] :
+		    &obj->dynstr[e.symtab32->st_name];
 		out->value = e.symtab32->st_value;
 		out->size = e.symtab32->st_size;
 		out->shndx = e.symtab32->st_shndx;
@@ -129,8 +137,10 @@ elf_symbol_by_index(struct elfobj *obj, unsigned int index,
 		out->visibility = ELF32_ST_VISIBILITY(e.symtab32->st_other);
 		break;
 	case x64:
-		e.symtab64 = &obj->symtab64[index];
-		out->name = &obj->strtab[e.symtab64->st_name];
+		e.symtab64 = which == SHT_SYMTAB ? &obj->symtab64[index] :
+		    &obj->dynsym64[index];
+		out->name = which == SHT_SYMTAB ? &obj->strtab[e.symtab64->st_name] :
+		    &obj->dynstr[e.symtab64->st_name];
 		out->value = e.symtab64->st_value;
 		out->size = e.symtab64->st_size;
 		out->shndx = e.symtab64->st_shndx;
@@ -203,14 +213,14 @@ elf_section_pointer(elfobj_t *obj, void *shdr)
 
 	switch(obj->arch) {
 	case i386:
+		e.shdr32 = (Elf32_Shdr *)shdr;
 		if (e.shdr32->sh_offset >= obj->size)
 			return NULL;
-		e.shdr32 = (Elf32_Shdr *)shdr;
 		return (void *)((uint8_t *)&obj->mem[e.shdr32->sh_offset]);
 	case x64:
+		e.shdr64 = (Elf64_Shdr *)shdr;
 		if (e.shdr64->sh_offset >= obj->size)
 			return NULL;
-		e.shdr64 = (Elf64_Shdr *)shdr;
 		return (void *)((uint8_t *)&obj->mem[e.shdr64->sh_offset]);
 	}
 	return NULL;
@@ -245,6 +255,7 @@ build_dynsym_data(struct elfobj *obj)
 			symbol->visibility = ELF32_ST_VISIBILITY(dsym32[i].st_other);
 			break;
 		case x64:
+			printf("dynsym64: %p\n", obj->dynsym64);
 			dsym64 = obj->dynsym64;
 			symbol->name = &obj->dynstr[dsym64[i].st_name];
 			symbol->value = dsym64[i].st_value;
@@ -368,6 +379,9 @@ elf_relocation_iterator_init(struct elfobj *obj,
 {
 	unsigned int i;
 
+	iter->obj = obj;
+	iter->index = 0;
+
 	LIST_INIT(&iter->list);
 	if (obj->arch == i386) {
 		Elf32_Ehdr *ehdr32 = obj->ehdr32;
@@ -391,7 +405,7 @@ elf_relocation_iterator_init(struct elfobj *obj,
 				if (type == SHT_REL) {
 					n->rel32 = elf_section_pointer(obj,
 					    &shdr32[i]);
-					if (n->rela32 == NULL)
+					if (n->rel32 == NULL)
 						return false;
 					n->addend = false;
 				} else if (type == SHT_RELA) {
@@ -424,7 +438,7 @@ elf_relocation_iterator_init(struct elfobj *obj,
 				if (type == SHT_REL) {
 					n->rel64 = elf_section_pointer(obj,
 					    &shdr64[i]);
-					if (n->rela64 == NULL)
+					if (n->rel64 == NULL)
 						return false;
 					n->addend = false;
 				} else if (type == SHT_RELA) {
@@ -436,6 +450,7 @@ elf_relocation_iterator_init(struct elfobj *obj,
 				}
 				n->section_name =
 				    (char *)elf_section_name_by_index(obj, i);
+				printf("adding section name: %s\n", n->section_name);
 				LIST_INSERT_HEAD(&iter->list, n, _linkage);
 			}
 		}
@@ -455,14 +470,29 @@ elf_relocation_iterator_next(struct elf_relocation_iterator *iter,
 {
 	struct elf_rel_helper_node *current;
 	struct elfobj *obj;
+	int which;
 begin:
 	obj = iter->obj;
 	current = iter->current;
 
 	if (current == NULL)
 		return ELF_ITER_DONE;
+
+	/*
+	 * If we're dealing sections rela.plt, rel.plt
+	 * rela.dyn or rel.dyn, then we need to look up
+	 * symbol indexes in the dynamic symbol table.
+	 */
+	printf("current->section_name: %s\n", current->section_name);
+	if (strstr(current->section_name, ".plt") ||
+	    strstr(current->section_name, ".dyn")) {
+		which = SHT_DYNSYM;
+	} else {
+		which = SHT_SYMTAB;
+	}
+
 	if (iter->obj->arch == i386) {
-		unsigned int i = iter->index;
+		unsigned int i = iter->index++;
 		const size_t entsz = current->addend ? sizeof(Elf32_Rela) :
 		    sizeof(Elf32_Rel);
 
@@ -474,36 +504,75 @@ begin:
 		if (current->addend == true) {
 			struct elf_symbol symbol;
 			const unsigned int symidx =
-			    ELF32_R_SYM(current->rela64[i].r_info);
+			    ELF32_R_SYM(current->rela32[i].r_info);
 
-			if (elf_symbol_by_index(obj, symidx, &symbol) == false)
+			if (elf_symbol_by_index(obj, symidx, &symbol, which) == false)
 				return false;
 			
-			entry->offset = current->rela64[i].r_offset;
-			entry->type = ELF32_R_TYPE(current->rela64[i].r_info);
-			entry->addend = current->rela64[i].r_addend;
+			entry->offset = current->rela32[i].r_offset;
+			entry->type = ELF32_R_TYPE(current->rela32[i].r_info);
+			entry->addend = current->rela32[i].r_addend;
 			entry->symname = (char *)symbol.name;
 			entry->shdrname = current->section_name;
 			return ELF_ITER_OK;
 		} else {
 			struct elf_symbol symbol;
 			const unsigned int symidx =
-			    ELF32_R_SYM(current->rel64[i].r_info);
+			    ELF32_R_SYM(current->rel32[i].r_info);
 
-			if (elf_symbol_by_index(obj, symidx, &symbol) == false)
+			if (elf_symbol_by_index(obj, symidx, &symbol, which) == false)
 				return false;
 
+			entry->offset = current->rel32[i].r_offset;
+			entry->type = ELF32_R_TYPE(current->rel32[i].r_info);
+			entry->addend = 0;
+			entry->symname = (char *)symbol.name;
+			entry->shdrname = current->section_name;
+			printf("returning OK\n");
+			return ELF_ITER_OK;
+		}
+	} else if (iter->obj->arch == x64) {
+		unsigned int i = iter->index++;
+		const size_t entsz = current->addend ? sizeof(Elf64_Rela) :
+		    sizeof(Elf64_Rel);
+
+		if (i >= iter->current->size / entsz) {
+			iter->index = 0;
+			iter->current = LIST_NEXT(iter->current, _linkage);
+			goto begin;
+		}
+		if (current->addend == true) {
+			struct elf_symbol symbol;
+			const unsigned int symidx =
+			    ELF64_R_SYM(current->rela64[i].r_info);
+
+			printf("relocation entry has addend, symidx: %d\n", symidx);
+			if (elf_symbol_by_index(obj, symidx, &symbol, which) == false)
+				return false;
+			printf("Got symbol by index\n");
+			entry->offset = current->rela64[i].r_offset;
+			printf("offset: %lx\n", entry->offset);
+			entry->type = ELF64_R_TYPE(current->rela64[i].r_info);
+			entry->addend = current->rela64[i].r_addend;
+			entry->symname = (char *)symbol.name;
+			entry->shdrname = current->section_name;
+			printf("symbol name: %p\n", symbol.name);
+			return ELF_ITER_OK;
+		} else {
+			struct elf_symbol symbol;
+			const unsigned int symidx =
+			    ELF64_R_SYM(current->rel64[i].r_info);
+
+			if (elf_symbol_by_index(obj, symidx, &symbol, which) == false)
+				return false;
 			entry->offset = current->rel64[i].r_offset;
-			entry->type = ELF32_R_TYPE(current->rel64[i].r_info);
+			entry->type = ELF64_R_TYPE(current->rel64[i].r_offset);
 			entry->addend = 0;
 			entry->symname = (char *)symbol.name;
 			entry->shdrname = current->section_name;
 			return ELF_ITER_OK;
 		}
-	} else if (iter->obj->arch == x64) {
-		unsigned int i = iter->index;
-		const size_t entsize = current->addend ? sizeof(Elf64_Rela) :
-		    sizeof(Elf64_Rel);
+		
 	}
 	/*
 	 * Should never get here.

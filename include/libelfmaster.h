@@ -354,7 +354,7 @@ bool elf_map_loadable_segments(elfobj_t *, struct elf_mapping *, elf_error_t *);
  */
 bool elf_symbol_by_name(elfobj_t *, const char *, struct elf_symbol *);
 
-bool elf_symbol_by_index(elfobj_t *, unsigned int, struct elf_symbol *);
+bool elf_symbol_by_index(elfobj_t *, unsigned int, struct elf_symbol *, const int);
 
 /*
  * Return a pointer to an offset into the memory mapped ELF file.
