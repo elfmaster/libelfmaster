@@ -255,7 +255,6 @@ build_dynsym_data(struct elfobj *obj)
 			symbol->visibility = ELF32_ST_VISIBILITY(dsym32[i].st_other);
 			break;
 		case x64:
-			printf("dynsym64: %p\n", obj->dynsym64);
 			dsym64 = obj->dynsym64;
 			symbol->name = &obj->dynstr[dsym64[i].st_name];
 			symbol->value = dsym64[i].st_value;
@@ -450,7 +449,6 @@ elf_relocation_iterator_init(struct elfobj *obj,
 				}
 				n->section_name =
 				    (char *)elf_section_name_by_index(obj, i);
-				printf("adding section name: %s\n", n->section_name);
 				LIST_INSERT_HEAD(&iter->list, n, _linkage);
 			}
 		}
@@ -483,7 +481,6 @@ begin:
 	 * rela.dyn or rel.dyn, then we need to look up
 	 * symbol indexes in the dynamic symbol table.
 	 */
-	printf("current->section_name: %s\n", current->section_name);
 	if (strstr(current->section_name, ".plt") ||
 	    strstr(current->section_name, ".dyn")) {
 		which = SHT_DYNSYM;
@@ -528,7 +525,6 @@ begin:
 			entry->addend = 0;
 			entry->symname = (char *)symbol.name;
 			entry->shdrname = current->section_name;
-			printf("returning OK\n");
 			return ELF_ITER_OK;
 		}
 	} else if (iter->obj->arch == x64) {
@@ -546,17 +542,13 @@ begin:
 			const unsigned int symidx =
 			    ELF64_R_SYM(current->rela64[i].r_info);
 
-			printf("relocation entry has addend, symidx: %d\n", symidx);
 			if (elf_symbol_by_index(obj, symidx, &symbol, which) == false)
 				return false;
-			printf("Got symbol by index\n");
 			entry->offset = current->rela64[i].r_offset;
-			printf("offset: %lx\n", entry->offset);
 			entry->type = ELF64_R_TYPE(current->rela64[i].r_info);
 			entry->addend = current->rela64[i].r_addend;
 			entry->symname = (char *)symbol.name;
 			entry->shdrname = current->section_name;
-			printf("symbol name: %p\n", symbol.name);
 			return ELF_ITER_OK;
 		} else {
 			struct elf_symbol symbol;
