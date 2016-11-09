@@ -21,26 +21,6 @@
 
 /*
  **** libelfmaster supports ld.so.cache for shared library resolution
-
-   libc5 and glibc 2.0/2.1 use the same format.  For glibc 2.2 another
-   format has been added in a compatible way:
-   The beginning of the string table is used for the new table:
-        old_magic
-        nlibs
-        libs[0]
-        ...
-        libs[nlibs-1]
-        pad, new magic needs to be aligned
-             - this is string[0] for the old format
-        new magic - this is string[0] for the new format
-        newnlibs
-        ...
-        newlibs[0]
-        ...
-        newlibs[newnlibs-1]
-        string 1
-        string 2
-        ...
 */
 
 #define CACHE_FILE "/etc/ld.so.cache"
@@ -535,6 +515,16 @@ elf_shared_object_iterator_init(struct elfobj *obj,
 		iter->cache_new = iter->mem;
 		iter->flags |= ELF_LDSO_CACHE_NEW;
 	}
+	if (iter->flags & ELF_LDSO_CACHE_NEW) {
+		iter->cache_data = (const char *)iter->cache_new;
+		iter->cache_size = (char *)iter->cache + iter->st.st_size -
+		    iter->cache_data;
+	} else {
+		iter->cache_data =
+		    (const char *)&iter->cache->libs[iter->cache->nlibs];
+		iter->cache_size = (char *)iter->cache + iter->st.st_size -
+		    iter->cache_data;
+	}
 	/*
 	 * Linked list containing DT_NEEDED entries (basenames)
 	 */
@@ -546,11 +536,9 @@ elf_iterator_res_t
 elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
     struct elf_shared_object *entry, elf_error_t *error)
 {
-
-	if (iter->flags & ELF_LDSO_CACHE_NEW) {
-
-	}
-
+	/*
+	 * Now perform binary search on cache
+	 */
 	return ELF_ITER_OK;
 }
 bool
@@ -649,7 +637,7 @@ elf_relocation_iterator_next(struct elf_relocation_iterator *iter,
 {
 	struct elf_rel_helper_node *current;
 	struct elfobj *obj;
-	int which;
+	int which = SHT_NULL;
 begin:
 	obj = iter->obj;
 	current = iter->current;

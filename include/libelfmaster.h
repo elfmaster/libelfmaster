@@ -285,6 +285,9 @@ typedef enum elf_iterator_res {
 	ELF_ITER_ERROR
 } elf_iterator_res_t;
 
+/*
+ * This struct is used internally only.
+ */
 struct elf_rel_helper_node {
 	union {
 		Elf32_Rel *rel32;
@@ -299,7 +302,7 @@ struct elf_rel_helper_node {
 	char *section_name;
 	LIST_ENTRY(elf_rel_helper_node) _linkage;
 };
-	
+
 typedef struct elf_relocation_iterator {
 	unsigned int index;
 	elfobj_t *obj;
