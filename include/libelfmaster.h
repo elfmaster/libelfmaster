@@ -119,8 +119,13 @@ typedef struct elf_mapping {
 typedef struct elf_shared_object {
 	const char *basename;
 	char *path;
-	LIST_ENTRY(elf_shared_object) _linkage;
 } elf_shared_object_t;
+
+typedef struct elf_shared_object_node {
+	const char *basename;
+	char *path;
+	LIST_ENTRY(elf_shared_object_node) _linkage;
+} elf_shared_object_node_t;
 
 /*
  * This struct is not meant to access directly. It is an opaque
@@ -179,7 +184,7 @@ typedef struct elfobj {
 	struct {
 		LIST_HEAD(elf_symtab_list, elf_symbol_node) symtab;
 		LIST_HEAD(elf_dynsym_list, elf_symbol_node) dynsym;
-		LIST_HEAD(elf_shared_object_list, elf_shared_object) shared_objects;
+		LIST_HEAD(elf_shared_object_list, elf_shared_object_node) shared_objects;
 	} list;
 	/*
 	 * dynamic segment values
@@ -302,6 +307,21 @@ typedef struct elf_relocation_iterator {
 	struct elf_rel_helper_node *current;
 } elf_relocation_iterator_t;
 
+#define ELF_LDSO_CACHE_OLD (1 << 0)
+#define ELF_LDSO_CACHE_NEW (1 << 1)
+
+typedef struct elf_shared_object_iterator {
+	unsigned int index;
+	elfobj_t *obj;
+	int fd;
+	void *mem;
+	struct stat st;
+	struct cache_file *cache;
+	struct cache_file_new *cache_new;
+	uint32_t flags;
+	struct elf_shared_object_node *current;
+} elf_shared_object_iterator_t;
+
 /*
  * Loads an ELF object of any type, for reading or modifying.
  * arg1: file path
@@ -412,5 +432,10 @@ elf_relocation_iterator_next(elf_relocation_iterator_t *, struct elf_relocation 
 const char * elf_section_string(elfobj_t *, uint64_t);
 const char * elf_dynamic_string(elfobj_t *, uint64_t);
 const char * elf_symtab_string(elfobj_t *, uint64_t);
+
+bool elf_shared_object_iterator_init(elfobj_t *,
+    elf_shared_object_iterator_t *, elf_error_t *);
+elf_iterator_res_t elf_shared_object_iterator_next(elf_shared_object_iterator_t *,
+    struct elf_shared_object *, elf_error_t *);
 
 #endif

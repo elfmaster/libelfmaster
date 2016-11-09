@@ -14,10 +14,75 @@
 #define ROUNDUP(x, y) ((x + (y - 1)) & ~(y - 1))
 
 #ifdef DEBUG
-#define DPRINTF(...) do { fprintf(stderr, __VA_ARGS__); } while(0)
+#define DEBUG_LOG(...) do { fprintf(stderr, __VA_ARGS__); } while(0)
 #else
-#define DPRINTF(...) do {} while(0)
+#define DEBUG_LOG(...) do {} while(0)
 #endif
+
+/*
+ **** libelfmaster supports ld.so.cache for shared library resolution
+
+   libc5 and glibc 2.0/2.1 use the same format.  For glibc 2.2 another
+   format has been added in a compatible way:
+   The beginning of the string table is used for the new table:
+        old_magic
+        nlibs
+        libs[0]
+        ...
+        libs[nlibs-1]
+        pad, new magic needs to be aligned
+             - this is string[0] for the old format
+        new magic - this is string[0] for the new format
+        newnlibs
+        ...
+        newlibs[0]
+        ...
+        newlibs[newnlibs-1]
+        string 1
+        string 2
+        ...
+*/
+
+#define CACHE_FILE "/etc/ld.so.cache"
+#define CACHEMAGIC "ld.so-1.7.0"
+
+struct file_entry {
+	int flags;
+	uint32_t key;
+	uint32_t value;
+};
+
+struct cache_file {
+	char magic[sizeof CACHEMAGIC - 1];
+	uint32_t nlibs;
+	struct file_entry libs[0];
+};
+
+#define CACHEMAGIC_NEW "glibc-ld.so.cache"
+#define CACHE_VERSION "1.1"
+#define CACHEMAGIC_VERSION_NEW CACHEMAGIC_NEW CACHE_VERSION
+
+struct file_entry_new {
+	int32_t flags;
+	uint32_t key;
+	uint32_t value;
+	uint32_t osversion;
+	uint64_t hwcap;
+};
+
+struct cache_file_new {
+	char magic[sizeof CACHEMAGIC_NEW - 1];
+	char version[sizeof CACHE_VERSION - 1];
+	uint32_t nlibs;		/* number of entries */
+	uint32_t len_strings;	/* size of string table */
+	uint32_t unused[5];	/* space for future extension */
+	struct file_entry_new libs[0]; /* Entries describing libraries */
+	/* After this the string table of size len_strings is found */
+};
+
+#define ALIGN_CACHE(addr)				\
+	(((addr) + __alignof__ (struct cache_file_new) -1)	\
+	    & (~(__alignof__ (struct cache_file_new) - 1)))
 
 static bool
 elf_error_set(elf_error_t *error, const char *fmt, ...)
@@ -408,6 +473,86 @@ elf_map_loadable_segments(struct elfobj *obj, struct elf_mapping *mapping,
 	return true;
 }
 
+bool
+elf_shared_object_iterator_init(struct elfobj *obj,
+    struct elf_shared_object_iterator *iter, elf_error_t *error)
+{
+
+	iter->index = 0;
+	iter->obj = obj;
+
+	iter->fd = open(CACHE_FILE, O_RDONLY);
+	if (iter->fd < 0) {
+		return elf_error_set(error, "open %s: %s\n", CACHE_FILE,
+		    strerror(errno));
+	}
+	if (fstat(iter->fd, &iter->st) < 0) {
+		return elf_error_set(error, "fstat %s: %s\n", CACHE_FILE,
+		    strerror(errno));
+	}
+	iter->mem = mmap(NULL, iter->st.st_size, PROT_READ, MAP_PRIVATE,
+	    iter->fd, 0);
+	if (iter->mem == MAP_FAILED) {
+		return elf_error_set(error, "mmap %s: %s\n", CACHE_FILE,
+		    strerror(errno));
+	}
+	iter->cache = iter->mem;
+	/*
+	 * Handle 3 formats:
+	 * old libc6/glibc2.0/2.1 format
+	 * old format with the new format in it
+	 * only the new format
+	 */
+	if (memcmp(iter->mem, CACHEMAGIC, strlen(CACHEMAGIC))) {
+		/*
+		 * old format
+		 */
+		size_t offset;
+
+		iter->flags |= ELF_LDSO_CACHE_OLD;
+		offset = ALIGN_CACHE(sizeof(struct cache_file)
+		    + iter->cache->nlibs * sizeof(struct file_entry));
+		iter->cache_new = (struct cache_file_new *)
+		    ((char *)iter->cache + offset);
+		if ((size_t)iter->st.st_size < (offset + sizeof(struct cache_file_new))
+		    || memcmp(iter->cache_new->magic, CACHEMAGIC_VERSION_NEW,
+		    strlen(CACHEMAGIC_VERSION_NEW)) != 0) {
+			/*
+			 * Only the old format is set.
+			 */
+			iter->cache_new = (void *)-1;
+		} else {
+			/*
+			 * old format and new format are both set
+			 */
+			iter->flags |= ELF_LDSO_CACHE_NEW;
+		}
+	} else if (memcmp(iter->mem, CACHEMAGIC_VERSION_NEW,
+	    strlen(CACHEMAGIC_VERSION_NEW)) == 0) {
+		/*
+		 * New format only
+		 */
+		iter->cache_new = iter->mem;
+		iter->flags |= ELF_LDSO_CACHE_NEW;
+	}
+	/*
+	 * Linked list containing DT_NEEDED entries (basenames)
+	 */
+	iter->current = LIST_FIRST(&obj->list.shared_objects);
+	return true;
+}
+
+elf_iterator_res_t
+elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
+    struct elf_shared_object *entry, elf_error_t *error)
+{
+
+	if (iter->flags & ELF_LDSO_CACHE_NEW) {
+
+	}
+
+	return ELF_ITER_OK;
+}
 bool
 elf_relocation_iterator_init(struct elfobj *obj,
     struct elf_relocation_iterator *iter)
@@ -870,7 +1015,7 @@ load_dynamic_segment_data(struct elfobj *obj)
 	struct elf_dynamic_entry entry;
 	elf_dynamic_iterator_t iter;
 	elf_iterator_res_t res;
-	struct elf_shared_object *so;
+	struct elf_shared_object_node *so;
 
 	LIST_INIT(&obj->list.shared_objects);
 	elf_dynamic_iterator_init(obj, &iter);
