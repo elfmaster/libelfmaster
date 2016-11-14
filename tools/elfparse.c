@@ -24,6 +24,8 @@ int main(int argc, char **argv)
 	struct elf_mapping mapping;
 	struct elf_symbol symbol;
 	struct elf_relocation relocation;
+	struct elf_shared_object object;
+	struct elf_shared_object_iterator so_iter;
 
 	printf("Opening %s\n", argv[1]);
 	if (load_elf_object(argv[1], &obj, false, &error) == false) {
@@ -75,6 +77,10 @@ int main(int argc, char **argv)
 	while (elf_relocation_iterator_next(&reloc_iter, &relocation) == ELF_ITER_OK) {
 		printf("Relocation symbol: %s section: %s offset: %lx\n", relocation.symname,
 		    relocation.shdrname, relocation.offset);
+	}
+	elf_shared_object_iterator_init(&obj, &so_iter, &error);
+	while (elf_shared_object_iterator_next(&so_iter, &object, &error) == ELF_ITER_OK) {
+		printf("Basename: %s path: %s\n", object.basename, object.path);
 	}
 	/*
 	 * Uses a sorted array of pointers to elf_section structs, and therefore is able

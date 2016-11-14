@@ -315,6 +315,15 @@ typedef struct elf_relocation_iterator {
 #define ELF_LDSO_CACHE_OLD (1 << 0)
 #define ELF_LDSO_CACHE_NEW (1 << 1)
 
+/*
+ * Resolve basenames to full paths using ld.so.cache parsing
+ */
+#define ELF_SO_RESOLVE (1 << 0)
+/*
+ * Get all dependencies recursively
+ */
+#define ELF_SO_RESOLVE_ALL (1 << 1)
+
 typedef struct elf_shared_object_iterator {
 	unsigned int index;
 	elfobj_t *obj;
@@ -326,6 +335,8 @@ typedef struct elf_shared_object_iterator {
 	char *cache_data;
 	size_t cache_size;
 	uint32_t flags;
+	uint32_t cache_flags;
+	bool resolve;
 	struct elf_shared_object_node *current;
 } elf_shared_object_iterator_t;
 

@@ -469,39 +469,47 @@ elf_map_loadable_segments(struct elfobj *obj, struct elf_mapping *mapping,
 static int
 ldso_cache_cmp(const char *p1, const char *p2)
 {
-
-	while (*p1 != '\0') {
-		if ((*p1 >= '0' && *p1 <= '9') &&
-		    (*p2 >= '0' && *p2 <= '9')) {
-			unsigned long v1, v2;
+	while (*p1) {
+		if (isdigit(*p1) && isdigit(*p2)) {
+			int v1, v2;
 
 			v1 = strtoul(p1, (char **)&p1, 10);
 			v2 = strtoul(p2, (char **)&p2, 10);
 			if (v1 != v2)
 				return v1 - v2;
 		}
-		if (isdigit(*p1) && !isdigit(*p2)) {
+		else if (isdigit(*p1) && !isdigit(*p2)) {
 			return 1;
 		} else if (!isdigit(*p1) && isdigit(*p2)) {
 			return -1;
 		} else if (*p1 != *p2) {
 			return *p1 - *p2;
 		} else {
-			p1++;
-			p2++;
+			p1++, p2++;
 		}
 	}
-	return p1 - p2;
+	return *p1 - *p2;
 }
 
-#define LDSO_CACHE_DEFAULT_ID 3
-#define ldso_cache_check_flags(flags)			\
-	((flags) == 1 || (flags) == LDSO_CACHE_DEFAULT_ID || (flags) == 0x803 \
-	|| (flags) == 0x303)
+#define ldso_cache_verify_offset(offset) (offset < iter->cache_size)
+
+static inline bool
+ldso_cache_check_flags(struct elf_shared_object_iterator *iter,
+    uint32_t flags)
+{
+	if (iter->obj->arch == i386) {
+		if (flags == 0x803)
+			return true;
+	} else if (iter->obj->arch == x64) {
+		if (flags == 0x303)
+			return true;
+	}
+	return false;
+}
 
 static const char *
-elf_ldso_cache_bsearch(struct elf_shared_object_iterator *iter,
-    const char *basename)
+ldso_cache_bsearch(struct elf_shared_object_iterator *iter,
+    const char *name)
 {
 	int ret;
 	uint64_t value;
@@ -509,18 +517,18 @@ elf_ldso_cache_bsearch(struct elf_shared_object_iterator *iter,
 	uint32_t left = 0;
 	uint32_t right = (iter->flags & ELF_LDSO_CACHE_NEW) ?
 	    iter->cache_new->nlibs - 1 : iter->cache->nlibs - 1;
-	const char *best;
-	const char *name;
+	const char *best = NULL;
 
 	while (left <= right) {
 		uint32_t key;
 
+		middle = (left + right) / 2;
 		if (iter->flags & ELF_LDSO_CACHE_NEW) {
 			key = iter->cache_new->libs[middle].key;
 		} else {
 			key = iter->cache->libs[middle].key;
 		}
-		DEBUG_LOG("ldso_cache_cmp(%s, %s)\n", name, iter->cache_data + key);
+
 		ret = ldso_cache_cmp(name, iter->cache_data + key);
 		if (unlikely(ret == 0)) {
 			left = middle;
@@ -546,9 +554,9 @@ elf_ldso_cache_bsearch(struct elf_shared_object_iterator *iter,
 				if (middle > left && (ldso_cache_cmp(name,
 				    iter->cache_data + key) != 0))
 					break;
-				if (ldso_cache_check_flags(flags) &&
-				    ldso_cache_verify_ptr(value)) {
-					if (best == NULL) { // may need to add flags == GLRO(dl_correct_cache_id)) here
+				if (ldso_cache_check_flags(iter, flags) &&
+				    ldso_cache_verify_offset(value)) {
+					if (best == NULL) {
 						best = iter->cache_data + value;
 						break;
 					}
@@ -601,7 +609,7 @@ elf_shared_object_iterator_init(struct elfobj *obj,
 		 */
 		size_t offset;
 
-		iter->flags |= ELF_LDSO_CACHE_OLD;
+		iter->cache_flags |= ELF_LDSO_CACHE_OLD;
 		offset = ALIGN_CACHE(sizeof(struct cache_file)
 		    + iter->cache->nlibs * sizeof(struct file_entry));
 		iter->cache_new = (struct cache_file_new *)
@@ -617,7 +625,7 @@ elf_shared_object_iterator_init(struct elfobj *obj,
 			/*
 			 * old format and new format are both set
 			 */
-			iter->flags |= ELF_LDSO_CACHE_NEW;
+			iter->cache_flags |= ELF_LDSO_CACHE_NEW;
 		}
 	} else if (memcmp(iter->mem, CACHEMAGIC_VERSION_NEW,
 	    strlen(CACHEMAGIC_VERSION_NEW)) == 0) {
@@ -625,18 +633,20 @@ elf_shared_object_iterator_init(struct elfobj *obj,
 		 * New format only
 		 */
 		iter->cache_new = iter->mem;
-		iter->flags |= ELF_LDSO_CACHE_NEW;
+		iter->cache_flags |= ELF_LDSO_CACHE_NEW;
 	}
 
-	if (iter->flags & ELF_LDSO_CACHE_NEW) {
-		iter->cache_data = (const char *)iter->cache_new;
+	if (iter->cache_flags & ELF_LDSO_CACHE_NEW) {
+		iter->cache_data = (char *)iter->cache_new;
 		iter->cache_size = (char *)iter->cache + iter->st.st_size -
 		    iter->cache_data;
+		DEBUG_LOG("using new cache, size: %d\n", iter->cache_size);
 	} else {
 		iter->cache_data =
-		    (const char *)&iter->cache->libs[iter->cache->nlibs];
+		    (char *)&iter->cache->libs[iter->cache->nlibs];
 		iter->cache_size = (char *)iter->cache + iter->st.st_size -
 		    iter->cache_data;
+		DEBUG_LOG("using old cache, size: %d\n", iter->cache_size);
 	}
 	/*
 	 * Linked list containing DT_NEEDED entries (basenames)
@@ -649,13 +659,22 @@ elf_iterator_res_t
 elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
     struct elf_shared_object *entry, elf_error_t *error)
 {
+
 	if (iter->current == NULL)
 		return ELF_ITER_DONE;
 	/*
 	 * Now perform binary search on cache
 	 */
+	entry->path = (char *)ldso_cache_bsearch(iter, iter->current->basename);
+	if (entry->path == NULL && iter->flags == true) {
+		elf_error_set(error, "elf_ldso_cache_bsearch failed");
+		return ELF_ITER_ERROR;
+	}
+	entry->basename = iter->current->basename;
+	iter->current = LIST_NEXT(iter->current, _linkage);
 	return ELF_ITER_OK;
 }
+
 bool
 elf_relocation_iterator_init(struct elfobj *obj,
     struct elf_relocation_iterator *iter)
