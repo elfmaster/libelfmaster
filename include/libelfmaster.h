@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <search.h>
 #include <sys/queue.h>
+#include <sys/stat.h>
 
 #define MAX_ERROR_STR_LEN 128
 
@@ -124,6 +125,7 @@ typedef struct elf_shared_object {
 typedef struct elf_shared_object_node {
 	const char *basename;
 	char *path;
+	unsigned int index; // used by elf_shared_object iterator
 	LIST_ENTRY(elf_shared_object_node) _linkage;
 } elf_shared_object_node_t;
 
@@ -321,6 +323,8 @@ typedef struct elf_shared_object_iterator {
 	struct stat st;
 	struct cache_file *cache;
 	struct cache_file_new *cache_new;
+	char *cache_data;
+	size_t cache_size;
 	uint32_t flags;
 	struct elf_shared_object_node *current;
 } elf_shared_object_iterator_t;

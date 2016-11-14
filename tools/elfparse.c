@@ -25,6 +25,7 @@ int main(int argc, char **argv)
 	struct elf_symbol symbol;
 	struct elf_relocation relocation;
 
+	printf("Opening %s\n", argv[1]);
 	if (load_elf_object(argv[1], &obj, false, &error) == false) {
 		printf("%s\n", elf_error_msg(&error));
 		return -1;
