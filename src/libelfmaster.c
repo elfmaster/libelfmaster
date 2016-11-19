@@ -252,14 +252,14 @@ elf_symbol_by_name(struct elfobj *obj, const char *name,
 
 	if (name == NULL)
 		return false;
-	if (obj->flags & ELF_HAS_SYMTAB) {
+	if (obj->flags & ELF_SYMTAB_F) {
 		n = hsearch_r(e, FIND, &ep, &obj->cache.symtab);
 		if (n != 0) {
 			memcpy(out, ep->data, sizeof(*out));
 			return true;
 		}
 	}
-	if (obj->flags & ELF_HAS_DYNSYM) {
+	if (obj->flags & ELF_DYNSYM_F) {
 		n = hsearch_r(e, FIND, &ep, &obj->cache.dynsym);
 		if (n != 0) {
 			memcpy(out, ep->data, sizeof(*out));
@@ -515,7 +515,7 @@ ldso_cache_bsearch(struct elf_shared_object_iterator *iter,
 	uint64_t value;
 	uint32_t middle, flags;
 	uint32_t left = 0;
-	uint32_t right = (iter->flags & ELF_LDSO_CACHE_NEW) ?
+	uint32_t right = (iter->cache_flags & ELF_LDSO_CACHE_NEW) ?
 	    iter->cache_new->nlibs - 1 : iter->cache->nlibs - 1;
 	const char *best = NULL;
 
@@ -575,13 +575,26 @@ ldso_cache_bsearch(struct elf_shared_object_iterator *iter,
 
 bool
 elf_shared_object_iterator_init(struct elfobj *obj,
-    struct elf_shared_object_iterator *iter, elf_error_t *error)
+    struct elf_shared_object_iterator *iter, const char *cache_path,
+    uint32_t flags, elf_error_t *error)
 {
+	const char *cache_file = cache_path == NULL ? CACHE_FILE : cache_path;
 
+	if (LIST_EMPTY(&obj->list.shared_objects))
+		return false;
+
+	iter->flags = flags;
+	iter->cache_flags = 0;
 	iter->index = 0;
 	iter->obj = obj;
 
-	iter->fd = open(CACHE_FILE, O_RDONLY);
+	if ((flags & ELF_SO_RESOLVE_F) == 0 &&
+	    (flags & ELF_SO_RESOLVE_ALL_F) == 0)
+		goto finish;
+	if (flags & ELF_SO_RESOLVE_ALL_F)
+		iter->flags |= ELF_SO_RESOLVE_F;
+
+	iter->fd = open(cache_file, O_RDONLY);
 	if (iter->fd < 0) {
 		return elf_error_set(error, "open %s: %s\n", CACHE_FILE,
 		    strerror(errno));
@@ -640,17 +653,18 @@ elf_shared_object_iterator_init(struct elfobj *obj,
 		iter->cache_data = (char *)iter->cache_new;
 		iter->cache_size = (char *)iter->cache + iter->st.st_size -
 		    iter->cache_data;
-		DEBUG_LOG("using new cache, size: %d\n", iter->cache_size);
+		DEBUG_LOG("using new cache, size: %lu\n", iter->cache_size);
 	} else {
 		iter->cache_data =
 		    (char *)&iter->cache->libs[iter->cache->nlibs];
 		iter->cache_size = (char *)iter->cache + iter->st.st_size -
 		    iter->cache_data;
-		DEBUG_LOG("using old cache, size: %d\n", iter->cache_size);
+		DEBUG_LOG("using old cache, size: %lu\n", iter->cache_size);
 	}
 	/*
 	 * Linked list containing DT_NEEDED entries (basenames)
 	 */
+finish:
 	iter->current = LIST_FIRST(&obj->list.shared_objects);
 	return true;
 }
@@ -665,11 +679,16 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 	/*
 	 * Now perform binary search on cache
 	 */
+	if ((iter->flags & ELF_SO_RESOLVE_F) == 0)
+		goto next_basename;
+
 	entry->path = (char *)ldso_cache_bsearch(iter, iter->current->basename);
-	if (entry->path == NULL && iter->flags == true) {
-		elf_error_set(error, "elf_ldso_cache_bsearch failed");
+	if (entry->path == NULL && (iter->flags & ELF_SO_RESOLVE_F)) {
+		elf_error_set(error, "ldso_cache_bsearch(%p, %s) failed",
+		    iter, iter->current->basename);
 		return ELF_ITER_ERROR;
 	}
+next_basename:
 	entry->basename = iter->current->basename;
 	iter->current = LIST_NEXT(iter->current, _linkage);
 	return ELF_ITER_OK;
@@ -1259,7 +1278,7 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		obj->entry_point = obj->ehdr32->e_entry;
 		obj->type = obj->ehdr32->e_type;
 		obj->segment_count = obj->ehdr32->e_phnum;
-		obj->flags |= (obj->ehdr32->e_shnum > 0 ? ELF_HAS_SHDRS : 0);
+		obj->flags |= (obj->ehdr32->e_shnum > 0 ? ELF_SHDRS_F : 0);
 		if (obj->ehdr32->e_shstrndx > obj->size) {
 			elf_error_set(error, "invalid e_shstrndx: %u\n",
 			    obj->ehdr32->e_shstrndx);
@@ -1309,7 +1328,7 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		obj->entry_point = obj->ehdr64->e_entry;
 		obj->type = obj->ehdr64->e_type;
 		obj->segment_count = obj->ehdr64->e_phnum;
-		obj->flags |= (obj->ehdr64->e_shnum > 0 ? ELF_HAS_SHDRS : 0);
+		obj->flags |= (obj->ehdr64->e_shnum > 0 ? ELF_SHDRS_F : 0);
 		if (obj->ehdr64->e_shstrndx > obj->size) {
 			elf_error_set(error, "invalid e_shstrndx: %lu",
 			    obj->ehdr64->e_shstrndx);
@@ -1479,9 +1498,11 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		goto err;
 	}
 	if (obj->dynsym_count > 0)
-		obj->flags |= ELF_HAS_DYNSYM;
+		obj->flags |= ELF_DYNSYM_F;
 	if (obj->symtab_count > 0)
-		obj->flags |= ELF_HAS_SYMTAB;
+		obj->flags |= ELF_SYMTAB_F;
+
+	obj->flags |= obj->type == ET_DYN ? ELF_PIE_F : 0;
 
 	return true;
 err:
@@ -1489,5 +1510,3 @@ err:
 	munmap(mem, st.st_size);
 	return false;
 }
-
-

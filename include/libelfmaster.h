@@ -36,14 +36,15 @@ typedef enum elf_arch {
 } elf_arch_t;
 
 typedef enum elf_obj_flags {
-	ELF_HAS_SYMTAB =		(1 << 0),
-	ELF_HAS_DYNSYM =		(1 << 1),
-	ELF_HAS_PHDRS =			(1 << 2),
-	ELF_HAS_SHDRS =			(1 << 3),
-	ELF_HAS_NOTE =			(1 << 4),
-	ELF_HAS_PLT_RELOCS =		(1 << 5),
-	ELF_HAS_DYN_RELOCS =		(1 << 6),
-	ELF_HAS_TEXT_RELOCS =		(1 << 7)
+	ELF_SYMTAB_F =			(1 << 0),
+	ELF_DYNSYM_F =			(1 << 1),
+	ELF_PHDRS_F =			(1 << 2),
+	ELF_SHDRS_F =			(1 << 3),
+	ELF_NOTE_F =			(1 << 4),
+	ELF_PLT_RELOCS_F =		(1 << 5),
+	ELF_DYN_RELOCS_F =		(1 << 6),
+	ELF_TEXT_RELOCS_F =		(1 << 7),
+	ELF_PIE_F =			(1 << 8)
 } elf_obj_flags_t;
 
 /*
@@ -318,11 +319,11 @@ typedef struct elf_relocation_iterator {
 /*
  * Resolve basenames to full paths using ld.so.cache parsing
  */
-#define ELF_SO_RESOLVE (1 << 0)
+#define ELF_SO_RESOLVE_F (1 << 0)
 /*
  * Get all dependencies recursively
  */
-#define ELF_SO_RESOLVE_ALL (1 << 1)
+#define ELF_SO_RESOLVE_ALL_F (1 << 1)
 
 typedef struct elf_shared_object_iterator {
 	unsigned int index;
@@ -451,8 +452,18 @@ const char * elf_section_string(elfobj_t *, uint64_t);
 const char * elf_dynamic_string(elfobj_t *, uint64_t);
 const char * elf_symtab_string(elfobj_t *, uint64_t);
 
+/*
+ * API for iterating over an ELF files shared object dependencies
+ * arg0: elfobj_t *, ptr to elf descriptor
+ * arg1: elf_shared_object_iterator_t *, ptr to iterator descriptor
+ * arg2: optional path to ld.so.cache file (uses /etc/ld.so.cache by default)
+ * arg3: iterator flags. optional: ELF_SO_RESOLVE_F, ELF_SO_RESOLVE_ALL_F
+ * arg4: error descriptor
+ */
 bool elf_shared_object_iterator_init(elfobj_t *,
-    elf_shared_object_iterator_t *, elf_error_t *);
+    elf_shared_object_iterator_t *, const char *, unsigned int,
+    elf_error_t *);
+
 elf_iterator_res_t elf_shared_object_iterator_next(elf_shared_object_iterator_t *,
     struct elf_shared_object *, elf_error_t *);
 
