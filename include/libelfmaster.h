@@ -339,6 +339,8 @@ typedef struct elf_shared_object_iterator {
 	uint32_t cache_flags;
 	bool resolve;
 	struct elf_shared_object_node *current;
+	struct hsearch_data yield_cache;
+	SLIST_HEAD(ldso_cache_yield_list, elf_shared_object_node) yield_list;
 } elf_shared_object_iterator_t;
 
 /*

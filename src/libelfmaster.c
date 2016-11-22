@@ -583,6 +583,12 @@ elf_shared_object_iterator_init(struct elfobj *obj,
 	if (LIST_EMPTY(&obj->list.shared_objects))
 		return false;
 
+	/*
+	 * This list is only used for recursive resolution
+	 * e.g. ELF_SO_RESOLVE_ALL_F
+	 */
+	LIST_INIT(&iter->yield_list);
+
 	iter->flags = flags;
 	iter->cache_flags = 0;
 	iter->index = 0;
@@ -669,6 +675,44 @@ finish:
 	return true;
 }
 
+static bool
+ldso_insert_yield_entry(struct elf_shared_object_iterator *iter,
+    const char *path)
+{
+	struct elf_shared_object *so = malloc(sizeof(*so));
+
+	if (so == NULL)
+		return false;
+
+	so->path = path;
+	so->basename = strrchr(path, '/') + 1;
+	LIST_INSERT_HEAD(&iter->yield_list, so, _linkage);
+	
+}
+
+bool
+ldso_recursive_cache_resolve(struct elf_shared_object_iterator *iter,
+    const char *bname, elf_error_t *error)
+{
+	char *path = ldso_cache_bsearch(iter, bname);
+	struct elf_shared_object_node *current;
+	struct elf_shared_object *so;
+	elfobj_t *obj;
+
+	if (path == NULL)
+		return false;
+
+	obj = load_elf_object(path, &obj, false, error);
+	if (obj == NULL) {
+		return elf_error_set(error,
+		    "failed to load object: %s\n", path);
+	}
+	if (LIST_EMPTY(&obj->list.shared_objects))
+		return false;
+	LIST_FOREACH(current, &obj->list.shared_objects, _linkage) {
+		if (current->basename 
+}
+	
 elf_iterator_res_t
 elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
     struct elf_shared_object *entry, elf_error_t *error)
@@ -688,6 +732,19 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 		    iter, iter->current->basename);
 		return ELF_ITER_ERROR;
 	}
+	/*
+	 * We will add the path to the internal linked list, which initially
+	 * only contains the basenames from DT_NEEDED. In the future when this
+	 * iterator is used, it will not call ldso_cache_bsearch again, instead
+	 * it will already have the paths cached in the linked list along with
+	 * the basenames.
+	 */
+	iter->current->path = strdup(entry->path);
+	if (iter->current_path == NULL) {
+		elf_error_set(error, "strdup: %s", strerror(errno));
+		return ELF_ITER_ERROR;
+	}
+	
 next_basename:
 	entry->basename = iter->current->basename;
 	iter->current = LIST_NEXT(iter->current, _linkage);
