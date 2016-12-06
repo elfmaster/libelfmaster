@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,10 +15,63 @@
 #define ROUNDUP(x, y) ((x + (y - 1)) & ~(y - 1))
 
 #ifdef DEBUG
-#define DPRINTF(...) do { fprintf(stderr, __VA_ARGS__); } while(0)
+#define DEBUG_LOG(...) do { fprintf(stderr, __VA_ARGS__); } while(0)
 #else
-#define DPRINTF(...) do {} while(0)
+#define DEBUG_LOG(...) do {} while(0)
 #endif
+
+#ifdef __GNUC__
+#define likely(x)       __builtin_expect(!!(x), 1)
+#define unlikely(x)     __builtin_expect(!!(x), 0)
+#else
+#define likely(x)       (x)
+#define unlikely(x)     (x)
+#endif
+
+/*
+ **** libelfmaster supports ld.so.cache for shared library resolution
+*/
+
+#define CACHE_FILE "/etc/ld.so.cache"
+#define CACHEMAGIC "ld.so-1.7.0"
+
+struct file_entry {
+	int flags;
+	uint32_t key;
+	uint32_t value;
+};
+
+struct cache_file {
+	char magic[sizeof CACHEMAGIC - 1];
+	uint32_t nlibs;
+	struct file_entry libs[0];
+};
+
+#define CACHEMAGIC_NEW "glibc-ld.so.cache"
+#define CACHE_VERSION "1.1"
+#define CACHEMAGIC_VERSION_NEW CACHEMAGIC_NEW CACHE_VERSION
+
+struct file_entry_new {
+	int32_t flags;
+	uint32_t key;
+	uint32_t value;
+	uint32_t osversion;
+	uint64_t hwcap;
+};
+
+struct cache_file_new {
+	char magic[sizeof CACHEMAGIC_NEW - 1];
+	char version[sizeof CACHE_VERSION - 1];
+	uint32_t nlibs;		/* number of entries */
+	uint32_t len_strings;	/* size of string table */
+	uint32_t unused[5];	/* space for future extension */
+	struct file_entry_new libs[0]; /* Entries describing libraries */
+	/* After this the string table of size len_strings is found */
+};
+
+#define ALIGN_CACHE(addr)				\
+	(((addr) + __alignof__ (struct cache_file_new) -1)	\
+	    & (~(__alignof__ (struct cache_file_new) - 1)))
 
 static bool
 elf_error_set(elf_error_t *error, const char *fmt, ...)
@@ -50,6 +104,33 @@ section_name_cmp(const void *p0, const void *p1)
 	const struct elf_section *s1 = *(void **)p1;
 
 	return strcmp(s0->name, s1->name);
+}
+
+const char *
+elf_section_string(struct elfobj *obj, uint64_t offset)
+{
+
+	if (offset >= obj->size)
+		return NULL;
+	return &obj->shstrtab[offset];
+}
+
+const char *
+elf_dynamic_string(struct elfobj *obj, uint64_t offset)
+{
+
+	if (offset >= obj->size)
+		return NULL;
+	return &obj->dynstr[offset];
+}
+
+const char *
+elf_symtab_string(struct elfobj *obj, uint64_t offset)
+{
+
+	if (offset >= obj->size)
+		return NULL;
+	return &obj->strtab[offset];
 }
 
 bool
@@ -123,6 +204,15 @@ elf_symbol_by_index(struct elfobj *obj, unsigned int index,
 		Elf64_Sym *symtab64;
 	} e;
 
+	if (which == SHT_SYMTAB) {
+		if (index >= obj->symtab_count)
+			return false;
+	} else if (which == SHT_DYNSYM) {
+		if (index >= obj->dynsym_count)
+			return false;
+	} else {
+		return false;
+	}
 	switch(obj->arch) {
 	case i386:
 		e.symtab32 = which == SHT_SYMTAB ? &obj->symtab32[index] :
@@ -162,14 +252,14 @@ elf_symbol_by_name(struct elfobj *obj, const char *name,
 
 	if (name == NULL)
 		return false;
-	if (obj->flags & ELF_HAS_SYMTAB) {
+	if (obj->flags & ELF_SYMTAB_F) {
 		n = hsearch_r(e, FIND, &ep, &obj->cache.symtab);
 		if (n != 0) {
 			memcpy(out, ep->data, sizeof(*out));
 			return true;
 		}
 	}
-	if (obj->flags & ELF_HAS_DYNSYM) {
+	if (obj->flags & ELF_DYNSYM_F) {
 		n = hsearch_r(e, FIND, &ep, &obj->cache.dynsym);
 		if (n != 0) {
 			memcpy(out, ep->data, sizeof(*out));
@@ -372,6 +462,396 @@ elf_map_loadable_segments(struct elfobj *obj, struct elf_mapping *mapping,
 	return true;
 }
 
+/*
+ * Compares libraries by version numbers, and returns 0
+ * on equal.
+ */
+static int
+ldso_cache_cmp(const char *p1, const char *p2)
+{
+	while (*p1) {
+		if (isdigit(*p1) && isdigit(*p2)) {
+			int v1, v2;
+
+			v1 = strtoul(p1, (char **)&p1, 10);
+			v2 = strtoul(p2, (char **)&p2, 10);
+			if (v1 != v2)
+				return v1 - v2;
+		}
+		else if (isdigit(*p1) && !isdigit(*p2)) {
+			return 1;
+		} else if (!isdigit(*p1) && isdigit(*p2)) {
+			return -1;
+		} else if (*p1 != *p2) {
+			return *p1 - *p2;
+		} else {
+			p1++, p2++;
+		}
+	}
+	return *p1 - *p2;
+}
+
+#define ldso_cache_verify_offset(offset) (offset < iter->cache_size)
+
+static inline bool
+ldso_cache_check_flags(struct elf_shared_object_iterator *iter,
+    uint32_t flags)
+{
+	if (iter->obj->arch == i386) {
+		if (flags == 0x803)
+			return true;
+	} else if (iter->obj->arch == x64) {
+		if (flags == 0x303)
+			return true;
+	}
+	return false;
+}
+
+static const char *
+ldso_cache_bsearch(struct elf_shared_object_iterator *iter,
+    const char *name)
+{
+	int ret;
+	uint64_t value;
+	uint32_t middle, flags;
+	uint32_t left = 0;
+	uint32_t right = (iter->cache_flags & ELF_LDSO_CACHE_NEW) ?
+	    iter->cache_new->nlibs - 1 : iter->cache->nlibs - 1;
+	const char *best = NULL;
+
+	while (left <= right) {
+		uint32_t key;
+
+		middle = (left + right) / 2;
+		if (iter->cache_flags & ELF_LDSO_CACHE_NEW) {
+			key = iter->cache_new->libs[middle].key;
+		} else {
+			key = iter->cache->libs[middle].key;
+		}
+		ret = ldso_cache_cmp(name, iter->cache_data + key);
+		if (unlikely(ret == 0)) {
+			left = middle;
+			while (middle > 0) {
+				if (iter->cache_flags & ELF_LDSO_CACHE_NEW) {
+					key = iter->cache_new->libs[middle - 1].key;
+				} else {
+					key = iter->cache->libs[middle - 1].key;
+				}
+				if (ldso_cache_cmp(name,
+				    iter->cache_data + key) != 0) {
+					break;
+				}
+				--middle;
+			}
+			do {
+				uint32_t new_key;
+
+				if (iter->cache_flags & ELF_LDSO_CACHE_NEW) {
+					new_key = iter->cache_new->libs[middle].key;
+					value = iter->cache_new->libs[middle].value;
+					flags = iter->cache_new->libs[middle].flags;
+				} else {
+					new_key = iter->cache->libs[middle].key;
+					value = iter->cache->libs[middle].value;
+					flags = iter->cache->libs[middle].flags;
+				}
+				if (middle > left && (ldso_cache_cmp(name,
+				    iter->cache_data + new_key) != 0))
+					break;
+				if (ldso_cache_check_flags(iter, flags) &&
+				    ldso_cache_verify_offset(value)) {
+					if (best == NULL) {
+						best = iter->cache_data + value;
+						break;
+					}
+				}
+			} while (++middle <= right);
+			break;
+		}
+		if (ret < 0) {
+			left = middle + 1;
+		} else {
+			right = middle - 1;
+		}
+	}
+	return best;
+}
+
+#define MAX_SO_COUNT 1024
+
+bool
+elf_shared_object_iterator_init(struct elfobj *obj,
+    struct elf_shared_object_iterator *iter, const char *cache_path,
+    uint32_t flags, elf_error_t *error)
+{
+	const char *cache_file = cache_path == NULL ? CACHE_FILE : cache_path;
+
+	/*
+	 * This list is only used for recursive resolution
+	 * e.g. ELF_SO_RESOLVE_ALL_F
+	 */
+	LIST_INIT(&iter->yield_list);
+
+	iter->flags = flags;
+	iter->cache_flags = 0;
+	iter->index = 0;
+	iter->obj = obj;
+
+	if ((flags & ELF_SO_RESOLVE_F) == 0 &&
+	    (flags & ELF_SO_RESOLVE_ALL_F) == 0)
+		goto finish;
+	if (flags & ELF_SO_RESOLVE_ALL_F) {
+		iter->flags |= ELF_SO_RESOLVE_F;
+		memset(&iter->yield_cache, 0, sizeof(struct hsearch_data));
+		if (hcreate_r(MAX_SO_COUNT, &iter->yield_cache) == 0)
+			return elf_error_set(error, "hcreate_r: %s",
+			    strerror(errno));
+	}
+	iter->fd = open(cache_file, O_RDONLY);
+	if (iter->fd < 0) {
+		return elf_error_set(error, "open %s: %s", CACHE_FILE,
+		    strerror(errno));
+	}
+	if (fstat(iter->fd, &iter->st) < 0) {
+		return elf_error_set(error, "fstat %s: %s", CACHE_FILE,
+		    strerror(errno));
+	}
+	iter->mem = mmap(NULL, iter->st.st_size, PROT_READ, MAP_PRIVATE,
+	    iter->fd, 0);
+	if (iter->mem == MAP_FAILED) {
+		return elf_error_set(error, "mmap %s: %s", CACHE_FILE,
+		    strerror(errno));
+	}
+	iter->cache = iter->mem;
+	/*
+	 * Handle 3 formats:
+	 * old libc6/glibc2.0/2.1 format
+	 * old format with the new format in it
+	 * only the new format
+	 */
+	if (memcmp(iter->mem, CACHEMAGIC, strlen(CACHEMAGIC))) {
+		/*
+		 * old format
+		 */
+		size_t offset;
+
+		iter->cache_flags |= ELF_LDSO_CACHE_OLD;
+		offset = ALIGN_CACHE(sizeof(struct cache_file)
+		    + iter->cache->nlibs * sizeof(struct file_entry));
+		iter->cache_new = (struct cache_file_new *)
+		    ((char *)iter->cache + offset);
+		if ((size_t)iter->st.st_size < (offset + sizeof(struct cache_file_new))
+		    || memcmp(iter->cache_new->magic, CACHEMAGIC_VERSION_NEW,
+		    strlen(CACHEMAGIC_VERSION_NEW)) != 0) {
+			/*
+			 * Only the old format is set.
+			 */
+			iter->cache_new = (void *)-1;
+		} else {
+			/*
+			 * old format and new format are both set
+			 */
+			iter->cache_flags |= ELF_LDSO_CACHE_NEW;
+		}
+	} else if (memcmp(iter->mem, CACHEMAGIC_VERSION_NEW,
+	    strlen(CACHEMAGIC_VERSION_NEW)) == 0) {
+		/*
+		 * New format only
+		 */
+		iter->cache_new = iter->mem;
+		iter->cache_flags |= ELF_LDSO_CACHE_NEW;
+	}
+
+	if (iter->cache_flags & ELF_LDSO_CACHE_NEW) {
+		iter->cache_data = (char *)iter->cache_new;
+		iter->cache_size = (char *)iter->cache + iter->st.st_size -
+		    iter->cache_data;
+		DEBUG_LOG("using new cache, size: %lu\n", iter->cache_size);
+	} else {
+		iter->cache_data =
+		    (char *)&iter->cache->libs[iter->cache->nlibs];
+		iter->cache_size = (char *)iter->cache + iter->st.st_size -
+		    iter->cache_data;
+		DEBUG_LOG("using old cache, size: %lu\n", iter->cache_size);
+	}
+	/*
+	 * Linked list containing DT_NEEDED entries (basenames)
+	 */
+finish:
+	iter->current = LIST_FIRST(&obj->list.shared_objects);
+	return true;
+}
+
+/*
+ * We add shared objects to the yield list. Since there will be duplicates we
+ * also maintain a hash table of entries so we know which ones we already have
+ * in the list, without having to traverse the list.
+ */
+static bool
+ldso_insert_yield_entry(struct elf_shared_object_iterator *iter,
+    const char *path)
+{
+	struct elf_shared_object_node *so = malloc(sizeof(*so));
+	ENTRY e = {.key = (char *)path, (char *)path}, *ep;
+
+	if (so == NULL)
+		return false;
+	/*
+	 * If we find the item in the cache then don't add it
+	 * to the list again.
+	 */
+	if (hsearch_r(e, FIND, &ep, &iter->yield_cache) != 0)
+		return true;
+	/*
+	 * Add path to cache.
+	 */
+	if (hsearch_r(e, ENTER, &ep, &iter->yield_cache) == 0)
+		return false;
+	/*
+	 * Add path to yield list.
+	 */
+	so->path = (char *)path;
+	so->basename = strrchr(path, '/') + 1;
+	LIST_INSERT_HEAD(&iter->yield_list, so, _linkage);
+	iter->yield = LIST_FIRST(&iter->yield_list);
+	return true;
+}
+
+static bool
+ldso_recursive_cache_resolve(struct elf_shared_object_iterator *iter,
+    const char *bname)
+{
+	const char *path = ldso_cache_bsearch(iter, bname);
+	struct elf_shared_object_node *current;
+	elfobj_t obj;
+	elf_error_t error;
+
+	if (path == NULL)
+		return false;
+
+	if (elf_open_object(path, &obj, false, &error) == false)
+		return false;
+
+	if (LIST_EMPTY(&obj.list.shared_objects))
+		goto done;
+
+	LIST_FOREACH(current, &obj.list.shared_objects, _linkage) {
+
+		if (current->basename == NULL)
+			goto err;
+
+		path = (char *)ldso_cache_bsearch(iter, current->basename);
+		if (path == NULL) {
+			DEBUG_LOG("cannot resolve %s\n", current->basename);
+			goto err;
+		}
+		/*
+		 * We update the existing object list to now contain the
+		 * full path. That way any subsequent calls to the shared
+		 * object iterator will use the linked list cache.
+		 */
+		current->path = strdup(path);
+		if (current->path == NULL)
+			goto err;
+		if (ldso_insert_yield_entry(iter, current->path) == false)
+			goto err;
+		if (ldso_recursive_cache_resolve(iter, current->basename) == false)
+			goto err;
+	}
+done:
+	elf_close_object(&obj);
+	return true;
+err:
+	elf_close_object(&obj);
+	return false;
+}
+	
+elf_iterator_res_t
+elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
+    struct elf_shared_object *entry, elf_error_t *error)
+{
+
+	if (iter->current == NULL && LIST_EMPTY(&iter->yield_list)) {
+		return ELF_ITER_DONE;
+	}
+
+	/*
+	 * If the ELF_SO_RESOLVE_F flag is NOT set, then we are only
+	 * interested in getting the basenames of the shared objects in
+	 * iter->obj's DT_NEEDED entries.
+	 */
+	if ((iter->flags & ELF_SO_RESOLVE_F) == 0)
+		goto next_basename;
+
+	/*
+	 * If the ELF_SO_RESOLVE_ALL_F flag is set then we are wanting
+	 * to fully resolve each basename to path using ldso.cache, and
+	 * recursively resolve each dependency for every object in the
+	 * DT_NEEDED entries.
+	 */
+	if (iter->flags & ELF_SO_RESOLVE_ALL_F) {
+		/*
+		 * Yield each iten in the yield list when its not empty.
+		 */
+		if (LIST_EMPTY(&iter->yield_list) == 0) {
+			iter->yield = LIST_FIRST(&iter->yield_list);
+			entry->path = iter->yield->path;
+			entry->basename = iter->yield->basename;
+			LIST_REMOVE(iter->yield, _linkage);
+			return ELF_ITER_OK;
+		}
+		/*
+		 * Otherwise move on to resolving the next dependencies for
+		 * iter->current->basename.
+		 */
+		if (ldso_recursive_cache_resolve(iter, iter->current->basename)
+		    == false) {
+			elf_error_set(error, "ldso_recursive_cache_resolve(%p, %s) failed\n",
+			    iter, iter->current->basename);
+			return ELF_ITER_ERROR;
+		}
+		/*
+		 * If we succeeded, then we should have a yield list containing
+		 * all of the so dependencies for iter->current->basename. But
+		 * first lets yield the top-level basename/path, then in the next
+		 * iteration we will begin yielding items from the list until its
+		 * empty again.
+		 */
+		entry->path = (char *)ldso_cache_bsearch(iter, iter->current->basename);
+		if (entry->path == NULL) {
+			elf_error_set(error, "ldso_cache_bsearch(%p, %s) failed",
+			    iter, iter->current->basename);
+			return ELF_ITER_ERROR;
+		}
+		entry->basename = iter->current->basename;
+		iter->current = LIST_NEXT(iter->current, _linkage);
+		return ELF_ITER_OK;
+	}
+	entry->path = (char *)ldso_cache_bsearch(iter, iter->current->basename);
+	if (entry->path == NULL) {
+		elf_error_set(error, "ldso_cache_bsearch(%p, %s) failed",
+		    iter, iter->current->basename);
+		return ELF_ITER_ERROR;
+	}
+	/*
+	 * We will add the path to the internal linked list, which initially
+	 * only contains the basenames from DT_NEEDED. In the future when this
+	 * iterator is used, it will not call ldso_cache_bsearch again, instead
+	 * it will already have the paths cached in the linked list along with
+	 * the basenames.
+	 */
+	iter->current->path = strdup(entry->path);
+	if (iter->current->path == NULL) {
+		elf_error_set(error, "strdup: %s", strerror(errno));
+		return ELF_ITER_ERROR;
+	}
+
+next_basename:
+	entry->basename = iter->current->basename;
+	iter->current = LIST_NEXT(iter->current, _linkage);
+	return ELF_ITER_OK;
+}
+
 bool
 elf_relocation_iterator_init(struct elfobj *obj,
     struct elf_relocation_iterator *iter)
@@ -468,7 +948,7 @@ elf_relocation_iterator_next(struct elf_relocation_iterator *iter,
 {
 	struct elf_rel_helper_node *current;
 	struct elfobj *obj;
-	int which;
+	int which = SHT_NULL;
 begin:
 	obj = iter->obj;
 	current = iter->current;
@@ -766,6 +1246,15 @@ elf_section_iterator_init(struct elfobj *obj, struct elf_section_iterator *iter)
 	return;
 }
 
+#if 0
+void
+elf_pltgot_iterator_init(struct elfobj *obj, struct elf_pltgot_iterator *iter)
+{
+
+	iter->index = 0;
+	iter->obj = 0;
+}
+#endif
 /*
  * We don't use obj->sections, since that is sorted. We re-create an 'struct
  * elf_section' for each entry, and print them in the order the actual shdrs
@@ -825,7 +1314,9 @@ load_dynamic_segment_data(struct elfobj *obj)
 	struct elf_dynamic_entry entry;
 	elf_dynamic_iterator_t iter;
 	elf_iterator_res_t res;
+	struct elf_shared_object_node *so;
 
+	LIST_INIT(&obj->list.shared_objects);
 	elf_dynamic_iterator_init(obj, &iter);
 	for (;;) {
 		res = elf_dynamic_iterator_next(&iter, &entry);
@@ -853,8 +1344,18 @@ load_dynamic_segment_data(struct elfobj *obj)
 			obj->dynseg.pltrel.addr = entry.value;
 			break;
 		case DT_INIT:
+			obj->dynseg.init.addr = entry.value;
+			break;
 		case DT_FINI:
+			obj->dynseg.fini.addr = entry.value;
+			break;
 		case DT_NEEDED:
+			so = malloc(sizeof(*so));
+			if (so == NULL)
+				return false;
+			so->basename = elf_dynamic_string(obj, entry.value);
+			LIST_INSERT_HEAD(&obj->list.shared_objects, so,
+			    _linkage);
 			break;
 		default:
 			break;
@@ -867,7 +1368,7 @@ load_dynamic_segment_data(struct elfobj *obj)
  * Secure ELF loader.
  */
 bool
-load_elf_object(const char *path, struct elfobj *obj, bool modify,
+elf_open_object(const char *path, struct elfobj *obj, bool modify,
     elf_error_t *error)
 {
 	int fd;
@@ -876,6 +1377,7 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 	unsigned int mmap_perms = PROT_READ;
 	unsigned int mmap_flags = MAP_PRIVATE;
 	uint8_t *mem;
+	uint8_t e_class;
 	uint16_t e_machine;
 	struct stat st;
 	size_t section_count;
@@ -920,14 +1422,15 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 
 	obj->type = *(uint16_t *)((uint8_t *)&mem[16]);
 	e_machine = *(uint16_t *)((uint8_t *)&mem[18]);
+	e_class = mem[EI_CLASS];
 
 	/*
 	 * Set the ELF header pointers as contingent upon the supported arch
 	 * types. Also enforce some rudimentary security checks/sanity checks
 	 * to prevent possible invalid memory derefs down the road.
 	 */
-	switch(e_machine) {
-	case EM_386:
+	switch(e_class) {
+	case ELFCLASS32:
 		obj->arch = i386;
 		obj->ehdr32 = (Elf32_Ehdr *)mem;
 		obj->phdr32 = (Elf32_Phdr *)&mem[obj->ehdr32->e_phoff];
@@ -935,7 +1438,7 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		obj->entry_point = obj->ehdr32->e_entry;
 		obj->type = obj->ehdr32->e_type;
 		obj->segment_count = obj->ehdr32->e_phnum;
-		obj->flags |= (obj->ehdr32->e_shnum > 0 ? ELF_HAS_SHDRS : 0);
+		obj->flags |= (obj->ehdr32->e_shnum > 0 ? ELF_SHDRS_F : 0);
 		if (obj->ehdr32->e_shstrndx > obj->size) {
 			elf_error_set(error, "invalid e_shstrndx: %u\n",
 			    obj->ehdr32->e_shstrndx);
@@ -977,7 +1480,7 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 			}
 		}
 		break;
-	case EM_X86_64:
+	case ELFCLASS64:
 		obj->arch = x64;
 		obj->ehdr64 = (Elf64_Ehdr *)mem;
 		obj->phdr64 = (Elf64_Phdr *)&mem[obj->ehdr64->e_phoff];
@@ -985,7 +1488,7 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		obj->entry_point = obj->ehdr64->e_entry;
 		obj->type = obj->ehdr64->e_type;
 		obj->segment_count = obj->ehdr64->e_phnum;
-		obj->flags |= (obj->ehdr64->e_shnum > 0 ? ELF_HAS_SHDRS : 0);
+		obj->flags |= (obj->ehdr64->e_shnum > 0 ? ELF_SHDRS_F : 0);
 		if (obj->ehdr64->e_shstrndx > obj->size) {
 			elf_error_set(error, "invalid e_shstrndx: %lu",
 			    obj->ehdr64->e_shstrndx);
@@ -1155,9 +1658,11 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 		goto err;
 	}
 	if (obj->dynsym_count > 0)
-		obj->flags |= ELF_HAS_DYNSYM;
+		obj->flags |= ELF_DYNSYM_F;
 	if (obj->symtab_count > 0)
-		obj->flags |= ELF_HAS_SYMTAB;
+		obj->flags |= ELF_SYMTAB_F;
+
+	obj->flags |= obj->type == ET_DYN ? ELF_PIE_F : 0;
 
 	return true;
 err:
@@ -1166,4 +1671,15 @@ err:
 	return false;
 }
 
+void
+elf_close_object(elfobj_t *obj)
+{
+	/*
+	 * Free up cache memory and linked lists
+	 */
 
+	/*
+	 * Unmap memory
+	 */
+	munmap(obj->mem, obj->size);
+}

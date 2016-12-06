@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <search.h>
 #include <sys/queue.h>
+#include <sys/stat.h>
 
 #define MAX_ERROR_STR_LEN 128
 
@@ -35,14 +36,15 @@ typedef enum elf_arch {
 } elf_arch_t;
 
 typedef enum elf_obj_flags {
-	ELF_HAS_SYMTAB =		(1 << 0),
-	ELF_HAS_DYNSYM =		(1 << 1),
-	ELF_HAS_PHDRS =			(1 << 2),
-	ELF_HAS_SHDRS =			(1 << 3),
-	ELF_HAS_NOTE =			(1 << 4),
-	ELF_HAS_PLT_RELOCS =		(1 << 5),
-	ELF_HAS_DYN_RELOCS =		(1 << 6),
-	ELF_HAS_TEXT_RELOCS =		(1 << 7)
+	ELF_SYMTAB_F =			(1 << 0),
+	ELF_DYNSYM_F =			(1 << 1),
+	ELF_PHDRS_F =			(1 << 2),
+	ELF_SHDRS_F =			(1 << 3),
+	ELF_NOTE_F =			(1 << 4),
+	ELF_PLT_RELOCS_F =		(1 << 5),
+	ELF_DYN_RELOCS_F =		(1 << 6),
+	ELF_TEXT_RELOCS_F =		(1 << 7),
+	ELF_PIE_F =			(1 << 8)
 } elf_obj_flags_t;
 
 /*
@@ -116,6 +118,18 @@ typedef struct elf_mapping {
 	size_t len;
 } elf_mapping_t;
 
+typedef struct elf_shared_object {
+	const char *basename;
+	char *path;
+} elf_shared_object_t;
+
+typedef struct elf_shared_object_node {
+	const char *basename;
+	char *path;
+	unsigned int index; // used by elf_shared_object iterator
+	LIST_ENTRY(elf_shared_object_node) _linkage;
+} elf_shared_object_node_t;
+
 /*
  * This struct is not meant to access directly. It is an opaque
  * type. It is only accessed directly from within the API code
@@ -173,6 +187,7 @@ typedef struct elfobj {
 	struct {
 		LIST_HEAD(elf_symtab_list, elf_symbol_node) symtab;
 		LIST_HEAD(elf_dynsym_list, elf_symbol_node) dynsym;
+		LIST_HEAD(elf_shared_object_list, elf_shared_object_node) shared_objects;
 	} list;
 	/*
 	 * dynamic segment values
@@ -195,6 +210,12 @@ typedef struct elfobj {
 		struct {
 			uint64_t addr;
 		} dynstr;
+		struct {
+			uint64_t addr;
+		} init;
+		struct {
+			uint64_t addr;
+		} fini;
 	} dynseg;
 
 	/*
@@ -267,6 +288,9 @@ typedef enum elf_iterator_res {
 	ELF_ITER_ERROR
 } elf_iterator_res_t;
 
+/*
+ * This struct is used internally only.
+ */
 struct elf_rel_helper_node {
 	union {
 		Elf32_Rel *rel32;
@@ -281,13 +305,44 @@ struct elf_rel_helper_node {
 	char *section_name;
 	LIST_ENTRY(elf_rel_helper_node) _linkage;
 };
-	
+
 typedef struct elf_relocation_iterator {
 	unsigned int index;
 	elfobj_t *obj;
 	LIST_HEAD(elf_rel_helper_list, elf_rel_helper_node) list;
 	struct elf_rel_helper_node *current;
 } elf_relocation_iterator_t;
+
+#define ELF_LDSO_CACHE_OLD (1 << 0)
+#define ELF_LDSO_CACHE_NEW (1 << 1)
+
+/*
+ * Resolve basenames to full paths using ld.so.cache parsing
+ */
+#define ELF_SO_RESOLVE_F (1 << 0)
+/*
+ * Get all dependencies recursively
+ */
+#define ELF_SO_RESOLVE_ALL_F (1 << 1)
+
+typedef struct elf_shared_object_iterator {
+	unsigned int index;
+	elfobj_t *obj;
+	int fd;
+	void *mem;
+	struct stat st;
+	struct cache_file *cache;
+	struct cache_file_new *cache_new;
+	char *cache_data;
+	size_t cache_size;
+	uint32_t flags;
+	uint32_t cache_flags;
+	bool resolve;
+	struct elf_shared_object_node *current;
+	struct elf_shared_object_node *yield;
+	struct hsearch_data yield_cache;
+	LIST_HEAD(ldso_cache_yield_list, elf_shared_object_node) yield_list;
+} elf_shared_object_iterator_t;
 
 /*
  * Loads an ELF object of any type, for reading or modifying.
@@ -296,7 +351,8 @@ typedef struct elf_relocation_iterator {
  * arg3: Going to modify this object? true/false
  * arg4: error object handle to be filled in upon failure.
  */
-bool load_elf_object(const char *path, elfobj_t *, bool, elf_error_t *);
+bool elf_open_object(const char *path, elfobj_t *, bool, elf_error_t *);
+void elf_close_object(elfobj_t *);
 
 /*
  * Returns a string containing an error message for any failed libelfmaster
@@ -391,5 +447,28 @@ elf_relocation_iterator_init(struct elfobj *,
 
 elf_iterator_res_t
 elf_relocation_iterator_next(elf_relocation_iterator_t *, struct elf_relocation *);
+
+/*
+ * return pointer to string table index for ELF sections (.shstrtab)
+ * dynamic symbols (.dynstr) and local symbols (.strtab)
+ */
+const char * elf_section_string(elfobj_t *, uint64_t);
+const char * elf_dynamic_string(elfobj_t *, uint64_t);
+const char * elf_symtab_string(elfobj_t *, uint64_t);
+
+/*
+ * API for iterating over an ELF files shared object dependencies
+ * arg0: elfobj_t *, ptr to elf descriptor
+ * arg1: elf_shared_object_iterator_t *, ptr to iterator descriptor
+ * arg2: optional path to ld.so.cache file (uses /etc/ld.so.cache by default)
+ * arg3: iterator flags. optional: ELF_SO_RESOLVE_F, ELF_SO_RESOLVE_ALL_F
+ * arg4: error descriptor
+ */
+bool elf_shared_object_iterator_init(elfobj_t *,
+    elf_shared_object_iterator_t *, const char *, unsigned int,
+    elf_error_t *);
+
+elf_iterator_res_t elf_shared_object_iterator_next(elf_shared_object_iterator_t *,
+    struct elf_shared_object *, elf_error_t *);
 
 #endif
