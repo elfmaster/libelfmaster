@@ -339,8 +339,9 @@ typedef struct elf_shared_object_iterator {
 	uint32_t cache_flags;
 	bool resolve;
 	struct elf_shared_object_node *current;
+	struct elf_shared_object_node *yield;
 	struct hsearch_data yield_cache;
-	SLIST_HEAD(ldso_cache_yield_list, elf_shared_object_node) yield_list;
+	LIST_HEAD(ldso_cache_yield_list, elf_shared_object_node) yield_list;
 } elf_shared_object_iterator_t;
 
 /*
@@ -350,7 +351,8 @@ typedef struct elf_shared_object_iterator {
  * arg3: Going to modify this object? true/false
  * arg4: error object handle to be filled in upon failure.
  */
-bool load_elf_object(const char *path, elfobj_t *, bool, elf_error_t *);
+bool elf_open_object(const char *path, elfobj_t *, bool, elf_error_t *);
+void elf_close_object(elfobj_t *);
 
 /*
  * Returns a string containing an error message for any failed libelfmaster

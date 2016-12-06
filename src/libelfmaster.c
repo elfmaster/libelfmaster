@@ -523,36 +523,40 @@ ldso_cache_bsearch(struct elf_shared_object_iterator *iter,
 		uint32_t key;
 
 		middle = (left + right) / 2;
-		if (iter->flags & ELF_LDSO_CACHE_NEW) {
+		if (iter->cache_flags & ELF_LDSO_CACHE_NEW) {
 			key = iter->cache_new->libs[middle].key;
 		} else {
 			key = iter->cache->libs[middle].key;
 		}
-
 		ret = ldso_cache_cmp(name, iter->cache_data + key);
 		if (unlikely(ret == 0)) {
 			left = middle;
 			while (middle > 0) {
-				if (iter->flags & ELF_LDSO_CACHE_NEW) {
+				if (iter->cache_flags & ELF_LDSO_CACHE_NEW) {
 					key = iter->cache_new->libs[middle - 1].key;
 				} else {
 					key = iter->cache->libs[middle - 1].key;
 				}
 				if (ldso_cache_cmp(name,
-				    iter->cache_data + key) != 0)
+				    iter->cache_data + key) != 0) {
 					break;
-				middle--;
+				}
+				--middle;
 			}
 			do {
-				if (iter->flags & ELF_LDSO_CACHE_NEW) {
+				uint32_t new_key;
+
+				if (iter->cache_flags & ELF_LDSO_CACHE_NEW) {
+					new_key = iter->cache_new->libs[middle].key;
 					value = iter->cache_new->libs[middle].value;
 					flags = iter->cache_new->libs[middle].flags;
 				} else {
+					new_key = iter->cache->libs[middle].key;
 					value = iter->cache->libs[middle].value;
 					flags = iter->cache->libs[middle].flags;
 				}
 				if (middle > left && (ldso_cache_cmp(name,
-				    iter->cache_data + key) != 0))
+				    iter->cache_data + new_key) != 0))
 					break;
 				if (ldso_cache_check_flags(iter, flags) &&
 				    ldso_cache_verify_offset(value)) {
@@ -573,15 +577,14 @@ ldso_cache_bsearch(struct elf_shared_object_iterator *iter,
 	return best;
 }
 
+#define MAX_SO_COUNT 1024
+
 bool
 elf_shared_object_iterator_init(struct elfobj *obj,
     struct elf_shared_object_iterator *iter, const char *cache_path,
     uint32_t flags, elf_error_t *error)
 {
 	const char *cache_file = cache_path == NULL ? CACHE_FILE : cache_path;
-
-	if (LIST_EMPTY(&obj->list.shared_objects))
-		return false;
 
 	/*
 	 * This list is only used for recursive resolution
@@ -597,22 +600,26 @@ elf_shared_object_iterator_init(struct elfobj *obj,
 	if ((flags & ELF_SO_RESOLVE_F) == 0 &&
 	    (flags & ELF_SO_RESOLVE_ALL_F) == 0)
 		goto finish;
-	if (flags & ELF_SO_RESOLVE_ALL_F)
+	if (flags & ELF_SO_RESOLVE_ALL_F) {
 		iter->flags |= ELF_SO_RESOLVE_F;
-
+		memset(&iter->yield_cache, 0, sizeof(struct hsearch_data));
+		if (hcreate_r(MAX_SO_COUNT, &iter->yield_cache) == 0)
+			return elf_error_set(error, "hcreate_r: %s",
+			    strerror(errno));
+	}
 	iter->fd = open(cache_file, O_RDONLY);
 	if (iter->fd < 0) {
-		return elf_error_set(error, "open %s: %s\n", CACHE_FILE,
+		return elf_error_set(error, "open %s: %s", CACHE_FILE,
 		    strerror(errno));
 	}
 	if (fstat(iter->fd, &iter->st) < 0) {
-		return elf_error_set(error, "fstat %s: %s\n", CACHE_FILE,
+		return elf_error_set(error, "fstat %s: %s", CACHE_FILE,
 		    strerror(errno));
 	}
 	iter->mem = mmap(NULL, iter->st.st_size, PROT_READ, MAP_PRIVATE,
 	    iter->fd, 0);
 	if (iter->mem == MAP_FAILED) {
-		return elf_error_set(error, "mmap %s: %s\n", CACHE_FILE,
+		return elf_error_set(error, "mmap %s: %s", CACHE_FILE,
 		    strerror(errno));
 	}
 	iter->cache = iter->mem;
@@ -675,42 +682,88 @@ finish:
 	return true;
 }
 
+/*
+ * We add shared objects to the yield list. Since there will be duplicates we
+ * also maintain a hash table of entries so we know which ones we already have
+ * in the list, without having to traverse the list.
+ */
 static bool
 ldso_insert_yield_entry(struct elf_shared_object_iterator *iter,
     const char *path)
 {
-	struct elf_shared_object *so = malloc(sizeof(*so));
+	struct elf_shared_object_node *so = malloc(sizeof(*so));
+	ENTRY e = {.key = (char *)path, (char *)path}, *ep;
 
 	if (so == NULL)
 		return false;
-
-	so->path = path;
+	/*
+	 * If we find the item in the cache then don't add it
+	 * to the list again.
+	 */
+	if (hsearch_r(e, FIND, &ep, &iter->yield_cache) != 0)
+		return true;
+	/*
+	 * Add path to cache.
+	 */
+	if (hsearch_r(e, ENTER, &ep, &iter->yield_cache) == 0)
+		return false;
+	/*
+	 * Add path to yield list.
+	 */
+	so->path = (char *)path;
 	so->basename = strrchr(path, '/') + 1;
 	LIST_INSERT_HEAD(&iter->yield_list, so, _linkage);
-	
+	iter->yield = LIST_FIRST(&iter->yield_list);
+	return true;
 }
 
-bool
+static bool
 ldso_recursive_cache_resolve(struct elf_shared_object_iterator *iter,
-    const char *bname, elf_error_t *error)
+    const char *bname)
 {
-	char *path = ldso_cache_bsearch(iter, bname);
+	const char *path = ldso_cache_bsearch(iter, bname);
 	struct elf_shared_object_node *current;
-	struct elf_shared_object *so;
-	elfobj_t *obj;
+	elfobj_t obj;
+	elf_error_t error;
 
 	if (path == NULL)
 		return false;
 
-	obj = load_elf_object(path, &obj, false, error);
-	if (obj == NULL) {
-		return elf_error_set(error,
-		    "failed to load object: %s\n", path);
-	}
-	if (LIST_EMPTY(&obj->list.shared_objects))
+	if (elf_open_object(path, &obj, false, &error) == false)
 		return false;
-	LIST_FOREACH(current, &obj->list.shared_objects, _linkage) {
-		if (current->basename 
+
+	if (LIST_EMPTY(&obj.list.shared_objects))
+		goto done;
+
+	LIST_FOREACH(current, &obj.list.shared_objects, _linkage) {
+
+		if (current->basename == NULL)
+			goto err;
+
+		path = (char *)ldso_cache_bsearch(iter, current->basename);
+		if (path == NULL) {
+			DEBUG_LOG("cannot resolve %s\n", current->basename);
+			goto err;
+		}
+		/*
+		 * We update the existing object list to now contain the
+		 * full path. That way any subsequent calls to the shared
+		 * object iterator will use the linked list cache.
+		 */
+		current->path = strdup(path);
+		if (current->path == NULL)
+			goto err;
+		if (ldso_insert_yield_entry(iter, current->path) == false)
+			goto err;
+		if (ldso_recursive_cache_resolve(iter, current->basename) == false)
+			goto err;
+	}
+done:
+	elf_close_object(&obj);
+	return true;
+err:
+	elf_close_object(&obj);
+	return false;
 }
 	
 elf_iterator_res_t
@@ -718,16 +771,64 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
     struct elf_shared_object *entry, elf_error_t *error)
 {
 
-	if (iter->current == NULL)
+	if (iter->current == NULL && LIST_EMPTY(&iter->yield_list)) {
 		return ELF_ITER_DONE;
+	}
+
 	/*
-	 * Now perform binary search on cache
+	 * If the ELF_SO_RESOLVE_F flag is NOT set, then we are only
+	 * interested in getting the basenames of the shared objects in
+	 * iter->obj's DT_NEEDED entries.
 	 */
 	if ((iter->flags & ELF_SO_RESOLVE_F) == 0)
 		goto next_basename;
 
+	/*
+	 * If the ELF_SO_RESOLVE_ALL_F flag is set then we are wanting
+	 * to fully resolve each basename to path using ldso.cache, and
+	 * recursively resolve each dependency for every object in the
+	 * DT_NEEDED entries.
+	 */
+	if (iter->flags & ELF_SO_RESOLVE_ALL_F) {
+		/*
+		 * Yield each iten in the yield list when its not empty.
+		 */
+		if (LIST_EMPTY(&iter->yield_list) == 0) {
+			iter->yield = LIST_FIRST(&iter->yield_list);
+			entry->path = iter->yield->path;
+			entry->basename = iter->yield->basename;
+			LIST_REMOVE(iter->yield, _linkage);
+			return ELF_ITER_OK;
+		}
+		/*
+		 * Otherwise move on to resolving the next dependencies for
+		 * iter->current->basename.
+		 */
+		if (ldso_recursive_cache_resolve(iter, iter->current->basename)
+		    == false) {
+			elf_error_set(error, "ldso_recursive_cache_resolve(%p, %s) failed\n",
+			    iter, iter->current->basename);
+			return ELF_ITER_ERROR;
+		}
+		/*
+		 * If we succeeded, then we should have a yield list containing
+		 * all of the so dependencies for iter->current->basename. But
+		 * first lets yield the top-level basename/path, then in the next
+		 * iteration we will begin yielding items from the list until its
+		 * empty again.
+		 */
+		entry->path = (char *)ldso_cache_bsearch(iter, iter->current->basename);
+		if (entry->path == NULL) {
+			elf_error_set(error, "ldso_cache_bsearch(%p, %s) failed",
+			    iter, iter->current->basename);
+			return ELF_ITER_ERROR;
+		}
+		entry->basename = iter->current->basename;
+		iter->current = LIST_NEXT(iter->current, _linkage);
+		return ELF_ITER_OK;
+	}
 	entry->path = (char *)ldso_cache_bsearch(iter, iter->current->basename);
-	if (entry->path == NULL && (iter->flags & ELF_SO_RESOLVE_F)) {
+	if (entry->path == NULL) {
 		elf_error_set(error, "ldso_cache_bsearch(%p, %s) failed",
 		    iter, iter->current->basename);
 		return ELF_ITER_ERROR;
@@ -740,11 +841,11 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 	 * the basenames.
 	 */
 	iter->current->path = strdup(entry->path);
-	if (iter->current_path == NULL) {
+	if (iter->current->path == NULL) {
 		elf_error_set(error, "strdup: %s", strerror(errno));
 		return ELF_ITER_ERROR;
 	}
-	
+
 next_basename:
 	entry->basename = iter->current->basename;
 	iter->current = LIST_NEXT(iter->current, _linkage);
@@ -1267,7 +1368,7 @@ load_dynamic_segment_data(struct elfobj *obj)
  * Secure ELF loader.
  */
 bool
-load_elf_object(const char *path, struct elfobj *obj, bool modify,
+elf_open_object(const char *path, struct elfobj *obj, bool modify,
     elf_error_t *error)
 {
 	int fd;
@@ -1276,6 +1377,7 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 	unsigned int mmap_perms = PROT_READ;
 	unsigned int mmap_flags = MAP_PRIVATE;
 	uint8_t *mem;
+	uint8_t e_class;
 	uint16_t e_machine;
 	struct stat st;
 	size_t section_count;
@@ -1320,14 +1422,15 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 
 	obj->type = *(uint16_t *)((uint8_t *)&mem[16]);
 	e_machine = *(uint16_t *)((uint8_t *)&mem[18]);
+	e_class = mem[EI_CLASS];
 
 	/*
 	 * Set the ELF header pointers as contingent upon the supported arch
 	 * types. Also enforce some rudimentary security checks/sanity checks
 	 * to prevent possible invalid memory derefs down the road.
 	 */
-	switch(e_machine) {
-	case EM_386:
+	switch(e_class) {
+	case ELFCLASS32:
 		obj->arch = i386;
 		obj->ehdr32 = (Elf32_Ehdr *)mem;
 		obj->phdr32 = (Elf32_Phdr *)&mem[obj->ehdr32->e_phoff];
@@ -1377,7 +1480,7 @@ load_elf_object(const char *path, struct elfobj *obj, bool modify,
 			}
 		}
 		break;
-	case EM_X86_64:
+	case ELFCLASS64:
 		obj->arch = x64;
 		obj->ehdr64 = (Elf64_Ehdr *)mem;
 		obj->phdr64 = (Elf64_Phdr *)&mem[obj->ehdr64->e_phoff];
@@ -1566,4 +1669,17 @@ err:
 	close(fd);
 	munmap(mem, st.st_size);
 	return false;
+}
+
+void
+elf_close_object(elfobj_t *obj)
+{
+	/*
+	 * Free up cache memory and linked lists
+	 */
+
+	/*
+	 * Unmap memory
+	 */
+	munmap(obj->mem, obj->size);
 }

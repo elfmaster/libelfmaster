@@ -41,5 +41,6 @@ int main(void)
 			exit(-1);
 		}
 	}
+	pause();
 	return 0;
 }

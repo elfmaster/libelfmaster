@@ -28,7 +28,7 @@ int main(int argc, char **argv)
 	struct elf_shared_object_iterator so_iter;
 
 	printf("Opening %s\n", argv[1]);
-	if (load_elf_object(argv[1], &obj, false, &error) == false) {
+	if (elf_open_object(argv[1], &obj, false, &error) == false) {
 		printf("%s\n", elf_error_msg(&error));
 		return -1;
 	}
@@ -78,8 +78,19 @@ int main(int argc, char **argv)
 		printf("Relocation symbol: %s section: %s offset: %lx\n", relocation.symname,
 		    relocation.shdrname, relocation.offset);
 	}
-	elf_shared_object_iterator_init(&obj, &so_iter, NULL, ELF_SO_RESOLVE_F, &error);
-	while (elf_shared_object_iterator_next(&so_iter, &object, &error) == ELF_ITER_OK) {
+	if (elf_shared_object_iterator_init(&obj, &so_iter,
+	    NULL, ELF_SO_RESOLVE_ALL_F, &error) == false) {
+		printf("elf_shared_object_iterator_init failed: %s\n", elf_error_msg(&error));
+	}
+	for (;;) {
+		elf_iterator_res_t res;
+		res = elf_shared_object_iterator_next(&so_iter, &object, &error);
+		if (res == ELF_ITER_DONE)
+			break;
+		if (res == ELF_ITER_ERROR) {
+			printf("shared object iterator failed: %s\n", elf_error_msg(&error));
+			break;
+		}
 		printf("Basename: %s path: %s\n", object.basename, object.path);
 	}
 	/*
@@ -93,4 +104,3 @@ int main(int argc, char **argv)
 	printf("Dynamic: %lx\n", dynamic_section.address);
 	return 0;
 }	
-
