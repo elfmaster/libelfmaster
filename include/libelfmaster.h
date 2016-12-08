@@ -25,6 +25,22 @@
 #define ELFNOTE32_NEXT(_n_) ((Elf32_Nhdr *)(ELFNOTE_DESC(_n_) + ELFNOTE_ALIGN((_n_)->n_descsz)))
 #define ELFNOTE64_NEXT(_n_) ((Elf64_Nhdr *)(ELFNOTE_DESC(_n_) + ELFNOTE_ALIGN((_n_)->n_descsz)))
 
+#ifndef PT_PAX_FLAGS
+#define PT_PAX_FLAGS  0x65041580
+#endif
+
+#ifndef PT_GNU_EH_FRAME
+#define PT_GNU_EH_FRAME 0x6474e550
+#endif
+
+#ifndef PT_GNU_STACK
+#define PT_GNU_STACK 0x6474e551
+#endif
+
+#ifndef PT_GNU_RELRO
+#define PT_GNU_RELRO 0x6474e552
+#endif
+
 typedef struct elf_error {
         char string[MAX_ERROR_STR_LEN];
         int _errno;
@@ -32,8 +48,14 @@ typedef struct elf_error {
 
 typedef enum elf_arch {
 	i386,
-	x64
+	x64,
+	unsupported
 } elf_arch_t;
+
+typedef enum elf_class {
+	elfclass64,
+	elfclass32
+} elf_class_t;
 
 typedef enum elf_obj_flags {
 	ELF_SYMTAB_F =			(1 << 0),
@@ -137,6 +159,7 @@ typedef struct elf_shared_object_node {
  */
 typedef struct elfobj {
 	elf_arch_t arch;
+	elf_class_t e_class;
 	elf_obj_flags_t flags;
 	unsigned int type;
 	union {
@@ -169,10 +192,9 @@ typedef struct elfobj {
 	};
 	void *eh_frame;
 	/*
-	 * Sorted sections and segments
+	 * Sorted sections
 	 */
 	struct elf_section **sections;
-	struct elf_segment **segments;
 
 	/*
 	 * caches
@@ -202,13 +224,21 @@ typedef struct elfobj {
 			uint64_t size;
 			uint32_t type;
 		} pltrel;
-
+		struct {
+			uint64_t addr;
+			uint64_t size;
+		} rela;
+		struct {
+			uint64_t addr;
+			uint64_t size;
+		} rel;
 		struct {
 			uint64_t addr;
 		} dynsym;
 
 		struct {
 			uint64_t addr;
+			uint64_t size;
 		} dynstr;
 		struct {
 			uint64_t addr;
@@ -216,6 +246,9 @@ typedef struct elfobj {
 		struct {
 			uint64_t addr;
 		} fini;
+		struct {
+			uint64_t addr;
+		} hash;
 	} dynseg;
 
 	/*
@@ -402,6 +435,7 @@ elf_iterator_res_t elf_dynsym_iterator_next(elf_dynsym_iterator_t *, struct elf_
 
 uint64_t elf_entry_point(elfobj_t *);
 uint32_t elf_type(elfobj_t *);
+uint16_t elf_machine(elfobj_t *);
 
 bool elf_map_loadable_segments(elfobj_t *, struct elf_mapping *, elf_error_t *);
 
@@ -471,4 +505,8 @@ bool elf_shared_object_iterator_init(elfobj_t *,
 elf_iterator_res_t elf_shared_object_iterator_next(elf_shared_object_iterator_t *,
     struct elf_shared_object *, elf_error_t *);
 
+/*
+ * Convert phdr->p_type to string describing segment type, i.e. "DYNAMIC"
+ */
+const char * elf_segment_type_string(uint32_t);
 #endif

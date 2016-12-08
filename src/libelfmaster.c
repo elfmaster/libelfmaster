@@ -107,6 +107,47 @@ section_name_cmp(const void *p0, const void *p1)
 }
 
 const char *
+elf_segment_type_string(uint32_t type)
+{
+
+	switch(type) {
+	case PT_LOAD:
+		return "LOAD";
+	case PT_INTERP:
+		return "INTERP";
+	case PT_TLS:
+		return "TLS";
+	case PT_GNU_EH_FRAME:
+		return "EH_FRAME";
+	case PT_PHDR:
+		return "PHDR";
+	case PT_NOTE:
+		return "NOTE";
+	case PT_GNU_STACK:
+		return "STACK";
+	case PT_GNU_RELRO:
+		return "RELRO";
+	case PT_DYNAMIC:
+		return "DYNAMIC";
+	case PT_SHLIB:
+		return "SHLIB";
+	case PT_LOSUNW:
+		return "LOSUNW";
+	case PT_HIOS:
+		return "HIOS";
+	case PT_LOPROC:
+		return "LOPROC";
+	case PT_HIPROC:
+		return "HIPROC";
+	case PT_PAX_FLAGS:
+		return "PAX_FLAGS";
+	default:
+		return "UNKNOWN";
+	}
+	return "UNKNOWN";
+}
+
+const char *
 elf_section_string(struct elfobj *obj, uint64_t offset)
 {
 
@@ -154,8 +195,8 @@ elf_section_by_index(struct elfobj *obj, uint32_t index,
     struct elf_section *out)
 {
 
-        switch(obj->arch) {
-        case i386:
+        switch(obj->e_class) {
+        case elfclass32:
 		if (index >= obj->ehdr32->e_shnum)
 			return false;
 		out->name = &obj->shstrtab[obj->shdr32[index].sh_name];
@@ -167,7 +208,7 @@ elf_section_by_index(struct elfobj *obj, uint32_t index,
 		out->offset = obj->shdr32[index].sh_offset;
 		out->address = obj->shdr32[index].sh_addr;
 		break;
-        case x64:
+        case elfclass64:
 		if (index >= obj->ehdr64->e_shnum)
 			return false;
 		out->name = &obj->shstrtab[obj->shdr64[index].sh_name];
@@ -213,8 +254,8 @@ elf_symbol_by_index(struct elfobj *obj, unsigned int index,
 	} else {
 		return false;
 	}
-	switch(obj->arch) {
-	case i386:
+	switch(obj->e_class) {
+	case elfclass32:
 		e.symtab32 = which == SHT_SYMTAB ? &obj->symtab32[index] :
 		    &obj->dynsym32[index];
 		out->name = which == SHT_SYMTAB ? &obj->strtab[e.symtab32->st_name] :
@@ -226,7 +267,7 @@ elf_symbol_by_index(struct elfobj *obj, unsigned int index,
 		out->type = ELF32_ST_TYPE(e.symtab32->st_info);
 		out->visibility = ELF32_ST_VISIBILITY(e.symtab32->st_other);
 		break;
-	case x64:
+	case elfclass64:
 		e.symtab64 = which == SHT_SYMTAB ? &obj->symtab64[index] :
 		    &obj->dynsym64[index];
 		out->name = which == SHT_SYMTAB ? &obj->strtab[e.symtab64->st_name] :
@@ -269,6 +310,21 @@ elf_symbol_by_name(struct elfobj *obj, const char *name,
 	return false;
 }
 
+uint16_t
+elf_machine(struct elfobj *obj)
+{
+
+	switch(obj->e_class) {
+	case elfclass32:
+		return obj->ehdr32->e_machine;
+	case elfclass64:
+		return obj->ehdr64->e_machine;
+	default:
+		return ~0;
+	}
+	return ~0;
+}
+
 uint64_t
 elf_entry_point(struct elfobj *obj)
 {
@@ -301,13 +357,13 @@ elf_section_pointer(elfobj_t *obj, void *shdr)
 		Elf64_Shdr *shdr64;
 	} e;
 
-	switch(obj->arch) {
-	case i386:
+	switch(obj->e_class) {
+	case elfclass32:
 		e.shdr32 = (Elf32_Shdr *)shdr;
 		if (e.shdr32->sh_offset >= obj->size)
 			return NULL;
 		return (void *)((uint8_t *)&obj->mem[e.shdr32->sh_offset]);
-	case x64:
+	case elfclass64:
 		e.shdr64 = (Elf64_Shdr *)shdr;
 		if (e.shdr64->sh_offset >= obj->size)
 			return NULL;
@@ -333,8 +389,8 @@ build_dynsym_data(struct elfobj *obj)
 		if (symbol == NULL)
 			return false;
 
-		switch(obj->arch) {
-		case i386:
+		switch(obj->e_class) {
+		case elfclass32:
 			dsym32 = obj->dynsym32;
 			symbol->name = &obj->dynstr[dsym32[i].st_name];
 			symbol->value = dsym32[i].st_value;
@@ -344,7 +400,7 @@ build_dynsym_data(struct elfobj *obj)
 			symbol->type = ELF32_ST_TYPE(dsym32[i].st_info);
 			symbol->visibility = ELF32_ST_VISIBILITY(dsym32[i].st_other);
 			break;
-		case x64:
+		case elfclass64:
 			dsym64 = obj->dynsym64;
 			symbol->name = &obj->dynstr[dsym64[i].st_name];
 			symbol->value = dsym64[i].st_value;
@@ -385,8 +441,8 @@ build_symtab_data(struct elfobj *obj)
 		if (symbol == NULL)
 			return false;
 
-		switch(obj->arch) {
-		case i386:
+		switch(obj->e_class) {
+		case elfclass32:
 			symtab32 = obj->symtab32;
 			symbol->name = &obj->strtab[symtab32[i].st_name];
 			symbol->value = symtab32[i].st_value;
@@ -396,7 +452,7 @@ build_symtab_data(struct elfobj *obj)
 			symbol->type = ELF32_ST_TYPE(symtab32[i].st_info);
 			symbol->visibility = ELF32_ST_VISIBILITY(symtab32[i].st_other);
 			break;
-		case x64:
+		case elfclass64:
 			symtab64 = obj->symtab64;
 			symbol->name = &obj->strtab[symtab64[i].st_name];
 			symbol->value = symtab64[i].st_value;
@@ -862,7 +918,7 @@ elf_relocation_iterator_init(struct elfobj *obj,
 	iter->index = 0;
 
 	LIST_INIT(&iter->list);
-	if (obj->arch == i386) {
+	if (obj->e_class == elfclass32) {
 		Elf32_Ehdr *ehdr32 = obj->ehdr32;
 		Elf32_Shdr *shdr32 = obj->shdr32;
 
@@ -899,7 +955,7 @@ elf_relocation_iterator_init(struct elfobj *obj,
 				LIST_INSERT_HEAD(&iter->list, n, _linkage);
 			}
 		}
-	} else if (obj->arch == x64) {
+	} else if (obj->e_class == elfclass64) {
 		Elf64_Ehdr *ehdr64 = obj->ehdr64;
 		Elf64_Shdr *shdr64 = obj->shdr64;
 
@@ -968,7 +1024,7 @@ begin:
 		which = SHT_SYMTAB;
 	}
 
-	if (iter->obj->arch == i386) {
+	if (iter->obj->e_class == elfclass32) {
 		unsigned int i = iter->index++;
 		const size_t entsz = current->addend ? sizeof(Elf32_Rela) :
 		    sizeof(Elf32_Rel);
@@ -1007,7 +1063,7 @@ begin:
 			entry->shdrname = current->section_name;
 			return ELF_ITER_OK;
 		}
-	} else if (iter->obj->arch == x64) {
+	} else if (iter->obj->e_class == elfclass64) {
 		unsigned int i = iter->index++;
 		const size_t entsz = current->addend ? sizeof(Elf64_Rela) :
 		    sizeof(Elf64_Rel);
@@ -1107,8 +1163,8 @@ elf_dynamic_iterator_next(struct elf_dynamic_iterator *iter,
 {
 	unsigned int i = iter->index;
 
-	switch(iter->obj->arch) {
-	case i386:
+	switch(iter->obj->e_class) {
+	case elfclass32:
 		if (iter->obj->dynamic32 == NULL)
 			return ELF_ITER_DONE;
 		if (iter->obj->dynamic32[i].d_tag == DT_NULL)
@@ -1116,7 +1172,7 @@ elf_dynamic_iterator_next(struct elf_dynamic_iterator *iter,
 		entry->tag = iter->obj->dynamic32[i].d_tag;
 		entry->value = iter->obj->dynamic32[i].d_un.d_val;
 		break;
-	case x64:
+	case elfclass64:
 		if (iter->obj->dynamic64 == NULL)
 			return ELF_ITER_DONE;
 		if (iter->obj->dynamic64[i].d_tag == DT_NULL)
@@ -1137,11 +1193,11 @@ elf_note_iterator_init(struct elfobj *obj, struct elf_note_iterator *iter)
 
 	iter->obj = obj;
 	iter->index = 0;
-	switch(iter->obj->arch) {
-	case i386:
+	switch(iter->obj->e_class) {
+	case elfclass32:
 		iter->note32 = iter->obj->note32;
 		break;
-	case x64:
+	case elfclass64:
 		iter->note64 = iter->obj->note64;
 		break;
 	default:
@@ -1159,8 +1215,8 @@ elf_note_iterator_next(struct elf_note_iterator *iter,
 	if (iter->index >= iter->obj->note_size)
 		return ELF_ITER_DONE;
 
-	switch(iter->obj->arch) {
-	case i386:
+	switch(iter->obj->e_class) {
+	case elfclass32:
 		if (iter->note32 == NULL)
 			return ELF_ITER_DONE;
 		entry->mem = ELFNOTE_DESC(iter->note32);
@@ -1170,7 +1226,7 @@ elf_note_iterator_next(struct elf_note_iterator *iter,
 		    iter->note32->n_namesz + sizeof(long));
 		iter->note32 = ELFNOTE32_NEXT(iter->note32);
 		break;
-	case x64:
+	case elfclass64:
 		if (iter->note64 == NULL)
 			return ELF_ITER_DONE;
 		entry->mem = ELFNOTE_DESC(iter->note64);
@@ -1205,8 +1261,8 @@ elf_segment_iterator_next(struct elf_segment_iterator *iter,
 	if (iter->index >= obj->segment_count)
 		return ELF_ITER_DONE;
 
-	switch(obj->arch) {
-	case i386:
+	switch(obj->e_class) {
+	case elfclass32:
 		if (obj->phdr32 == NULL)
 			return ELF_ITER_DONE;
 		segment->type = obj->phdr32[iter->index].p_type;
@@ -1218,7 +1274,7 @@ elf_segment_iterator_next(struct elf_segment_iterator *iter,
 		segment->memsz = obj->phdr32[iter->index].p_memsz;
 		segment->align = obj->phdr32[iter->index].p_align;
 		break;
-	case x64:
+	case elfclass64:
 		if (obj->phdr64 == NULL)
 			return ELF_ITER_DONE;
 		segment->type = obj->phdr64[iter->index].p_type;
@@ -1269,8 +1325,8 @@ elf_section_iterator_next(struct elf_section_iterator *iter,
 	if (iter->index >= obj->section_count)
 		return ELF_ITER_DONE;
 
-	switch(obj->arch) {
-	case i386:
+	switch(obj->e_class) {
+	case elfclass32:
 		if (obj->shdr32 == NULL || obj->shstrtab == NULL)
 			return ELF_ITER_DONE;
 		section->name = &obj->shstrtab[obj->shdr32[iter->index].sh_name];
@@ -1284,7 +1340,7 @@ elf_section_iterator_next(struct elf_section_iterator *iter,
 		section->address = obj->shdr32[iter->index].sh_addr;
 		section->size = obj->shdr32[iter->index].sh_size;
 		break;
-	case x64:
+	case elfclass64:
 		if (obj->shdr64 == NULL || obj->shstrtab == NULL)
 			return ELF_ITER_DONE;
 		section->name = &obj->shstrtab[obj->shdr64[iter->index].sh_name];
@@ -1337,11 +1393,30 @@ load_dynamic_segment_data(struct elfobj *obj)
 		case DT_STRTAB:
 			obj->dynseg.dynstr.addr = entry.value;
 			break;
+		case DT_STRSZ:
+			obj->dynseg.dynstr.size = entry.value;
+			break;
+		case DT_HASH:
+			obj->dynseg.hash.addr = entry.value;
+			break;
 		case DT_PLTREL:
+			obj->flags |= ELF_PLT_RELOCS_F;
 			obj->dynseg.pltrel.type = entry.value;
 			break;
 		case DT_JMPREL:
 			obj->dynseg.pltrel.addr = entry.value;
+			break;
+		case DT_RELA:
+			obj->dynseg.rela.addr = entry.value;
+			break;
+		case DT_RELASZ:
+			obj->dynseg.rela.size = entry.value;
+			break;
+		case DT_REL:
+			obj->dynseg.rel.addr = entry.value;
+			break;
+		case DT_RELSZ:
+			obj->dynseg.rel.size = entry.value;
 			break;
 		case DT_INIT:
 			obj->dynseg.init.addr = entry.value;
@@ -1423,7 +1498,17 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 	obj->type = *(uint16_t *)((uint8_t *)&mem[16]);
 	e_machine = *(uint16_t *)((uint8_t *)&mem[18]);
 	e_class = mem[EI_CLASS];
-
+	switch(e_machine) {
+	case EM_X86_64:
+		obj->arch = x64;
+		break;
+	case EM_386:
+		obj->arch = i386;
+		break;
+	default:
+		obj->arch = unsupported;
+		break;
+	}
 	/*
 	 * Set the ELF header pointers as contingent upon the supported arch
 	 * types. Also enforce some rudimentary security checks/sanity checks
@@ -1431,8 +1516,12 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 	 */
 	switch(e_class) {
 	case ELFCLASS32:
-		obj->arch = i386;
+		obj->e_class = elfclass32;
 		obj->ehdr32 = (Elf32_Ehdr *)mem;
+		if (obj->ehdr32->e_shnum > 0)
+			obj->flags |= ELF_SHDRS_F;
+		if (obj->ehdr32->e_phnum > 0)
+			obj->flags |= ELF_PHDRS_F;
 		obj->phdr32 = (Elf32_Phdr *)&mem[obj->ehdr32->e_phoff];
 		obj->shdr32 = (Elf32_Shdr *)&mem[obj->ehdr32->e_shoff];
 		obj->entry_point = obj->ehdr32->e_entry;
@@ -1469,6 +1558,7 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 		}
 		for (i = 0; i < obj->ehdr32->e_phnum; i++) {
 			if (obj->phdr32[i].p_type == PT_NOTE) {
+				obj->flags |= ELF_NOTE_F;
 				obj->note32 = (Elf32_Nhdr *)&obj->mem[obj->phdr32[i].p_offset];
 				obj->note_size = obj->phdr32[i].p_filesz;
 			} else if (obj->phdr32[i].p_type == PT_DYNAMIC) {
@@ -1481,8 +1571,12 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 		}
 		break;
 	case ELFCLASS64:
-		obj->arch = x64;
+		obj->e_class = elfclass64;
 		obj->ehdr64 = (Elf64_Ehdr *)mem;
+		if (obj->ehdr64->e_shnum > 0)
+			obj->flags |= ELF_SHDRS_F;
+		if (obj->ehdr64->e_phnum > 0)
+			obj->flags |= ELF_PHDRS_F;
 		obj->phdr64 = (Elf64_Phdr *)&mem[obj->ehdr64->e_phoff];
 		obj->shdr64 = (Elf64_Shdr *)&mem[obj->ehdr64->e_shoff];
 		obj->entry_point = obj->ehdr64->e_entry;
@@ -1551,8 +1645,8 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 			elf_error_set(error, "malloc: %s", strerror(errno));
 			goto err;
 		}
-		switch(obj->arch) {
-		case i386:
+		switch(obj->e_class) {
+		case elfclass32:
 			obj->sections[i]->name =
 			    strdup(&obj->shstrtab[obj->shdr32[i].sh_name]);
 			obj->sections[i]->type = obj->shdr32[i].sh_type;
@@ -1565,7 +1659,7 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 			obj->sections[i]->address = obj->shdr32[i].sh_addr;
 			obj->sections[i]->size = obj->shdr32[i].sh_size;
 			break;
-		case x64:
+		case elfclass64:
 			obj->sections[i]->name =
 			    strdup(&obj->shstrtab[obj->shdr64[i].sh_name]);
 			obj->sections[i]->type = obj->shdr64[i].sh_type;
@@ -1592,10 +1686,10 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 	 * ELF file.
 	 */
 	for (i = 0; i < section_count; i++) {
-		const char *sname = (obj->arch == i386) ?
+		const char *sname = (obj->e_class == elfclass32) ?
 		    &obj->shstrtab[obj->shdr32[i].sh_name] :
 		    &obj->shstrtab[obj->shdr64[i].sh_name];
-		uint64_t sh_offset = (obj->arch == i386) ?
+		uint64_t sh_offset = (obj->e_class == elfclass32) ?
 		    obj->shdr32[i].sh_offset : obj->shdr64[i].sh_offset;
 
 		if (strcmp(sname, ".strtab") == 0) {
@@ -1605,14 +1699,15 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 		 * and string table pointers.
 		 */
 		} else if (strcmp(sname, ".symtab") == 0) {
-			switch(obj->arch) {
-			case i386:
+			obj->flags |= ELF_SYMTAB_F;
+			switch(obj->e_class) {
+			case elfclass32:
 				obj->symtab_count = obj->shdr32[i].sh_size /
 				    sizeof(Elf32_Sym);
 				obj->symtab32 =
 				    (Elf32_Sym *)&mem[sh_offset];
 				break;
-			case x64:
+			case elfclass64:
 				obj->symtab_count = obj->shdr64[i].sh_size /
 				    sizeof(Elf64_Sym);
 				obj->symtab64 =
@@ -1620,14 +1715,15 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 				break;
 			}
 		} else if (strcmp(sname, ".dynsym") == 0) {
-			switch(obj->arch) {
-			case i386:
+			obj->flags |= ELF_DYNSYM_F;
+			switch(obj->e_class) {
+			case elfclass32:
 				obj->dynsym_count = obj->shdr32[i].sh_size /
 				    sizeof(Elf32_Sym);
 				obj->dynsym32 =
 				    (Elf32_Sym *)&mem[sh_offset];
 				break;
-			case x64:
+			case elfclass64:
 				obj->dynsym_count = obj->shdr64[i].sh_size /
 				    sizeof(Elf64_Sym);
 				obj->dynsym64 =

@@ -4,6 +4,7 @@
 #include <elf.h>
 #include <sys/types.h>
 #include <search.h>
+#include <sys/time.h>
 #include "../include/libelfmaster.h"
 
 int main(int argc, char **argv)
@@ -26,27 +27,62 @@ int main(int argc, char **argv)
 	struct elf_relocation relocation;
 	struct elf_shared_object object;
 	struct elf_shared_object_iterator so_iter;
+	struct timeval tv, tv2;
+	unsigned int count = 0;
 
-	printf("Opening %s\n", argv[1]);
 	if (elf_open_object(argv[1], &obj, false, &error) == false) {
 		printf("%s\n", elf_error_msg(&error));
 		return -1;
 	}
 
+	if (obj.flags & ELF_SHDRS_F)
+		printf("*** Section Headers:\n");
+	/*
+	 * The iterator simply won't print anything if there are no sections
+	 * so we don't have to nest this block of code
+	 */
 	elf_section_iterator_init(&obj, &s_iter);
 	while (elf_section_iterator_next(&s_iter, &section) == ELF_ITER_OK) {
-		printf("ELF Section: %s : %#lx\n", section.name, section.address);
+		struct elf_section tmp_section;
+
+		printf("\nSection %u\n", count++);
+		printf("Name: %s\n", section.name ? section.name : "");
+		printf("Addr:   %#lx\n", section.address);
+		printf("Off:    %#lx\n", section.offset);
+		printf("Size:   %#lx\n", section.size);
+		printf("Info:   %u\n", section.info);
+		printf("Flags:  %C%C%C\n", section.flags & SHF_ALLOC ? 'A' : ' ',
+		    section.flags & SHF_EXECINSTR ? 'X' : ' ',
+		    section.flags & SHF_WRITE ? 'W' : ' ');
+		if (elf_section_by_index(&obj, section.link, &tmp_section) == true) {
+			if (tmp_section.name != NULL)
+				printf("Link:   %s\n", tmp_section.name);
+			else
+				printf("Link:   %u\n", section.link);
+		} else {
+			printf("Link:   %u\n", section.link);
+		}
+		printf("Align:  %lx\n", section.align);
+		printf("EntSiz: %lu\n", section.entsize);
+		printf("Index:  %u\n", section.index);
 	}
+
+	if (obj.flags & ELF_PHDRS_F)
+		printf("\n*** Program headers\n");
 
 	elf_segment_iterator_init(&obj, &p_iter);
 	while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
-		printf("ELF Segment: %#08lx - loadable? '%s'\n",
-		    segment.vaddr, segment.type == PT_LOAD ? "Yes" : "No");
+		printf("\nAddr:    %#lx\n", segment.vaddr);
+		printf("Filesz:  %#lx\n", segment.filesz);
+		printf("MemSz:   %#lx\n", segment.memsz);
+		printf("Offset:  %#lx\n", segment.offset);
+		printf("Align:   %#lx\n", segment.align);
+		printf("Type:    %s\n", elf_segment_type_string(segment.type));
 	}
 
 	elf_note_iterator_init(&obj, &n_iter);
 	while (elf_note_iterator_next(&n_iter, &note_entry) == ELF_ITER_OK) {
-		printf("ELF Note type: %d size: %u\n", note_entry.type, note_entry.size);
+		printf("ELF Note type: %d size: %lu\n", note_entry.type, note_entry.size);
 	}
 
 	elf_dynamic_iterator_init(&obj, &d_iter);
@@ -78,6 +114,7 @@ int main(int argc, char **argv)
 		printf("Relocation symbol: %s section: %s offset: %lx\n", relocation.symname,
 		    relocation.shdrname, relocation.offset);
 	}
+	gettimeofday(&tv, NULL);
 	if (elf_shared_object_iterator_init(&obj, &so_iter,
 	    NULL, ELF_SO_RESOLVE_ALL_F, &error) == false) {
 		printf("elf_shared_object_iterator_init failed: %s\n", elf_error_msg(&error));
@@ -93,6 +130,8 @@ int main(int argc, char **argv)
 		}
 		printf("Basename: %s path: %s\n", object.basename, object.path);
 	}
+	gettimeofday(&tv2, NULL);
+	printf("elapsed: %lu\n", tv2.tv_usec - tv.tv_usec);
 	/*
 	 * Uses a sorted array of pointers to elf_section structs, and therefore is able
 	 * to perform a binary search for faster lookups.
