@@ -7,12 +7,34 @@
 #include <sys/time.h>
 #include "../include/libelfmaster.h"
 
+const char *
+got_flag_str(uint32_t flags)
+{
+	switch(flags) {
+	case ELF_PLTGOT_RESERVED_DYNAMIC_F:
+		return "DYNAMIC SEGMENT";
+	case ELF_PLTGOT_RESERVED_LINKMAP_F:
+		return "LINKMAP POINTER";
+	case ELF_PLTGOT_RESERVED_DL_RESOLVE_F:
+		return "__DL_RESOLVE POINTER";
+	case ELF_PLTGOT_PLT_STUB_F:
+		return "PLT STUB";
+	case ELF_PLTGOT_RESOLVED_F:
+		return "RESOLVED";
+	default:
+		return "";
+	}
+	return "";
+}
+
 int main(int argc, char **argv)
 {
 	elfobj_t obj;
 	elf_error_t error;
 	struct elf_section dynamic_section, section;
 	struct elf_segment segment;
+	elf_pltgot_iterator_t pltgot_iter;
+	elf_pltgot_entry_t pltgot;
 	elf_symtab_iterator_t symtab_iter;
 	elf_section_iterator_t s_iter;
 	elf_segment_iterator_t p_iter;
@@ -90,6 +112,10 @@ int main(int argc, char **argv)
 		printf("ELF Dynamic type: %d value: %#lx\n", dynamic_entry.tag, dynamic_entry.value);
 	}
 
+	elf_pltgot_iterator_init(&obj, &pltgot_iter);
+	while (elf_pltgot_iterator_next(&pltgot_iter, &pltgot) == ELF_ITER_OK) {
+		printf("GOT (%#lx): %#lx %s\n", pltgot.offset, pltgot.value, got_flag_str(pltgot.flags));
+	}
 #if 0
 	if (elf_map_loadable_segments(&obj, &mapping, &error) == false) {
 		printf("failed to load segments: %s\n", elf_error_msg(&error));
@@ -114,7 +140,6 @@ int main(int argc, char **argv)
 		printf("Relocation symbol: %s section: %s offset: %lx\n", relocation.symname,
 		    relocation.shdrname, relocation.offset);
 	}
-	gettimeofday(&tv, NULL);
 	if (elf_shared_object_iterator_init(&obj, &so_iter,
 	    NULL, ELF_SO_RESOLVE_ALL_F, &error) == false) {
 		printf("elf_shared_object_iterator_init failed: %s\n", elf_error_msg(&error));
@@ -130,8 +155,6 @@ int main(int argc, char **argv)
 		}
 		printf("Basename: %s path: %s\n", object.basename, object.path);
 	}
-	gettimeofday(&tv2, NULL);
-	printf("elapsed: %lu\n", tv2.tv_usec - tv.tv_usec);
 	/*
 	 * Uses a sorted array of pointers to elf_section structs, and therefore is able
 	 * to perform a binary search for faster lookups.

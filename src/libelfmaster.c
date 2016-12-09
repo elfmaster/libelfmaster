@@ -147,6 +147,18 @@ elf_segment_type_string(uint32_t type)
 	return "UNKNOWN";
 }
 
+void *
+elf_address_pointer(struct elfobj *obj, uint64_t address)
+{
+	uint64_t offset = address - obj->base_address;
+
+	printf("Subtracting %lx - %lx\n", address - obj->base_address);
+	printf("offset: %lu\n", offset);
+	if (offset > obj->size - 1)
+		return NULL;
+	return (void *)((uint8_t *)&obj->mem[offset]);
+}
+
 const char *
 elf_section_string(struct elfobj *obj, uint64_t offset)
 {
@@ -284,6 +296,7 @@ elf_symbol_by_index(struct elfobj *obj, unsigned int index,
 	}
 	return true;
 }
+
 bool
 elf_symbol_by_name(struct elfobj *obj, const char *name,
     struct elf_symbol *out)
@@ -1302,15 +1315,54 @@ elf_section_iterator_init(struct elfobj *obj, struct elf_section_iterator *iter)
 	return;
 }
 
-#if 0
 void
 elf_pltgot_iterator_init(struct elfobj *obj, struct elf_pltgot_iterator *iter)
 {
 
 	iter->index = 0;
-	iter->obj = 0;
+	iter->obj = obj;
+	iter->pltgot = elf_address_pointer(iter->obj, iter->obj->dynseg.pltgot.addr);
+	iter->wordsize = iter->obj->arch == i386 ? 4 : 8;
+	iter->gotsize = (iter->wordsize * 3) + obj->dynsym_count * iter->wordsize;
+	return;
 }
-#endif
+
+elf_iterator_res_t
+elf_pltgot_iterator_next(struct elf_pltgot_iterator *iter, struct elf_pltgot_entry *entry)
+{
+
+	entry->flags = 0;
+
+	switch(iter->index) {
+	case 0:
+		entry->flags = ELF_PLTGOT_RESERVED_DYNAMIC_F;
+		break;
+	case 1:
+		entry->flags = ELF_PLTGOT_RESERVED_LINKMAP_F;
+		break;
+	case 2:
+		entry->flags = ELF_PLTGOT_RESERVED_DL_RESOLVE_F;
+	default:
+		break;
+	}
+
+	if (iter->obj->arch == i386) {
+		uint32_t *ptr = iter->pltgot;
+
+		entry->value = ptr[iter->index];
+	} else if (iter->obj->arch == x64) {
+		uint64_t *ptr = iter->pltgot;
+
+		printf("ptr: %p\n");
+		entry->value = ptr[iter->index];
+	}
+	entry->offset = iter->obj->dynseg.pltgot.addr + iter->wordsize * iter->index;
+	if ((iter->index * iter->wordsize) > iter->gotsize)
+		return ELF_ITER_DONE;
+	iter->index++;
+	return ELF_ITER_OK;
+}
+
 /*
  * We don't use obj->sections, since that is sorted. We re-create an 'struct
  * elf_section' for each entry, and print them in the order the actual shdrs
@@ -1382,6 +1434,7 @@ load_dynamic_segment_data(struct elfobj *obj)
 			return false;
 		switch(entry.tag) {
 		case DT_PLTGOT:
+			printf("Setting pltgot to %lx\n", entry.value);
 			obj->dynseg.pltgot.addr = entry.value;
 			break;
 		case DT_PLTRELSZ:
@@ -1447,7 +1500,7 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
     elf_error_t *error)
 {
 	int fd;
-	uint32_t i;
+	uint32_t i, load = 0;
 	unsigned int open_flags = O_RDONLY;
 	unsigned int mmap_perms = PROT_READ;
 	unsigned int mmap_flags = MAP_PRIVATE;
@@ -1567,6 +1620,8 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 			} else if (obj->phdr32[i].p_type == PT_GNU_EH_FRAME) {
 				obj->eh_frame = &obj->mem[obj->phdr32[i].p_offset];
 				obj->eh_frame_size = obj->phdr32[i].p_filesz;
+			} else if (obj->phdr32[i].p_type == PT_LOAD && load++ == 0) {
+				obj->base_address = obj->phdr32[i].p_vaddr;
 			}
 		}
 		break;
@@ -1621,6 +1676,9 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 			} else if (obj->phdr64[i].p_type == PT_GNU_EH_FRAME) {
 				obj->eh_frame = &obj->mem[obj->phdr64[i].p_offset];
 				obj->eh_frame_size = obj->phdr64[i].p_filesz;
+			} else if (obj->phdr64[i].p_type == PT_LOAD && load++ == 0) {
+				obj->base_address = obj->phdr64[i].p_vaddr;
+				printf("set obj->base_address to %lx\n", obj->base_address);
 			}
 		}
 		break;

@@ -267,6 +267,7 @@ typedef struct elfobj {
 	size_t dynamic_size;
 	size_t eh_frame_size;
 	uint64_t entry_point;
+	uint64_t base_address;
 } elfobj_t;
 
 /*
@@ -314,6 +315,26 @@ typedef struct elf_symtab_iterator {
 typedef struct elf_dynsym_iterator {
 	struct elf_symbol_node *current;
 } elf_dynsym_iterator_t;
+
+typedef struct elf_pltgot_iterator {
+	unsigned int index;
+	elfobj_t *obj;
+	void *pltgot;
+	size_t wordsize;
+	size_t gotsize;
+} elf_pltgot_iterator_t;
+
+#define ELF_PLTGOT_RESERVED_DYNAMIC_F 		(1 << 0)
+#define ELF_PLTGOT_RESERVED_LINKMAP_F 		(1 << 1)
+#define ELF_PLTGOT_RESERVED_DL_RESOLVE_F 	(1 << 2)
+#define ELF_PLTGOT_PLT_STUB_F 			(1 << 3)
+#define ELF_PLTGOT_RESOLVED_F			(1 << 4)
+
+typedef struct elf_pltgot_entry {
+	uint64_t offset;
+	uint64_t value;
+	uint32_t flags; /* can be set to ELF_PLTGOT_* flags */
+} elf_pltgot_entry_t;
 
 typedef enum elf_iterator_res {
 	ELF_ITER_OK,
@@ -509,4 +530,13 @@ elf_iterator_res_t elf_shared_object_iterator_next(elf_shared_object_iterator_t 
  * Convert phdr->p_type to string describing segment type, i.e. "DYNAMIC"
  */
 const char * elf_segment_type_string(uint32_t);
+
+/*
+ * Get pointer to ELF binary location by address
+ */
+void * elf_address_pointer(elfobj_t *, uint64_t);
+
+void elf_pltgot_iterator_init(elfobj_t *, elf_pltgot_iterator_t *);
+elf_iterator_res_t elf_pltgot_iterator_next(elf_pltgot_iterator_t *, elf_pltgot_entry_t *);
+
 #endif
