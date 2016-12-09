@@ -195,7 +195,21 @@ typedef struct elfobj {
 	 * Sorted sections
 	 */
 	struct elf_section **sections;
-
+	/*
+	 * Loadable segments (i.e. text, data)
+	 */
+#define MAX_PT_LOAD 6 /* Should likely never be over 2 or 3 */
+#define ELF_PT_LOAD_TEXT_F (1 << 0)
+#define ELF_PT_LOAD_DATA_F (1 << 1)
+#define ELF_PT_LOAD_MISC_F (1 << 2)
+	struct {
+		union {
+			Elf64_Phdr phdr64;
+			Elf32_Phdr phdr32;
+		};
+		uint32_t flag;
+	} pt_load[MAX_PT_LOAD];
+	size_t load_count;
 	/*
 	 * caches
 	 */
@@ -267,7 +281,10 @@ typedef struct elfobj {
 	size_t dynamic_size;
 	size_t eh_frame_size;
 	uint64_t entry_point;
-	uint64_t base_address;
+	uint64_t text_address; /* text base address */
+	uint64_t text_offset;
+	uint64_t data_address; /* data segment address */
+	uint64_t data_offset;
 } elfobj_t;
 
 /*
@@ -539,4 +556,14 @@ void * elf_address_pointer(elfobj_t *, uint64_t);
 void elf_pltgot_iterator_init(elfobj_t *, elf_pltgot_iterator_t *);
 elf_iterator_res_t elf_pltgot_iterator_next(elf_pltgot_iterator_t *, elf_pltgot_entry_t *);
 
+/*
+ * return base address of text or data segment
+ */
+uint64_t elf_text_base(elfobj_t *);
+uint64_t elf_data_base(elfobj_t *);
+
+/*
+ * return base offset of text or data segment
+ */
+uint64_t elf_data_offset(elfobj_t *);
 #endif

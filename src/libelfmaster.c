@@ -147,13 +147,65 @@ elf_segment_type_string(uint32_t type)
 	return "UNKNOWN";
 }
 
+uint64_t
+elf_text_base(struct elfobj *obj)
+{
+	size_t i;
+
+	for (i = 0; i < obj->load_count; i++) {
+		if (obj->pt_load[i].flag & ELF_PT_LOAD_TEXT_F) {
+			switch(obj->e_class) {
+			case elfclass32:
+				return obj->pt_load[i].phdr32.p_vaddr;
+			case elfclass64:
+				return obj->pt_load[i].phdr64.p_vaddr;
+			}
+		}
+	}
+	return 0;
+}
+
+uint64_t
+elf_data_base(struct elfobj *obj)
+{
+	size_t i;
+
+	for (i = 0; i < obj->load_count; i++) {
+		if (obj->pt_load[i].flag & ELF_PT_LOAD_DATA_F) {
+			switch(obj->e_class) {
+			case elfclass32:
+				return obj->pt_load[i].phdr32.p_vaddr;
+			case elfclass64:
+				return obj->pt_load[i].phdr64.p_vaddr;
+			}
+		}
+	}
+	return 0;
+}
+
+uint64_t
+elf_data_offset(struct elfobj *obj)
+{
+	size_t i;
+
+	for (i = 0; i < obj->load_count; i++) {
+		if (obj->pt_load[i].flag & ELF_PT_LOAD_DATA_F) {
+			switch(obj->e_class) {
+			case elfclass32:
+				return obj->pt_load[i].phdr32.p_offset;
+			case elfclass64:
+				return obj->pt_load[i].phdr64.p_offset;
+			}
+		}
+	}
+	return 0;
+}
+
 void *
 elf_address_pointer(struct elfobj *obj, uint64_t address)
 {
-	uint64_t offset = address - obj->base_address;
+	uint64_t offset = elf_data_offset(obj) + address - elf_data_base(obj);
 
-	printf("Subtracting %lx - %lx\n", address - obj->base_address);
-	printf("offset: %lu\n", offset);
 	if (offset > obj->size - 1)
 		return NULL;
 	return (void *)((uint8_t *)&obj->mem[offset]);
@@ -1330,6 +1382,7 @@ elf_pltgot_iterator_init(struct elfobj *obj, struct elf_pltgot_iterator *iter)
 elf_iterator_res_t
 elf_pltgot_iterator_next(struct elf_pltgot_iterator *iter, struct elf_pltgot_entry *entry)
 {
+	struct elf_section section;
 
 	entry->flags = 0;
 
@@ -1353,12 +1406,16 @@ elf_pltgot_iterator_next(struct elf_pltgot_iterator *iter, struct elf_pltgot_ent
 	} else if (iter->obj->arch == x64) {
 		uint64_t *ptr = iter->pltgot;
 
-		printf("ptr: %p\n");
 		entry->value = ptr[iter->index];
 	}
+	if (elf_section_by_name(iter->obj, ".plt", &section) == true) {
+		if (entry->value >= section.address && entry->value < section.address + section.size)
+			entry->flags = ELF_PLTGOT_PLT_STUB_F;
+	}
 	entry->offset = iter->obj->dynseg.pltgot.addr + iter->wordsize * iter->index;
-	if ((iter->index * iter->wordsize) > iter->gotsize)
+	if ((iter->index * iter->wordsize) > iter->gotsize) {
 		return ELF_ITER_DONE;
+	}
 	iter->index++;
 	return ELF_ITER_OK;
 }
@@ -1434,7 +1491,6 @@ load_dynamic_segment_data(struct elfobj *obj)
 			return false;
 		switch(entry.tag) {
 		case DT_PLTGOT:
-			printf("Setting pltgot to %lx\n", entry.value);
 			obj->dynseg.pltgot.addr = entry.value;
 			break;
 		case DT_PLTRELSZ:
@@ -1500,7 +1556,7 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
     elf_error_t *error)
 {
 	int fd;
-	uint32_t i, load = 0;
+	uint32_t i;
 	unsigned int open_flags = O_RDONLY;
 	unsigned int mmap_perms = PROT_READ;
 	unsigned int mmap_flags = MAP_PRIVATE;
@@ -1509,7 +1565,7 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 	uint16_t e_machine;
 	struct stat st;
 	size_t section_count;
-
+	bool text_found = false, data_found = false;
 	/*
 	 * We count on this being initialized for various sanity checks.
 	 */
@@ -1620,8 +1676,29 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 			} else if (obj->phdr32[i].p_type == PT_GNU_EH_FRAME) {
 				obj->eh_frame = &obj->mem[obj->phdr32[i].p_offset];
 				obj->eh_frame_size = obj->phdr32[i].p_filesz;
-			} else if (obj->phdr32[i].p_type == PT_LOAD && load++ == 0) {
-				obj->base_address = obj->phdr32[i].p_vaddr;
+			} else if (obj->phdr32[i].p_type == PT_LOAD && obj->phdr32[i].p_offset == 0) {
+				obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
+				text_found = true;
+				memcpy(&obj->pt_load[obj->load_count++].phdr32, &obj->phdr32[i],
+				    sizeof(Elf32_Phdr));
+			} else if (obj->phdr32[i].p_type == PT_LOAD && text_found == false) {
+				if ((obj->phdr32[i].p_flags & (PF_R|PF_X)) == (PF_R | PF_X)) {
+					obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
+					text_found = true;
+					memcpy(&obj->pt_load[obj->load_count++].phdr32,
+					    &obj->phdr32[i], sizeof(Elf32_Phdr));
+				}
+			} else if (obj->phdr32[i].p_type == PT_LOAD) {
+				if (data_found == true) {
+					obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_MISC_F;
+					memcpy(&obj->pt_load[obj->load_count++].phdr32,
+					    &obj->phdr32[i], sizeof(Elf32_Phdr));
+				} else {
+					obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_DATA_F;
+					data_found = true;
+					memcpy(&obj->pt_load[obj->load_count++].phdr32,
+					    &obj->phdr32[i], sizeof(Elf32_Phdr));
+				}
 			}
 		}
 		break;
@@ -1676,9 +1753,29 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 			} else if (obj->phdr64[i].p_type == PT_GNU_EH_FRAME) {
 				obj->eh_frame = &obj->mem[obj->phdr64[i].p_offset];
 				obj->eh_frame_size = obj->phdr64[i].p_filesz;
-			} else if (obj->phdr64[i].p_type == PT_LOAD && load++ == 0) {
-				obj->base_address = obj->phdr64[i].p_vaddr;
-				printf("set obj->base_address to %lx\n", obj->base_address);
+			} else if (obj->phdr64[i].p_type == PT_LOAD && obj->phdr64[i].p_offset == 0) {
+				obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
+				text_found = true;
+				memcpy(&obj->pt_load[obj->load_count++].phdr64, &obj->phdr64[i],
+				    sizeof(Elf64_Phdr));
+			} else if (obj->phdr64[i].p_type == PT_LOAD && text_found == false) {
+				if ((obj->phdr64[i].p_flags & (PF_R|PF_X)) == (PF_R | PF_X)) {
+					obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
+					text_found = true;
+					memcpy(&obj->pt_load[obj->load_count++].phdr64,
+					    &obj->phdr64[i], sizeof(Elf64_Phdr));
+				}
+			} else if (obj->phdr64[i].p_type == PT_LOAD) {
+				if (data_found == true) {
+					obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_MISC_F;
+					memcpy(&obj->pt_load[obj->load_count++].phdr64,
+					    &obj->phdr64[i], sizeof(Elf64_Phdr));
+				} else {
+					obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_DATA_F;
+					data_found = true;
+					memcpy(&obj->pt_load[obj->load_count++].phdr64,
+					    &obj->phdr64[i], sizeof(Elf64_Phdr));
+				}
 			}
 		}
 		break;

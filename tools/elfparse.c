@@ -114,7 +114,7 @@ int main(int argc, char **argv)
 
 	elf_pltgot_iterator_init(&obj, &pltgot_iter);
 	while (elf_pltgot_iterator_next(&pltgot_iter, &pltgot) == ELF_ITER_OK) {
-		printf("GOT (%#lx): %#lx %s\n", pltgot.offset, pltgot.value, got_flag_str(pltgot.flags));
+		printf("GOT (%#lx): %#08x %s\n", pltgot.offset, pltgot.value, got_flag_str(pltgot.flags));
 	}
 #if 0
 	if (elf_map_loadable_segments(&obj, &mapping, &error) == false) {
