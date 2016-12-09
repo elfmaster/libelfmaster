@@ -102,44 +102,68 @@ int main(int argc, char **argv)
 		printf("Type:    %s\n", elf_segment_type_string(segment.type));
 	}
 
+	if (obj.flags & ELF_NOTE_F)
+		printf("\n*** NOTE Entries\n");
 	elf_note_iterator_init(&obj, &n_iter);
 	while (elf_note_iterator_next(&n_iter, &note_entry) == ELF_ITER_OK) {
 		printf("ELF Note type: %d size: %lu\n", note_entry.type, note_entry.size);
 	}
+
+	if (obj.flags & ELF_DYNAMIC_F)
+		printf("\n*** Dynamic segment entries\n");
 
 	elf_dynamic_iterator_init(&obj, &d_iter);
 	while (elf_dynamic_iterator_next(&d_iter, &dynamic_entry) == ELF_ITER_OK) {
 		printf("ELF Dynamic type: %d value: %#lx\n", dynamic_entry.tag, dynamic_entry.value);
 	}
 
+	if (obj.flags & ELF_DYNAMIC_F)
+		printf("\n*** PLT/GOT table entries\n");
+
 	elf_pltgot_iterator_init(&obj, &pltgot_iter);
 	while (elf_pltgot_iterator_next(&pltgot_iter, &pltgot) == ELF_ITER_OK) {
 		printf("GOT (%#lx): %#08x %s\n", pltgot.offset, pltgot.value, got_flag_str(pltgot.flags));
 	}
 #if 0
+	/*
+	 * This can only be used when the program calling it is a PIE program, otherwise it will
+	 * likely try to map the loadable segments to the address space already in-use by the
+	 * calling program. So we comment this out.
+	 */
 	if (elf_map_loadable_segments(&obj, &mapping, &error) == false) {
 		printf("failed to load segments: %s\n", elf_error_msg(&error));
 	}
 #endif
+	/*
+	 * Just demonstrating how to look up a symbol by name.
+	 */
 	if (elf_symbol_by_name(&obj, "main", &symbol) == true) {
-		printf("symbol addr: %lx\n", symbol.value);
+		printf("\nmain() address: %lx\n", symbol.value);
 	}
 
+	if (obj.flags & ELF_DYNSYM_F)
+		printf("\n*** Dynamic symbols\n");
 	elf_dynsym_iterator_init(&obj, &dsym_iter);
 	while (elf_dynsym_iterator_next(&dsym_iter, &symbol) == ELF_ITER_OK) {
 		printf("dynsym: %s : %lx\n", symbol.name, symbol.value);
 	}
 
+	if (obj.flags & ELF_SYMTAB_F)
+		printf("\n*** Symbols\n");
 	elf_symtab_iterator_init(&obj, &symtab_iter);
 	while (elf_symtab_iterator_next(&symtab_iter, &symbol) == ELF_ITER_OK) {
 		printf("symtab: %s : %lx\n", symbol.name, symbol.value);
 	}
 
+	printf("\n*** ELF Relocations\n");
 	elf_relocation_iterator_init(&obj, &reloc_iter);
 	while (elf_relocation_iterator_next(&reloc_iter, &relocation) == ELF_ITER_OK) {
 		printf("Relocation symbol: %s section: %s offset: %lx\n", relocation.symname,
 		    relocation.shdrname, relocation.offset);
 	}
+
+	if (obj.flags & ELF_DYNAMIC_F)
+		printf("\n*** ELF shared object dependency resolution\n");
 	if (elf_shared_object_iterator_init(&obj, &so_iter,
 	    NULL, ELF_SO_RESOLVE_ALL_F, &error) == false) {
 		printf("elf_shared_object_iterator_init failed: %s\n", elf_error_msg(&error));
@@ -163,6 +187,6 @@ int main(int argc, char **argv)
 		printf("Couldn't find ELF section: .dynamic\n");
 	}
 
-	printf("Dynamic: %lx\n", dynamic_section.address);
+	printf("Dynamic section: %lx\n", dynamic_section.address);
 	return 0;
 }	

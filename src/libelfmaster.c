@@ -1671,6 +1671,7 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 				obj->note32 = (Elf32_Nhdr *)&obj->mem[obj->phdr32[i].p_offset];
 				obj->note_size = obj->phdr32[i].p_filesz;
 			} else if (obj->phdr32[i].p_type == PT_DYNAMIC) {
+				obj->flags |= ELF_DYNAMIC_F;
 				obj->dynamic32 = (Elf32_Dyn *)&obj->mem[obj->phdr32[i].p_offset];
 				obj->dynamic_size = obj->phdr32[i].p_filesz;
 			} else if (obj->phdr32[i].p_type == PT_GNU_EH_FRAME) {
@@ -1745,9 +1746,11 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 		}
 		for (i = 0; i < obj->ehdr64->e_phnum; i++) {
 			if (obj->phdr64[i].p_type == PT_NOTE) {
+				obj->flags |= ELF_NOTE_F;
 				obj->note64 = (Elf64_Nhdr *)&obj->mem[obj->phdr64[i].p_offset];
 				obj->note_size = obj->phdr64[i].p_filesz;
 			} else if (obj->phdr64[i].p_type == PT_DYNAMIC) {
+				obj->flags |= ELF_DYNAMIC_F;
 				obj->dynamic64 = (Elf64_Dyn *)&obj->mem[obj->phdr64[i].p_offset];
 				obj->dynamic_size = obj->phdr64[i].p_filesz;
 			} else if (obj->phdr64[i].p_type == PT_GNU_EH_FRAME) {
