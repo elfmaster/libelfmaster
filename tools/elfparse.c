@@ -156,12 +156,25 @@ int main(int argc, char **argv)
 	}
 
 	printf("\n*** ELF Relocations\n");
-	elf_relocation_iterator_init(&obj, &reloc_iter);
-	while (elf_relocation_iterator_next(&reloc_iter, &relocation) == ELF_ITER_OK) {
-		printf("Relocation symbol: %s section: %s offset: %lx\n", relocation.symname,
-		    relocation.shdrname, relocation.offset);
+	if (elf_relocation_iterator_init(&obj, &reloc_iter) == false) {
+		printf("Failed to initialize elf relocation iterator\n");
+	} else {
+		while (elf_relocation_iterator_next(&reloc_iter, &relocation) == ELF_ITER_OK) {
+			printf("\nRelocation symbol: %s\n"
+			       "Section:           %s\n"
+			       "Offset:            %lx\n"
+			       "Addend:	           %lx\n", relocation.symname,
+		    	    relocation.shdrname, relocation.offset, relocation.addend);
+		}
 	}
-
+	/*
+	 * If this is a dynamically linked executable, we can use the
+	 * shared object iterator to not only list the DT_NEEDED entries
+	 * but we can use the ELF_SO_RESOLVE_ALL_F flag to resolve every
+	 * dependency, which is a recursive procedure, and the iterator
+	 * actually uses /etc/ld.so.cache just like the dynamic linker
+	 * which improves resolution performance by orders of magnitude.
+	 */
 	if (obj.flags & ELF_DYNAMIC_F)
 		printf("\n*** ELF shared object dependency resolution\n");
 	if (elf_shared_object_iterator_init(&obj, &so_iter,

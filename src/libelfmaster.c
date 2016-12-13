@@ -147,6 +147,16 @@ elf_segment_type_string(uint32_t type)
 	return "UNKNOWN";
 }
 
+const char *
+elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
+{
+
+	(void)obj;
+	(void)r_type;
+
+	return "unknown";
+}
+
 uint64_t
 elf_text_base(struct elfobj *obj)
 {
@@ -159,6 +169,24 @@ elf_text_base(struct elfobj *obj)
 				return obj->pt_load[i].phdr32.p_vaddr;
 			case elfclass64:
 				return obj->pt_load[i].phdr64.p_vaddr;
+			}
+		}
+	}
+	return 0;
+}
+
+uint64_t
+elf_text_offset(struct elfobj *obj)
+{
+	size_t i;
+
+	for (i = 0; i < obj->load_count; i++) {
+		if (obj->pt_load[i].flag & ELF_PT_LOAD_TEXT_F) {
+			switch(obj->e_class) {
+			case elfclass32:
+				return obj->pt_load[i].phdr32.p_offset;
+			case elfclass64:
+				return obj->pt_load[i].phdr64.p_offset;
 			}
 		}
 	}
@@ -619,8 +647,10 @@ ldso_cache_check_flags(struct elf_shared_object_iterator *iter,
     uint32_t flags)
 {
 	if (iter->obj->arch == i386) {
-		if (flags == 0x803)
+		if (flags == 0x803) {
+			printf("i386 yes true\n");
 			return true;
+		}
 	} else if (iter->obj->arch == x64) {
 		if (flags == 0x303)
 			return true;
@@ -892,9 +922,8 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
     struct elf_shared_object *entry, elf_error_t *error)
 {
 
-	if (iter->current == NULL && LIST_EMPTY(&iter->yield_list)) {
+	if (iter->current == NULL && LIST_EMPTY(&iter->yield_list))
 		return ELF_ITER_DONE;
-	}
 
 	/*
 	 * If the ELF_SO_RESOLVE_F flag is NOT set, then we are only
@@ -1074,19 +1103,21 @@ begin:
 	obj = iter->obj;
 	current = iter->current;
 
-	if (current == NULL)
+	if (current == NULL || LIST_EMPTY(&iter->list))
 		return ELF_ITER_DONE;
-
 	/*
 	 * If we're dealing sections rela.plt, rel.plt
 	 * rela.dyn or rel.dyn, then we need to look up
-	 * symbol indexes in the dynamic symbol table.
+	 * symbol indexes in the dynamic symbol table..
+	 * UNLESS this is a statically linked executable
+	 * in which case there may still be a plt/got but
+	 * there will not be a .dynsym.
 	 */
+	which = SHT_SYMTAB;
 	if (strstr(current->section_name, ".plt") ||
 	    strstr(current->section_name, ".dyn")) {
-		which = SHT_DYNSYM;
-	} else {
-		which = SHT_SYMTAB;
+		if (obj->flags & ELF_DYNAMIC_F)
+			which = SHT_DYNSYM;
 	}
 
 	if (iter->obj->e_class == elfclass32) {
@@ -1367,13 +1398,38 @@ elf_section_iterator_init(struct elfobj *obj, struct elf_section_iterator *iter)
 	return;
 }
 
+const char *
+elf_pltgot_flag_string(uint32_t flags)
+{
+
+	switch(flags) {
+	case ELF_PLTGOT_RESERVED_DYNAMIC_F:
+		return "DYNAMIC SEGMENT";
+	case ELF_PLTGOT_RESERVED_LINKMAP_F:
+		return "LINKMAP POINTER";
+	case ELF_PLTGOT_RESERVED_DL_RESOLVE_F:
+		return "__DL_RESOLVE POINTER";
+	case ELF_PLTGOT_PLT_STUB_F:
+		return "PLT STUB";
+	case ELF_PLTGOT_RESOLVED_F:
+		return "RESOLVED";
+	default:
+		return "";
+	}
+	return "";
+}
+
 void
 elf_pltgot_iterator_init(struct elfobj *obj, struct elf_pltgot_iterator *iter)
 {
 
 	iter->index = 0;
 	iter->obj = obj;
-	iter->pltgot = elf_address_pointer(iter->obj, iter->obj->dynseg.pltgot.addr);
+	if (iter->obj->dynseg.pltgot.addr == 0) {
+		iter->pltgot = NULL;
+	} else {
+		iter->pltgot = elf_address_pointer(iter->obj, iter->obj->dynseg.pltgot.addr);
+	}
 	iter->wordsize = iter->obj->arch == i386 ? 4 : 8;
 	iter->gotsize = (iter->wordsize * 3) + obj->dynsym_count * iter->wordsize;
 	return;
@@ -1385,6 +1441,9 @@ elf_pltgot_iterator_next(struct elf_pltgot_iterator *iter, struct elf_pltgot_ent
 	struct elf_section section;
 
 	entry->flags = 0;
+
+	if (iter->pltgot == NULL)
+		return ELF_ITER_DONE;
 
 	switch(iter->index) {
 	case 0:
@@ -1645,26 +1704,32 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 		obj->shstrtab =
 		    (char *)&mem[obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset];
 		obj->section_count = section_count = obj->ehdr32->e_shnum;
-		if ((obj->ehdr32->e_phoff +
-		    (obj->ehdr32->e_phnum * sizeof(Elf32_Phdr))) > obj->size) {
-			elf_error_set(error, "unsafe phdr values");
-			goto err;
+		if (obj->ehdr32->e_type != ET_REL) {
+			if ((obj->ehdr32->e_phoff +
+			     (obj->ehdr32->e_phnum * sizeof(Elf32_Phdr))) > obj->size) {
+				elf_error_set(error, "unsafe phdr values");
+				goto err;
+			}
 		}
 		if ((obj->ehdr32->e_shoff +
 		    (obj->ehdr32->e_shnum * sizeof(Elf32_Shdr))) > obj->size) {
 			elf_error_set(error, "unsafe shdr value");
 			goto err;
 		}
-		if (obj->ehdr32->e_phentsize != sizeof(Elf32_Phdr)) {
-			elf_error_set(error, "invalid e_phentsize: %u",
-			    obj->ehdr32->e_phentsize);
-			goto err;
+		if (obj->ehdr32->e_type != ET_REL) {
+			if (obj->ehdr32->e_phentsize != sizeof(Elf32_Phdr)) {
+				elf_error_set(error, "invalid e_phentsize: %u",
+				    obj->ehdr32->e_phentsize);
+				goto err;
+			}
 		}
 		if (obj->ehdr32->e_shentsize != sizeof(Elf32_Shdr)) {
 			elf_error_set(error, "invalid e_shentsize: %u",
 			    obj->ehdr32->e_shentsize);
 			goto err;
 		}
+		if (obj->ehdr32->e_type == ET_REL)
+			break;
 		for (i = 0; i < obj->ehdr32->e_phnum; i++) {
 			if (obj->phdr32[i].p_type == PT_NOTE) {
 				obj->flags |= ELF_NOTE_F;
@@ -1724,26 +1789,32 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 		obj->shstrtab =
 		    (char *)&mem[obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset];
 		obj->section_count = section_count = obj->ehdr64->e_shnum;
-		if ((obj->ehdr64->e_phoff +
-		    (obj->ehdr64->e_phnum * sizeof(Elf64_Phdr))) > obj->size) {
-			elf_error_set(error, "unsafe phdr values");
-			goto err;
+		if (obj->ehdr64->e_type != ET_REL) {
+			if ((obj->ehdr64->e_phoff +
+			    (obj->ehdr64->e_phnum * sizeof(Elf64_Phdr))) > obj->size) {
+				elf_error_set(error, "unsafe phdr values");
+				goto err;
+			}
 		}
 		if ((obj->ehdr64->e_shoff +
 		    (obj->ehdr64->e_shnum * sizeof(Elf64_Shdr))) > obj->size) {
 			elf_error_set(error, "unsafe shdr values");
 			goto err;
 		}
-		if (obj->ehdr64->e_phentsize != sizeof(Elf64_Phdr)) {
-			elf_error_set(error, "invalid e_phentsize: %u",
-			    obj->ehdr64->e_phentsize);
-			goto err;
+		if (obj->ehdr64->e_type != ET_REL) {
+			if (obj->ehdr64->e_phentsize != sizeof(Elf64_Phdr)) {
+				elf_error_set(error, "invalid e_phentsize: %u",
+				    obj->ehdr64->e_phentsize);
+				goto err;
+			}
 		}
 		if (obj->ehdr64->e_shentsize != sizeof(Elf64_Shdr)) {
 			elf_error_set(error, "invalid_e_shentsize: %u",
 			    obj->ehdr64->e_shentsize);
 			goto err;
 		}
+		if (obj->ehdr64->e_type == ET_REL)
+			break;
 		for (i = 0; i < obj->ehdr64->e_phnum; i++) {
 			if (obj->phdr64[i].p_type == PT_NOTE) {
 				obj->flags |= ELF_NOTE_F;

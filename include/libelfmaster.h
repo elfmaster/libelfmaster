@@ -558,6 +558,12 @@ void elf_pltgot_iterator_init(elfobj_t *, elf_pltgot_iterator_t *);
 elf_iterator_res_t elf_pltgot_iterator_next(elf_pltgot_iterator_t *, elf_pltgot_entry_t *);
 
 /*
+ * Get string describing the GOT entry based on elf_pltgot_entry.flags
+ */
+const char *
+elf_pltgot_flag_string(uint32_t);
+
+/*
  * return base address of text or data segment
  */
 uint64_t elf_text_base(elfobj_t *);
@@ -566,5 +572,13 @@ uint64_t elf_data_base(elfobj_t *);
 /*
  * return base offset of text or data segment
  */
+uint64_t elf_text_offset(elfobj_t *);
 uint64_t elf_data_offset(elfobj_t *);
+
+/*
+ * r_type converted to string representing the relocation
+ * type; i.e. "R_X86_64_JUMP_SLOT"
+ */
+const char *
+elf_reloc_type_string(elfobj_t *, uint32_t);
 #endif
