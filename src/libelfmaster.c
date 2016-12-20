@@ -647,10 +647,8 @@ ldso_cache_check_flags(struct elf_shared_object_iterator *iter,
     uint32_t flags)
 {
 	if (iter->obj->arch == i386) {
-		if (flags == 0x803) {
-			printf("i386 yes true\n");
+		if (flags == 0x803)
 			return true;
-		}
 	} else if (iter->obj->arch == x64) {
 		if (flags == 0x303)
 			return true;
@@ -730,6 +728,11 @@ ldso_cache_bsearch(struct elf_shared_object_iterator *iter,
 
 #define MAX_SO_COUNT 1024
 
+/*
+ * The shared object iterator is the most sophisticated of all iterators.
+ * It uses the ld.so.cache to quickly resolve shared library basenames to
+ * complete paths; similarly to how the dynamic linker works.
+ */
 bool
 elf_shared_object_iterator_init(struct elfobj *obj,
     struct elf_shared_object_iterator *iter, const char *cache_path,
@@ -916,7 +919,7 @@ err:
 	elf_close_object(&obj);
 	return false;
 }
-	
+
 elf_iterator_res_t
 elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
     struct elf_shared_object *entry, elf_error_t *error)

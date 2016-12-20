@@ -7,26 +7,6 @@
 #include <sys/time.h>
 #include "../include/libelfmaster.h"
 
-const char *
-got_flag_str(uint32_t flags)
-{
-	switch(flags) {
-	case ELF_PLTGOT_RESERVED_DYNAMIC_F:
-		return "DYNAMIC SEGMENT";
-	case ELF_PLTGOT_RESERVED_LINKMAP_F:
-		return "LINKMAP POINTER";
-	case ELF_PLTGOT_RESERVED_DL_RESOLVE_F:
-		return "__DL_RESOLVE POINTER";
-	case ELF_PLTGOT_PLT_STUB_F:
-		return "PLT STUB";
-	case ELF_PLTGOT_RESOLVED_F:
-		return "RESOLVED";
-	default:
-		return "";
-	}
-	return "";
-}
-
 int main(int argc, char **argv)
 {
 	elfobj_t obj;
@@ -122,7 +102,8 @@ int main(int argc, char **argv)
 
 	elf_pltgot_iterator_init(&obj, &pltgot_iter);
 	while (elf_pltgot_iterator_next(&pltgot_iter, &pltgot) == ELF_ITER_OK) {
-		printf("GOT (%#lx): %#08x %s\n", pltgot.offset, pltgot.value, got_flag_str(pltgot.flags));
+		printf("GOT (%#lx): %#08lx %s\n", pltgot.offset,
+		    pltgot.value, elf_pltgot_flag_string(pltgot.flags));
 	}
 #if 0
 	/*
