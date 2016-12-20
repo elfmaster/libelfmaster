@@ -217,6 +217,7 @@ typedef struct elfobj {
 	struct {
 		struct hsearch_data symtab;
 		struct hsearch_data dynsym;
+		struct hsearch_data plt;
 	} cache;
 	/*
 	 * lists
@@ -224,6 +225,7 @@ typedef struct elfobj {
 	struct {
 		LIST_HEAD(elf_symtab_list, elf_symbol_node) symtab;
 		LIST_HEAD(elf_dynsym_list, elf_symbol_node) dynsym;
+		LIST_HEAD(elf_plt_list, elf_plt_node) plt;
 		LIST_HEAD(elf_shared_object_list, elf_shared_object_node) shared_objects;
 	} list;
 	/*

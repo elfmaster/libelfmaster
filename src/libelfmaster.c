@@ -465,6 +465,44 @@ elf_section_pointer(elfobj_t *obj, void *shdr)
 	return NULL;
 }
 
+/*
+ * Same for x86 and i386
+ */
+#define ELF_RELOC_JUMP_SLOT 7
+
+static bool
+build_plt_data(struct elfobj *obj)
+{
+	ENTRY e, *ep;
+	unsigned int i;
+	struct elf_section plt;
+	const size_t pltentsz = obj->dynseg.pltrel.size;
+	struct elf_relocation_iterator r_iter;
+	struct elf_relocation r_entry;
+	elf_iterator_res_t res;
+
+	if (elf_section_by_name(obj, ".plt", &plt) == false)
+		return false;
+	/*
+	 * We can use the relocation iterator at this point, since all of its
+	 * necessary components have been set already within elfobj *
+	 */
+	if (elf_relocation_iterator_init(obj, &r_iter) == false)
+		return false;
+
+	for (;;) {
+		res = elf_relocation_iterator_next(&r_iter, &r_entry);
+		if (res == ELF_ITER_ERROR)
+			return false;
+		if (res == ELF_ITER_DONE)
+			break;
+		if (r_entry.type != ELF_RELOC_JUMP_SLOT)
+			continue;
+	}
+	return true;
+}
+
+	
 static bool
 build_dynsym_data(struct elfobj *obj)
 {
