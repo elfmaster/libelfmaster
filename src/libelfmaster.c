@@ -479,6 +479,8 @@ build_plt_data(struct elfobj *obj)
 	const size_t pltentsz = obj->dynseg.pltrel.size;
 	struct elf_relocation_iterator r_iter;
 	struct elf_relocation r_entry;
+	struct elf_plt_node *plt_node;
+	uint64_t plt_addr;
 	elf_iterator_res_t res;
 
 	if (elf_section_by_name(obj, ".plt", &plt) == false)
@@ -490,6 +492,26 @@ build_plt_data(struct elfobj *obj)
 	if (elf_relocation_iterator_init(obj, &r_iter) == false)
 		return false;
 
+	plt_node = malloc(sizeof(*plt_node));
+	if (plt_node == NULL)
+		return false;
+
+	/*
+	 * First PLT entry is always PLT-0, even though objdump always
+	 * names it with same symbol name as the next entry.
+	 */
+	plt_node->addr = plt.address;
+	plt_node->symname = "PLT-0";
+	LIST_INSERT_HEAD(&obj->list.plt, plt_node, _linkage);
+
+	/*
+	 * Also hash the PLT entries by symbol name.
+	 */
+	e.key = (char *)plt_node->symname;
+	e.data = (void *)plt_node;
+	hsearch_r(e, ENTER, &ep, &obj->cache.plt);
+	plt_addr = plt.address + plt.entsize;
+
 	for (;;) {
 		res = elf_relocation_iterator_next(&r_iter, &r_entry);
 		if (res == ELF_ITER_ERROR)
@@ -498,11 +520,22 @@ build_plt_data(struct elfobj *obj)
 			break;
 		if (r_entry.type != ELF_RELOC_JUMP_SLOT)
 			continue;
+		plt_node = malloc(sizeof(*plt_node));
+		if (plt_node == NULL)
+			return false;
+		plt_node->addr = plt_addr;
+		plt_node->symname = r_entry.symname;
+		DEBUG_LOG("creating PLT entry: %s: %lx\n", plt_node->symname,
+		    plt_node->addr);
+		LIST_INSERT_HEAD(&obj->list.plt, plt_node, _linkage);
+		e.key = (char *)plt_node->symname;
+		e.data = (void *)plt_node;
+		hsearch_r(e, ENTER, &ep, &obj->cache.plt);
+		plt_addr += plt.entsize;
 	}
 	return true;
 }
 
-	
 static bool
 build_dynsym_data(struct elfobj *obj)
 {
@@ -2015,12 +2048,18 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 	 */
 	hcreate_r(obj->symtab_count, &obj->cache.symtab);
 	hcreate_r(obj->dynsym_count, &obj->cache.dynsym);
+	hcreate_r(obj->dynsym_count, &obj->cache.plt);
+
 	if (build_dynsym_data(obj) == false) {
 		elf_error_set(error, "failed to build dynamic symbol data");
 		goto err;
 	}
 	if (build_symtab_data(obj) == false) {
 		elf_error_set(error, "failed to build symtab symbol data");
+		goto err;
+	}
+	if (build_plt_data(obj) == false) {
+		elf_error_set(error, "failed to build plt cache and list");
 		goto err;
 	}
 	if (obj->dynsym_count > 0)

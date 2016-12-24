@@ -153,6 +153,17 @@ typedef struct elf_shared_object_node {
 	LIST_ENTRY(elf_shared_object_node) _linkage;
 } elf_shared_object_node_t;
 
+typedef struct elf_plt {
+	char *symname;
+	uint64_t addr;
+} elf_plt_t;
+
+typedef struct elf_plt_node {
+	char *symname;
+	uint64_t addr;
+	LIST_ENTRY(elf_plt_node) _linkage;
+} elf_plt_node_t;
+
 /*
  * This struct is not meant to access directly. It is an opaque
  * type. It is only accessed directly from within the API code
