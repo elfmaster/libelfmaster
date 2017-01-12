@@ -347,6 +347,10 @@ typedef struct elf_dynsym_iterator {
 	struct elf_symbol_node *current;
 } elf_dynsym_iterator_t;
 
+typedef struct elf_plt_iterator {
+	struct elf_plt_node *current;
+} elf_plt_iterator_t;
+
 typedef struct elf_pltgot_iterator {
 	unsigned int index;
 	elfobj_t *obj;
@@ -484,6 +488,9 @@ elf_iterator_res_t elf_symtab_iterator_next(elf_symtab_iterator_t *, struct elf_
 
 void elf_dynsym_iterator_init(elfobj_t *, elf_dynsym_iterator_t *);
 elf_iterator_res_t elf_dynsym_iterator_next(elf_dynsym_iterator_t *, struct elf_symbol *);
+
+void elf_plt_iterator_init(elfobj_t *, elf_plt_iterator_t *);
+elf_iterator_res_t elf_plt_iterator_next(elf_plt_iterator_t *, struct elf_plt *);
 
 uint64_t elf_entry_point(elfobj_t *);
 uint32_t elf_type(elfobj_t *);

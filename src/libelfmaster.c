@@ -474,9 +474,7 @@ static bool
 build_plt_data(struct elfobj *obj)
 {
 	ENTRY e, *ep;
-	unsigned int i;
 	struct elf_section plt;
-	const size_t pltentsz = obj->dynseg.pltrel.size;
 	struct elf_relocation_iterator r_iter;
 	struct elf_relocation r_entry;
 	struct elf_plt_node *plt_node;
@@ -501,7 +499,7 @@ build_plt_data(struct elfobj *obj)
 	 * names it with same symbol name as the next entry.
 	 */
 	plt_node->addr = plt.address;
-	plt_node->symname = "PLT-0";
+	plt_node->symname = (char *)"PLT-0";
 	LIST_INSERT_HEAD(&obj->list.plt, plt_node, _linkage);
 
 	/*
@@ -525,8 +523,6 @@ build_plt_data(struct elfobj *obj)
 			return false;
 		plt_node->addr = plt_addr;
 		plt_node->symname = r_entry.symname;
-		DEBUG_LOG("creating PLT entry: %s: %lx\n", plt_node->symname,
-		    plt_node->addr);
 		LIST_INSERT_HEAD(&obj->list.plt, plt_node, _linkage);
 		e.key = (char *)plt_node->symname;
 		e.data = (void *)plt_node;
@@ -1317,6 +1313,26 @@ elf_dynsym_iterator_next(struct elf_dynsym_iterator *iter,
 	iter->current = LIST_NEXT(iter->current, _linkage);
 	return ELF_ITER_OK;
 }
+
+void
+elf_plt_iterator_init(struct elfobj *obj, struct elf_plt_iterator *iter)
+{
+
+	iter->current = LIST_FIRST(&obj->list.plt);
+	return;
+}
+
+elf_iterator_res_t
+elf_plt_iterator_next(struct elf_plt_iterator *iter, struct elf_plt *entry)
+{
+
+	if (iter->current == NULL)
+		return ELF_ITER_DONE;
+	memcpy(entry, iter->current, sizeof(*entry));
+	iter->current = LIST_NEXT(iter->current, _linkage);
+	return ELF_ITER_OK;
+}
+
 
 void
 elf_dynamic_iterator_init(struct elfobj *obj, struct elf_dynamic_iterator *iter)

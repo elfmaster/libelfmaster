@@ -24,6 +24,8 @@ int main(int argc, char **argv)
 	elf_dynamic_entry_t dynamic_entry;
 	elf_dynsym_iterator_t dsym_iter;
 	elf_relocation_iterator_t reloc_iter;
+	elf_plt_iterator_t plt_iter;
+	elf_plt_t plt_entry;
 	struct elf_mapping mapping;
 	struct elf_symbol symbol;
 	struct elf_relocation relocation;
@@ -109,7 +111,8 @@ int main(int argc, char **argv)
 	/*
 	 * This can only be used when the program calling it is a PIE program, otherwise it will
 	 * likely try to map the loadable segments to the address space already in-use by the
-	 * calling program. So we comment this out.
+	 * calling program. So we comment this out. This function is mostly just good for writing
+	 * ELF loaders, like user-land execve's
 	 */
 	if (elf_map_loadable_segments(&obj, &mapping, &error) == false) {
 		printf("failed to load segments: %s\n", elf_error_msg(&error));
@@ -147,6 +150,26 @@ int main(int argc, char **argv)
 			       "Addend:	           %lx\n", relocation.symname,
 		    	    relocation.shdrname, relocation.offset, relocation.addend);
 		}
+	}
+	/*
+	 * Its very important to be able to correspond calls into the PLT
+	 * with an actual symbol, especially when we're working with the PLT/GOT
+	 * and wanting to do things like PLT/GOT poisoning detection.
+	 */
+	if (obj.flags & ELF_DYNAMIC_F)
+		printf("\n*** ELF PLT entries\n");
+	elf_plt_iterator_init(&obj, &plt_iter);
+	for (;;) {
+		elf_iterator_res_t res;
+		res = elf_plt_iterator_next(&plt_iter, &plt_entry);
+		if (res == ELF_ITER_DONE)
+			break;
+		if (res == ELF_ITER_ERROR) {
+			printf("plt iterator failed: %s\n", elf_error_msg(&error));
+			break;
+		}
+		printf("PLT Symbol: %s\n", plt_entry.symname);
+		printf("PLT Addr: %#lx\n", plt_entry.addr);
 	}
 	/*
 	 * If this is a dynamically linked executable, we can use the
