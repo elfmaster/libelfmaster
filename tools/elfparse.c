@@ -68,7 +68,6 @@ int main(int argc, char **argv)
 		}
 		printf("Align:  %lx\n", section.align);
 		printf("EntSiz: %lu\n", section.entsize);
-		printf("Index:  %u\n", section.index);
 	}
 
 	if (obj.flags & ELF_PHDRS_F)

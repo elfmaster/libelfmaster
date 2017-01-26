@@ -88,7 +88,6 @@ struct elf_section {
 	uint64_t offset;
 	uint64_t address;
 	size_t size;
-	unsigned int index;
 };
 
 struct elf_segment {

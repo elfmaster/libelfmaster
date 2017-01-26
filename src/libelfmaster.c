@@ -1791,6 +1791,11 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 			    obj->ehdr32->e_shstrndx);
 			goto err;
 		}
+		if (obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset > obj->size) {
+			elf_error_set(error, "invalid section header string table offset: %lx",
+			    obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset);
+			goto err;
+		}
 		obj->shstrtab =
 		    (char *)&mem[obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset];
 		obj->section_count = section_count = obj->ehdr32->e_shnum;
@@ -1874,6 +1879,11 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 		if (obj->ehdr64->e_shstrndx > obj->ehdr64->e_shnum - 1) {
 			elf_error_set(error, "invalid e_shstrndx: %lu",
 			    obj->ehdr64->e_shstrndx);
+			goto err;
+		}
+		if (obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset > obj->size) {
+			elf_error_set(error, "invalid section header string table offset: %lx",
+			    obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset);
 			goto err;
 		}
 		obj->shstrtab =
@@ -2076,9 +2086,11 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 		elf_error_set(error, "failed to build symtab symbol data");
 		goto err;
 	}
-	if (build_plt_data(obj) == false) {
-		elf_error_set(error, "failed to build plt cache and list");
-		goto err;
+	if (obj->flags & ELF_PLT_F) {
+		if (build_plt_data(obj) == false) {
+			elf_error_set(error, "failed to build plt cache and list");
+			goto err;
+		}
 	}
 	if (obj->dynsym_count > 0)
 		obj->flags |= ELF_DYNSYM_F;
