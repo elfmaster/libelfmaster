@@ -67,7 +67,8 @@ typedef enum elf_obj_flags {
 	ELF_DYN_RELOCS_F =		(1 << 6),
 	ELF_TEXT_RELOCS_F =		(1 << 7),
 	ELF_PIE_F =			(1 << 8),
-	ELF_DYNAMIC_F =			(1 << 9)
+	ELF_DYNAMIC_F =			(1 << 9),
+	ELF_PLT_F =			(1 << 10)
 } elf_obj_flags_t;
 
 /*

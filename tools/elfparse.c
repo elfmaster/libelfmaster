@@ -145,9 +145,10 @@ int main(int argc, char **argv)
 	} else {
 		while (elf_relocation_iterator_next(&reloc_iter, &relocation) == ELF_ITER_OK) {
 			printf("\nRelocation symbol: %s\n"
+			       "Type:              %s\n"
 			       "Section:           %s\n"
 			       "Offset:            %lx\n"
-			       "Addend:	           %lx\n", relocation.symname,
+			       "Addend:	           %lx\n", relocation.symname, elf_reloc_type_string(&obj, relocation.type),
 		    	    relocation.shdrname, relocation.offset, relocation.addend);
 		}
 	}
@@ -156,7 +157,7 @@ int main(int argc, char **argv)
 	 * with an actual symbol, especially when we're working with the PLT/GOT
 	 * and wanting to do things like PLT/GOT poisoning detection.
 	 */
-	if (obj.flags & ELF_DYNAMIC_F)
+	if (obj.flags & ELF_PLT_F)
 		printf("\n*** ELF PLT entries\n");
 	elf_plt_iterator_init(&obj, &plt_iter);
 	for (;;) {

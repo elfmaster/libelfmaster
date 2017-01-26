@@ -1786,7 +1786,7 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 		obj->type = obj->ehdr32->e_type;
 		obj->segment_count = obj->ehdr32->e_phnum;
 		obj->flags |= (obj->ehdr32->e_shnum > 0 ? ELF_SHDRS_F : 0);
-		if (obj->ehdr32->e_shstrndx > obj->size) {
+		if (obj->ehdr32->e_shstrndx > obj->ehdr32->e_shnum - 1) {
 			elf_error_set(error, "invalid e_shstrndx: %u\n",
 			    obj->ehdr32->e_shstrndx);
 			goto err;
@@ -1871,7 +1871,7 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 		obj->type = obj->ehdr64->e_type;
 		obj->segment_count = obj->ehdr64->e_phnum;
 		obj->flags |= (obj->ehdr64->e_shnum > 0 ? ELF_SHDRS_F : 0);
-		if (obj->ehdr64->e_shstrndx > obj->size) {
+		if (obj->ehdr64->e_shstrndx > obj->ehdr64->e_shnum - 1) {
 			elf_error_set(error, "invalid e_shstrndx: %lu",
 			    obj->ehdr64->e_shstrndx);
 			goto err;
@@ -2053,6 +2053,8 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 			obj->dynstr = (char *)&mem[sh_offset];
 		} else if (strcmp(sname, ".strtab") == 0) {
 			obj->strtab = (char *)&mem[sh_offset];
+		} else if (strcmp(sname, ".plt") == 0) {
+			obj->flags |= ELF_PLT_F;
 		}
 	}
 	if (load_dynamic_segment_data(obj) == false) {
