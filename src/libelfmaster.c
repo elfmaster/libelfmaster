@@ -10,7 +10,9 @@
 #include <stdint.h>
 #include <errno.h>
 #include <search.h>
+
 #include "../include/libelfmaster.h"
+#include "misc.h"
 
 #define ROUNDUP(x, y) ((x + (y - 1)) & ~(y - 1))
 
@@ -817,7 +819,11 @@ elf_shared_object_iterator_init(struct elfobj *obj,
 	iter->cache_flags = 0;
 	iter->index = 0;
 	iter->obj = obj;
-
+	iter->block = malloc(4096);
+	if (iter->block == NULL) {
+		return elf_error_set(error, "malloc: %s",
+		    strerror(errno));
+	}
 	if ((flags & ELF_SO_RESOLVE_F) == 0 &&
 	    (flags & ELF_SO_RESOLVE_ALL_F) == 0)
 		goto finish;
@@ -921,8 +927,10 @@ ldso_insert_yield_entry(struct elf_shared_object_iterator *iter,
 	 * If we find the item in the cache then don't add it
 	 * to the list again.
 	 */
-	if (hsearch_r(e, FIND, &ep, &iter->yield_cache) != 0)
+	if (hsearch_r(e, FIND, &ep, &iter->yield_cache) != 0) {
+		free(so);
 		return true;
+	}
 	/*
 	 * Add path to cache.
 	 */
@@ -992,9 +1000,10 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
     struct elf_shared_object *entry, elf_error_t *error)
 {
 
-	if (iter->current == NULL && LIST_EMPTY(&iter->yield_list))
+	if (iter->current == NULL && LIST_EMPTY(&iter->yield_list)) {
+		free(iter->block);
 		return ELF_ITER_DONE;
-
+	}
 	/*
 	 * If the ELF_SO_RESOLVE_F flag is NOT set, then we are only
 	 * interested in getting the basenames of the shared objects in
@@ -1011,13 +1020,16 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 	 */
 	if (iter->flags & ELF_SO_RESOLVE_ALL_F) {
 		/*
-		 * Yield each iten in the yield list when its not empty.
+		 * Yield each item in the yield list when its not empty.
 		 */
 		if (LIST_EMPTY(&iter->yield_list) == 0) {
 			iter->yield = LIST_FIRST(&iter->yield_list);
-			entry->path = iter->yield->path;
+			entry->path = iter->block;
+			strcpy(entry->path, iter->yield->path);
+			free(iter->yield->path);
 			entry->basename = iter->yield->basename;
 			LIST_REMOVE(iter->yield, _linkage);
+			free(iter->yield);
 			return ELF_ITER_OK;
 		}
 		/*
@@ -1028,6 +1040,7 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 		    == false) {
 			elf_error_set(error, "ldso_recursive_cache_resolve(%p, %s) failed\n",
 			    iter, iter->current->basename);
+			free(iter->block);
 			return ELF_ITER_ERROR;
 		}
 		/*
@@ -1041,6 +1054,7 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 		if (entry->path == NULL) {
 			elf_error_set(error, "ldso_cache_bsearch(%p, %s) failed",
 			    iter, iter->current->basename);
+			free(iter->block);
 			return ELF_ITER_ERROR;
 		}
 		entry->basename = iter->current->basename;
@@ -1051,6 +1065,7 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 	if (entry->path == NULL) {
 		elf_error_set(error, "ldso_cache_bsearch(%p, %s) failed",
 		    iter, iter->current->basename);
+		free(iter->block);
 		return ELF_ITER_ERROR;
 	}
 	/*
@@ -1063,6 +1078,7 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 	iter->current->path = strdup(entry->path);
 	if (iter->current->path == NULL) {
 		elf_error_set(error, "strdup: %s", strerror(errno));
+		free(iter->block);
 		return ELF_ITER_ERROR;
 	}
 
@@ -1129,7 +1145,6 @@ elf_relocation_iterator_init(struct elfobj *obj,
 			if (type == SHT_REL || type == SHT_RELA) {
 				struct elf_rel_helper_node *n =
 				    malloc(sizeof(*n));
-
 				if (n == NULL)
 					return false;
 
@@ -1158,7 +1173,7 @@ elf_relocation_iterator_init(struct elfobj *obj,
 		 */
 		return false;
 	}
-	iter->current = LIST_FIRST(&iter->list);
+	iter->head = iter->current = LIST_FIRST(&iter->list);
 	return true;
 }
 
@@ -1173,8 +1188,13 @@ begin:
 	obj = iter->obj;
 	current = iter->current;
 
-	if (current == NULL || LIST_EMPTY(&iter->list))
+	if (current == NULL || LIST_EMPTY(&iter->list)) {
+		struct elf_rel_helper_node *next;
+
+		LIST_FOREACH_SAFE(current, &iter->list, _linkage, next)
+			free(current);
 		return ELF_ITER_DONE;
+	}
 	/*
 	 * If we're dealing sections rela.plt, rel.plt
 	 * rela.dyn or rel.dyn, then we need to look up
@@ -1206,7 +1226,7 @@ begin:
 			    ELF32_R_SYM(current->rela32[i].r_info);
 
 			if (elf_symbol_by_index(obj, symidx, &symbol, which) == false)
-				return false;
+				goto err;
 			
 			entry->offset = current->rela32[i].r_offset;
 			entry->type = ELF32_R_TYPE(current->rela32[i].r_info);
@@ -1220,7 +1240,7 @@ begin:
 			    ELF32_R_SYM(current->rel32[i].r_info);
 
 			if (elf_symbol_by_index(obj, symidx, &symbol, which) == false)
-				return false;
+				goto err;
 
 			entry->offset = current->rel32[i].r_offset;
 			entry->type = ELF32_R_TYPE(current->rel32[i].r_info);
@@ -1245,7 +1265,7 @@ begin:
 			    ELF64_R_SYM(current->rela64[i].r_info);
 
 			if (elf_symbol_by_index(obj, symidx, &symbol, which) == false)
-				return false;
+				goto err;
 			entry->offset = current->rela64[i].r_offset;
 			entry->type = ELF64_R_TYPE(current->rela64[i].r_info);
 			entry->addend = current->rela64[i].r_addend;
@@ -1258,7 +1278,7 @@ begin:
 			    ELF64_R_SYM(current->rel64[i].r_info);
 
 			if (elf_symbol_by_index(obj, symidx, &symbol, which) == false)
-				return false;
+				goto err;
 			entry->offset = current->rel64[i].r_offset;
 			entry->type = ELF64_R_TYPE(current->rel64[i].r_offset);
 			entry->addend = 0;
@@ -1271,6 +1291,7 @@ begin:
 	/*
 	 * Should never get here.
 	 */
+err:
 	return ELF_ITER_ERROR;
 }
 
@@ -2106,13 +2127,75 @@ err:
 	return false;
 }
 
+static void
+free_lists(elfobj_t *obj)
+{
+	if (LIST_EMPTY(&obj->list.symtab) == 0) {
+		struct elf_symbol_node *current, *next;
+
+		LIST_FOREACH_SAFE(current, &obj->list.symtab,
+		    _linkage, next) {
+			free(current);
+		}
+	}
+	if (LIST_EMPTY(&obj->list.dynsym) == 0) {
+		struct elf_symbol_node *current, *next;
+
+		LIST_FOREACH_SAFE(current, &obj->list.dynsym,
+		    _linkage, next) {
+			free(current);
+		}
+	}
+	if (LIST_EMPTY(&obj->list.plt) == 0) {
+		struct elf_plt_node *current, *next;
+
+		LIST_FOREACH_SAFE(current, &obj->list.plt,
+		    _linkage, next) {
+			free(current);
+		}
+	}
+	if (LIST_EMPTY(&obj->list.shared_objects) == 0) {
+		struct elf_shared_object_node *current, *next;
+
+		LIST_FOREACH_SAFE(current, &obj->list.shared_objects,
+		    _linkage, next) {
+			free(current);
+		}
+	}
+	return;
+}
+
+static void
+free_caches(elfobj_t *obj)
+{
+
+	hdestroy_r(&obj->cache.symtab);
+	hdestroy_r(&obj->cache.dynsym);
+	hdestroy_r(&obj->cache.plt);
+	return;
+}
+
+static void
+free_arrays(elfobj_t *obj)
+{
+	size_t i;
+
+	for (i = 0; i < obj->section_count; i++) {
+		free(obj->sections[i]->name);
+		free(obj->sections[i]);
+	}
+	free(obj->sections);
+	return;
+}
 void
 elf_close_object(elfobj_t *obj)
 {
 	/*
-	 * Free up cache memory and linked lists
+	 * Free up cache memory, arrays, and linked lists
 	 */
-
+	free_lists(obj);
+	free_caches(obj);
+	free_arrays(obj);
 	/*
 	 * Unmap memory
 	 */

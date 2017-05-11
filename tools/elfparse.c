@@ -205,5 +205,6 @@ int main(int argc, char **argv)
 	}
 
 	printf("Dynamic section: %lx\n", dynamic_section.address);
+	elf_close_object(&obj);
 	return 0;
 }	

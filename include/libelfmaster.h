@@ -399,7 +399,7 @@ typedef struct elf_relocation_iterator {
 	unsigned int index;
 	elfobj_t *obj;
 	LIST_HEAD(elf_rel_helper_list, elf_rel_helper_node) list;
-	struct elf_rel_helper_node *current;
+	struct elf_rel_helper_node *current, *head;
 } elf_relocation_iterator_t;
 
 #define ELF_LDSO_CACHE_OLD (1 << 0)
@@ -431,6 +431,7 @@ typedef struct elf_shared_object_iterator {
 	struct elf_shared_object_node *yield;
 	struct hsearch_data yield_cache;
 	LIST_HEAD(ldso_cache_yield_list, elf_shared_object_node) yield_list;
+	char *block;
 } elf_shared_object_iterator_t;
 
 /*
