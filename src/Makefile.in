@@ -10,11 +10,14 @@ HEADERS=$(INCLUDE_DIR)/*.h
 
 OBJECTS=libelfmaster.o
 
-all: libelfmaster.a
+all: libelfmaster.a libelfmaster.so
 
 libelfmaster.a: $(OBJECTS)
 	rm -f $(TARGET_DIR)/libelfmaster.a
 	ar rcs $(TARGET_DIR)/libelfmaster.a $(OBJECTS)
+
+libelfmaster.so: $(OBJECTS)
+	$(CC) $(CFLAGS) $(OBJECTS) -shared -o $(TARGET_DIR)/libelfmaster.so
 
 libelfmaster.o: $(SDIR)/libelfmaster.c $(HEADERS)
 	$(CC) $(CFLAGS) -c -o $(TARGET_DIR)/libelfmaster.o $(SDIR)/libelfmaster.c
