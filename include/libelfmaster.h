@@ -112,20 +112,6 @@ struct elf_symbol {
 	uint8_t visibility;
 };
 
-/*
- * This should only be used internally.
- */
-struct elf_symbol_node {
-	const char *name;
-	uint64_t value;
-	uint64_t size;
-	uint16_t shndx;
-	uint8_t bind;
-	uint8_t type;
-	uint8_t visibility;
-	LIST_ENTRY(elf_symbol_node) _linkage;
-};
-
 struct elf_relocation {
 	uint64_t offset;
 	uint64_t type;
@@ -146,23 +132,10 @@ typedef struct elf_shared_object {
 	char *path;
 } elf_shared_object_t;
 
-typedef struct elf_shared_object_node {
-	const char *basename;
-	char *path;
-	unsigned int index; // used by elf_shared_object iterator
-	LIST_ENTRY(elf_shared_object_node) _linkage;
-} elf_shared_object_node_t;
-
 typedef struct elf_plt {
 	char *symname;
 	uint64_t addr;
 } elf_plt_t;
-
-typedef struct elf_plt_node {
-	char *symname;
-	uint64_t addr;
-	LIST_ENTRY(elf_plt_node) _linkage;
-} elf_plt_node_t;
 
 /*
  * This struct is not meant to access directly. It is an opaque
@@ -376,24 +349,6 @@ typedef enum elf_iterator_res {
 	ELF_ITER_DONE,
 	ELF_ITER_ERROR
 } elf_iterator_res_t;
-
-/*
- * This struct is used internally only.
- */
-struct elf_rel_helper_node {
-	union {
-		Elf32_Rel *rel32;
-		Elf64_Rel *rel64;
-	};
-	union {
-		Elf32_Rela *rela32;
-		Elf64_Rela *rela64;
-	};
-	size_t size;
-	bool addend;
-	char *section_name;
-	LIST_ENTRY(elf_rel_helper_node) _linkage;
-};
 
 typedef struct elf_relocation_iterator {
 	unsigned int index;
