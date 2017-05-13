@@ -5,7 +5,7 @@ include @BUILD_DIR@/build/libelfmaster.build
 TARGET_DIR=$(BUILD_DIR)/src
 SDIR=$(SRC_DIR)/src
 INCLUDE_DIR=$(SRC_DIR)/include
-CFLAGS+=-ggdb
+CFLAGS+=-ggdb -I$(INCLUDE_DIR)
 HEADERS=$(INCLUDE_DIR)/*.h
 
 OBJECTS=libelfmaster.o

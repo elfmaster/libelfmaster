@@ -11,7 +11,7 @@
 #include <errno.h>
 #include <search.h>
 
-#include "../include/libelfmaster.h"
+#include "libelfmaster.h"
 #include "misc.h"
 #include "internal.c"
 
