@@ -96,50 +96,37 @@ typedef struct elf_plt_node {
 } elf_plt_node_t;
 
 
-static bool
-elf_error_set(elf_error_t *, const char *, ...);
+bool elf_error_set(elf_error_t *, const char *, ...);
 
-static int
-section_name_cmp(const void *, const void *);
+int section_name_cmp(const void *, const void *);
 
-static bool
-build_plt_data(struct elfobj *);
+bool build_plt_data(struct elfobj *);
 
-static bool
-build_dynsym_data(struct elfobj *);
+bool build_dynsym_data(struct elfobj *);
 
-static bool
-build_symtab_data(struct elfobj *);
+bool build_symtab_data(struct elfobj *);
 
-static int
-ldso_cache_cmp(const char *, const char *);
+static int ldso_cache_cmp(const char *, const char *);
 
 static inline bool
 ldso_cache_check_flags(struct elf_shared_object_iterator *, uint32_t);
 
-static const char *
-ldso_cache_bsearch(struct elf_shared_object_iterator *,
+static const char * ldso_cache_bsearch(struct elf_shared_object_iterator *,
     const char *);
 
-static bool
-ldso_insert_yield_entry(struct elf_shared_object_iterator *,
+static bool ldso_insert_yield_entry(struct elf_shared_object_iterator *,
     const char *);
 
-static bool
-ldso_recursive_cache_resolve(struct elf_shared_object_iterator *,
+bool ldso_recursive_cache_resolve(struct elf_shared_object_iterator *,
     const char *);
 
-static bool
-load_dynamic_segment_data(struct elfobj *);
+bool load_dynamic_segment_data(struct elfobj *);
 
-static void
-free_lists(elfobj_t *);
+void free_lists(elfobj_t *);
 
-static void
-free_caches(elfobj_t *);
+void free_caches(elfobj_t *);
 
-static void
-free_arrays(elfobj_t *);
+void free_arrays(elfobj_t *);
 
 
 #endif // _LIBELFMASTER_INTERNAL_H_

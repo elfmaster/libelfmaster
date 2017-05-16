@@ -2,3 +2,4 @@ Makefile
 src/libelfmaster.o
 src/libelfmaster.a
 src/libelfmaster.so
+build/libelfmaster.build
