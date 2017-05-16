@@ -1,99 +1,21 @@
-#ifdef DEBUG
-#define DEBUG_LOG(...) do { fprintf(stderr, __VA_ARGS__); } while(0)
-#else
-#define DEBUG_LOG(...) do {} while(0)
-#endif
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <stdarg.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <stdint.h>
+#include <errno.h>
+#include <search.h>
 
-#ifdef __GNUC__
-#define likely(x)       __builtin_expect(!!(x), 1)
-#define unlikely(x)     __builtin_expect(!!(x), 0)
-#else
-#define likely(x)       (x)
-#define unlikely(x)     (x)
-#endif
+#include "../include/libelfmaster.h"
+#include "../include/internal.h"
+#include "../include/misc.h"
 
-
-#define CACHEMAGIC "ld.so-1.7.0"
-struct file_entry {
-	int flags;
-	uint32_t key;
-	uint32_t value;
-};
-
-struct cache_file {
-	char magic[sizeof CACHEMAGIC - 1];
-	uint32_t nlibs;
-	struct file_entry libs[0];
-};
-
-#define CACHEMAGIC_NEW "glibc-ld.so.cache"
-#define CACHE_VERSION "1.1"
-
-struct file_entry_new {
-	int32_t flags;
-	uint32_t key;
-	uint32_t value;
-	uint32_t osversion;
-	uint64_t hwcap;
-};
-
-struct cache_file_new {
-	char magic[sizeof CACHEMAGIC_NEW - 1];
-	char version[sizeof CACHE_VERSION - 1];
-	uint32_t nlibs;		/* number of entries */
-	uint32_t len_strings;	/* size of string table */
-	uint32_t unused[5];	/* space for future extension */
-	struct file_entry_new libs[0]; /* Entries describing libraries */
-	/* After this the string table of size len_strings is found */
-};
-
-/*
- * This struct is used internally only.
- */
-struct elf_rel_helper_node {
-	union {
-		Elf32_Rel *rel32;
-		Elf64_Rel *rel64;
-	};
-	union {
-		Elf32_Rela *rela32;
-		Elf64_Rela *rela64;
-	};
-	size_t size;
-	bool addend;
-	char *section_name;
-	LIST_ENTRY(elf_rel_helper_node) _linkage;
-};
-
-/*
- * This should only be used internally.
- */
-struct elf_symbol_node {
-	const char *name;
-	uint64_t value;
-	uint64_t size;
-	uint16_t shndx;
-	uint8_t bind;
-	uint8_t type;
-	uint8_t visibility;
-	LIST_ENTRY(elf_symbol_node) _linkage;
-};
-
-typedef struct elf_shared_object_node {
-	const char *basename;
-	char *path;
-	unsigned int index; // used by elf_shared_object iterator
-	LIST_ENTRY(elf_shared_object_node) _linkage;
-} elf_shared_object_node_t;
-
-typedef struct elf_plt_node {
-	char *symname;
-	uint64_t addr;
-	LIST_ENTRY(elf_plt_node) _linkage;
-} elf_plt_node_t;
-
-
-static bool
+bool
 elf_error_set(elf_error_t *error, const char *fmt, ...)
 {
 	va_list va;
@@ -110,7 +32,7 @@ elf_error_set(elf_error_t *error, const char *fmt, ...)
  * of pointers to section structs. One which is sorted by address, and
  * one sorted by name.
  */
-static int
+int
 section_name_cmp(const void *p0, const void *p1)
 {
 	const struct elf_section *s0 = *(void **)p0;
@@ -124,7 +46,7 @@ section_name_cmp(const void *p0, const void *p1)
  */
 #define ELF_RELOC_JUMP_SLOT 7
 
-static bool
+bool
 build_plt_data(struct elfobj *obj)
 {
 	ENTRY e, *ep;
@@ -186,7 +108,7 @@ build_plt_data(struct elfobj *obj)
 	return true;
 }
 
-static bool
+bool
 build_dynsym_data(struct elfobj *obj)
 {
 	ENTRY e, *ep;
@@ -238,7 +160,7 @@ build_dynsym_data(struct elfobj *obj)
 	return true;
 }
 
-static bool
+bool
 build_symtab_data(struct elfobj *obj)
 {
 	ENTRY e, *ep;
@@ -294,7 +216,7 @@ build_symtab_data(struct elfobj *obj)
  * Compares libraries by version numbers, and returns 0
  * on equal.
  */
-static int
+int
 ldso_cache_cmp(const char *p1, const char *p2)
 {
 	while (*p1) {
@@ -442,7 +364,7 @@ ldso_insert_yield_entry(struct elf_shared_object_iterator *iter,
 	return true;
 }
 
-static bool
+bool
 ldso_recursive_cache_resolve(struct elf_shared_object_iterator *iter,
     const char *bname)
 {
@@ -494,7 +416,7 @@ err:
 /*
  * Used internally to build information from the dynamic segment.
  */
-static bool
+bool
 load_dynamic_segment_data(struct elfobj *obj)
 {
 	struct elf_dynamic_entry entry;
@@ -569,7 +491,7 @@ load_dynamic_segment_data(struct elfobj *obj)
 	return true;
 }
 
-static void
+void
 free_lists(elfobj_t *obj)
 {
 	if (LIST_EMPTY(&obj->list.symtab) == 0) {
@@ -607,7 +529,7 @@ free_lists(elfobj_t *obj)
 	return;
 }
 
-static void
+void
 free_caches(elfobj_t *obj)
 {
 
@@ -617,7 +539,7 @@ free_caches(elfobj_t *obj)
 	return;
 }
 
-static void
+void
 free_arrays(elfobj_t *obj)
 {
 	size_t i;
