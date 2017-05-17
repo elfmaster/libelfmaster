@@ -15,6 +15,7 @@
 #include "internal.h"
 #include "misc.h"
 
+
 bool
 elf_error_set(elf_error_t *error, const char *fmt, ...)
 {

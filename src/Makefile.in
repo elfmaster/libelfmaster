@@ -8,7 +8,7 @@ INCLUDE_DIR=$(SRC_DIR)/include
 CFLAGS+=-ggdb -O2 -I$(INCLUDE_DIR)
 HEADERS=$(INCLUDE_DIR)/*.h
 
-OBJECTS=libelfmaster.o, internal.o
+OBJECTS=libelfmaster.o internal.o
 
 all: libelfmaster.a libelfmaster.so
 
