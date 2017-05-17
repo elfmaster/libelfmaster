@@ -11,9 +11,10 @@
 #include <errno.h>
 #include <search.h>
 
-#include "../include/libelfmaster.h"
-#include "../include/internal.h"
-#include "../include/misc.h"
+#include "libelfmaster.h"
+#include "internal.h"
+#include "misc.h"
+
 
 bool
 elf_error_set(elf_error_t *error, const char *fmt, ...)
