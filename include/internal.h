@@ -111,7 +111,7 @@ static int ldso_cache_cmp(const char *, const char *);
 static inline bool
 ldso_cache_check_flags(struct elf_shared_object_iterator *, uint32_t);
 
-static const char * ldso_cache_bsearch(struct elf_shared_object_iterator *,
+const char * ldso_cache_bsearch(struct elf_shared_object_iterator *,
     const char *);
 
 static bool ldso_insert_yield_entry(struct elf_shared_object_iterator *,

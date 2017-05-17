@@ -13,7 +13,7 @@
 
 #include "libelfmaster.h"
 #include "misc.h"
-#include "internal.c"
+#include "internal.h"
 
 #define ROUNDUP(x, y) ((x + (y - 1)) & ~(y - 1))
 

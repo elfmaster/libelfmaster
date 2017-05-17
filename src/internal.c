@@ -258,7 +258,7 @@ ldso_cache_check_flags(struct elf_shared_object_iterator *iter,
 	return false;
 }
 
-static const char *
+const char *
 ldso_cache_bsearch(struct elf_shared_object_iterator *iter,
     const char *name)
 {
