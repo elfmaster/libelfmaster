@@ -106,15 +106,7 @@ bool build_dynsym_data(struct elfobj *);
 
 bool build_symtab_data(struct elfobj *);
 
-static int ldso_cache_cmp(const char *, const char *);
-
-static inline bool
-ldso_cache_check_flags(struct elf_shared_object_iterator *, uint32_t);
-
 const char * ldso_cache_bsearch(struct elf_shared_object_iterator *,
-    const char *);
-
-static bool ldso_insert_yield_entry(struct elf_shared_object_iterator *,
     const char *);
 
 bool ldso_recursive_cache_resolve(struct elf_shared_object_iterator *,

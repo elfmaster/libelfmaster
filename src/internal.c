@@ -217,7 +217,7 @@ build_symtab_data(struct elfobj *obj)
  * Compares libraries by version numbers, and returns 0
  * on equal.
  */
-int
+static int
 ldso_cache_cmp(const char *p1, const char *p2)
 {
 	while (*p1) {
