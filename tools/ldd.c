@@ -14,6 +14,11 @@ int main(int argc, char **argv)
 	struct elf_shared_object object;
 	struct elf_shared_object_iterator so_iter;
 
+	if (argc < 2) {
+		printf("Usage: %s <dynamic binary>\n", argv[0]);
+		exit(EXIT_SUCCESS);
+	}
+
 	if (elf_open_object(argv[1], &obj, false, &error) == false) {
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
