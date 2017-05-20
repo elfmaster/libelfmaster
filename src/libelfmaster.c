@@ -456,16 +456,17 @@ elf_shared_object_iterator_init(struct elfobj *obj,
 	 * e.g. ELF_SO_RESOLVE_ALL_F
 	 */
 	LIST_INIT(&iter->yield_list);
+	/*
+	 * This list maintains the backing of .so paths
+	 * needed by the yield_cache in ldso_insert_yield_entry.
+	 */
+	LIST_INIT(&iter->malloc_list);
 
 	iter->flags = flags;
 	iter->cache_flags = 0;
 	iter->index = 0;
 	iter->obj = obj;
-	iter->block = malloc(4096);
-	if (iter->block == NULL) {
-		return elf_error_set(error, "malloc: %s",
-		    strerror(errno));
-	}
+
 	if ((flags & ELF_SO_RESOLVE_F) == 0 &&
 	    (flags & ELF_SO_RESOLVE_ALL_F) == 0)
 		goto finish;
@@ -557,7 +558,7 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 {
 
 	if (iter->current == NULL && LIST_EMPTY(&iter->yield_list)) {
-		free(iter->block);
+		ldso_free_malloc_list(iter);
 		return ELF_ITER_DONE;
 	}
 	/*
@@ -580,9 +581,7 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 		 */
 		if (LIST_EMPTY(&iter->yield_list) == 0) {
 			iter->yield = LIST_FIRST(&iter->yield_list);
-			entry->path = iter->block;
-			strcpy(entry->path, iter->yield->path);
-			free(iter->yield->path);
+			entry->path = iter->yield->path;
 			entry->basename = iter->yield->basename;
 			LIST_REMOVE(iter->yield, _linkage);
 			free(iter->yield);
@@ -596,8 +595,7 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 		    == false) {
 			elf_error_set(error, "ldso_recursive_cache_resolve(%p, %s) failed\n",
 			    iter, iter->current->basename);
-			free(iter->block);
-			return ELF_ITER_ERROR;
+			goto err;
 		}
 		/*
 		 * If we succeeded, then we should have a yield list containing
@@ -610,8 +608,8 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 		if (entry->path == NULL) {
 			elf_error_set(error, "ldso_cache_bsearch(%p, %s) failed",
 			    iter, iter->current->basename);
-			free(iter->block);
-			return ELF_ITER_ERROR;
+			ldso_free_malloc_list(iter);
+			goto err;
 		}
 		entry->basename = iter->current->basename;
 		iter->current = LIST_NEXT(iter->current, _linkage);
@@ -621,27 +619,15 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 	if (entry->path == NULL) {
 		elf_error_set(error, "ldso_cache_bsearch(%p, %s) failed",
 		    iter, iter->current->basename);
-		free(iter->block);
-		return ELF_ITER_ERROR;
+		goto err;
 	}
-	/*
-	 * We will add the path to the internal linked list, which initially
-	 * only contains the basenames from DT_NEEDED. In the future when this
-	 * iterator is used, it will not call ldso_cache_bsearch again, instead
-	 * it will already have the paths cached in the linked list along with
-	 * the basenames.
-	 */
-	iter->current->path = strdup(entry->path);
-	if (iter->current->path == NULL) {
-		elf_error_set(error, "strdup: %s", strerror(errno));
-		free(iter->block);
-		return ELF_ITER_ERROR;
-	}
-
 next_basename:
 	entry->basename = iter->current->basename;
 	iter->current = LIST_NEXT(iter->current, _linkage);
 	return ELF_ITER_OK;
+err:
+	ldso_free_malloc_list(iter);
+	return ELF_ITER_ERROR;
 }
 
 bool

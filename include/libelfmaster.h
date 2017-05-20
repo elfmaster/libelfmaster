@@ -386,7 +386,7 @@ typedef struct elf_shared_object_iterator {
 	struct elf_shared_object_node *yield;
 	struct hsearch_data yield_cache;
 	LIST_HEAD(ldso_cache_yield_list, elf_shared_object_node) yield_list;
-	char *block;
+	LIST_HEAD(ldso_malloc_list, elf_malloc_node) malloc_list;
 } elf_shared_object_iterator_t;
 
 /*

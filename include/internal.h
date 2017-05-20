@@ -96,6 +96,11 @@ typedef struct elf_plt_node {
 } elf_plt_node_t;
 
 
+typedef struct elf_malloc_node {
+	void *ptr;
+	LIST_ENTRY(elf_malloc_node) _linkage;
+} elf_malloc_node_t;
+
 bool elf_error_set(elf_error_t *, const char *, ...);
 
 int section_name_cmp(const void *, const void *);
@@ -112,6 +117,8 @@ const char * ldso_cache_bsearch(struct elf_shared_object_iterator *,
 bool ldso_recursive_cache_resolve(struct elf_shared_object_iterator *,
     const char *);
 
+void ldso_free_malloc_list(struct elf_shared_object_iterator *);
+
 bool load_dynamic_segment_data(struct elfobj *);
 
 void free_lists(elfobj_t *);
@@ -119,6 +126,5 @@ void free_lists(elfobj_t *);
 void free_caches(elfobj_t *);
 
 void free_arrays(elfobj_t *);
-
 
 #endif // _LIBELFMASTER_INTERNAL_H_

@@ -329,6 +329,56 @@ ldso_cache_bsearch(struct elf_shared_object_iterator *iter,
 }
 
 /*
+e* ldso_malloc allows us to maintain a linked list of heap
+ * allocations used for the shared object path names, this way
+ * we can keep them available in the cache throughout the duration
+ * of the entire iterator, rather than free them once we yield
+ * them. This is necessary in order to make sure we don't yield
+ * duplicates.
+ */
+static void *
+ldso_malloc(struct elf_shared_object_iterator *iter, size_t size)
+{
+	void *p;
+	struct elf_malloc_node *n;
+
+	p = malloc(size);
+	if (p == NULL)
+		return NULL;
+	n = malloc(sizeof(*n));
+	if (n == NULL)
+		return NULL;
+	n->ptr = p;
+	LIST_INSERT_HEAD(&iter->malloc_list, n, _linkage);
+	return n->ptr;
+}
+
+static char *
+ldso_strdup(struct elf_shared_object_iterator *iter, const char *s)
+{
+
+	char *string;
+
+	string = ldso_malloc(iter, strlen(s) + 1);
+	if (string == NULL)
+		return NULL;
+	strcpy(string, s);
+	return string;
+}
+
+void
+ldso_free_malloc_list(struct elf_shared_object_iterator *iter)
+{
+	struct elf_malloc_node *next, *current;
+
+	LIST_FOREACH_SAFE(current, &iter->malloc_list, _linkage, next) {
+		free(current->ptr);
+		free(current);
+	}
+	return;
+}
+
+/*
  * We add shared objects to the yield list. Since there will be duplicates we
  * also maintain a hash table of entries so we know which ones we already have
  * in the list, without having to traverse the list.
@@ -338,7 +388,7 @@ ldso_insert_yield_entry(struct elf_shared_object_iterator *iter,
     const char *path)
 {
 	struct elf_shared_object_node *so = malloc(sizeof(*so));
-	ENTRY e = {.key = (char *)path, (char *)path}, *ep;
+	ENTRY e = {(char *)path, (char *)path}, *ep;
 
 	if (so == NULL)
 		return false;
@@ -398,7 +448,7 @@ ldso_recursive_cache_resolve(struct elf_shared_object_iterator *iter,
 		 * full path. That way any subsequent calls to the shared
 		 * object iterator will use the linked list cache.
 		 */
-		current->path = strdup(path);
+		current->path = ldso_strdup(iter, path);
 		if (current->path == NULL)
 			goto err;
 		if (ldso_insert_yield_entry(iter, current->path) == false)
