@@ -122,6 +122,8 @@ bool ldso_insert_yield_cache(struct elf_shared_object_iterator *,
 
 void ldso_free_malloc_list(struct elf_shared_object_iterator *);
 
+void ldso_cleanup(struct elf_shared_object_iterator *);
+
 bool load_dynamic_segment_data(struct elfobj *);
 
 void free_lists(elfobj_t *);

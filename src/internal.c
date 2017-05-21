@@ -378,6 +378,14 @@ ldso_free_malloc_list(struct elf_shared_object_iterator *iter)
 	return;
 }
 
+void
+ldso_cleanup(struct elf_shared_object_iterator *iter)
+{
+
+	ldso_free_malloc_list(iter);
+	(void) munmap(iter->mem, iter->st.st_size);
+}
+
 /*
  * We add shared objects to the yield list. Since there will be duplicates we
  * also maintain a hash table of entries so we know which ones we already have

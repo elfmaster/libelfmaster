@@ -558,7 +558,7 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 {
 
 	if (iter->current == NULL && LIST_EMPTY(&iter->yield_list)) {
-		ldso_free_malloc_list(iter);
+		ldso_cleanup(iter);
 		return ELF_ITER_DONE;
 	}
 	/*
@@ -608,14 +608,12 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 		if (entry->path == NULL) {
 			elf_error_set(error, "ldso_cache_bsearch(%p, %s) failed",
 			    iter, iter->current->basename);
-			ldso_free_malloc_list(iter);
 			goto err;
 		}
 		entry->basename = iter->current->basename;
 		iter->current = LIST_NEXT(iter->current, _linkage);
 		if (ldso_insert_yield_cache(iter, entry->path) == false) {
 			elf_error_set(error, "ldso_insert_yield_cache failed");
-			ldso_free_malloc_list(iter);
 			goto err;
 		}
 		return ELF_ITER_OK;
@@ -631,7 +629,7 @@ next_basename:
 	iter->current = LIST_NEXT(iter->current, _linkage);
 	return ELF_ITER_OK;
 err:
-	ldso_free_malloc_list(iter);
+	ldso_cleanup(iter);
 	return ELF_ITER_ERROR;
 }
 
