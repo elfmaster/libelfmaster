@@ -613,6 +613,11 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 		}
 		entry->basename = iter->current->basename;
 		iter->current = LIST_NEXT(iter->current, _linkage);
+		if (ldso_insert_yield_cache(iter, entry->path) == false) {
+			elf_error_set(error, "ldso_insert_yield_cache failed");
+			ldso_free_malloc_list(iter);
+			goto err;
+		}
 		return ELF_ITER_OK;
 	}
 	entry->path = (char *)ldso_cache_bsearch(iter, iter->current->basename);

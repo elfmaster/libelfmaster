@@ -117,6 +117,9 @@ const char * ldso_cache_bsearch(struct elf_shared_object_iterator *,
 bool ldso_recursive_cache_resolve(struct elf_shared_object_iterator *,
     const char *);
 
+bool ldso_insert_yield_cache(struct elf_shared_object_iterator *,
+    const char *);
+
 void ldso_free_malloc_list(struct elf_shared_object_iterator *);
 
 bool load_dynamic_segment_data(struct elfobj *);

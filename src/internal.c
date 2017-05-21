@@ -415,6 +415,25 @@ ldso_insert_yield_entry(struct elf_shared_object_iterator *iter,
 	return true;
 }
 
+/*
+ * Inserts path into yield cache, but not into the yield list.
+ * this is necessary when the iterator yields top-level paths
+ * to make sure they don't end up in the yield list and therefore
+ * get yielded to the user as a duplicate.
+ */
+bool
+ldso_insert_yield_cache(struct elf_shared_object_iterator *iter,
+    const char *path)
+{
+	ENTRY e = {(char *)path, (char *)path}, *ep;
+
+	if (hsearch_r(e, FIND, &ep, &iter->yield_cache) != 0)
+		return true;
+	if (hsearch_r(e, ENTER, &ep, &iter->yield_cache) == 0)
+		return false;
+	return true;
+}
+
 bool
 ldso_recursive_cache_resolve(struct elf_shared_object_iterator *iter,
     const char *bname)
