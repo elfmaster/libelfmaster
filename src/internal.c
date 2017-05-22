@@ -383,6 +383,8 @@ ldso_cleanup(struct elf_shared_object_iterator *iter)
 {
 
 	ldso_free_malloc_list(iter);
+	if (iter->flags & ELF_SO_RESOLVE_ALL_F)
+		hdestroy_r(&iter->yield_cache);
 	(void) munmap(iter->mem, iter->st.st_size);
 }
 
