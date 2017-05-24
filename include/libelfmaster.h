@@ -448,6 +448,12 @@ elf_iterator_res_t elf_dynsym_iterator_next(elf_dynsym_iterator_t *, struct elf_
 void elf_plt_iterator_init(elfobj_t *, elf_plt_iterator_t *);
 elf_iterator_res_t elf_plt_iterator_next(elf_plt_iterator_t *, struct elf_plt *);
 
+/*
+ * Lookup a PLT entry by name. Output is stored in 3rd arg
+ * elf_plt *entry
+ */
+bool elf_plt_by_name(elfobj_t *, const char *, struct elf_plt *);
+
 uint64_t elf_entry_point(elfobj_t *);
 uint32_t elf_type(elfobj_t *);
 uint16_t elf_machine(elfobj_t *);

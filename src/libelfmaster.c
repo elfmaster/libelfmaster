@@ -1051,6 +1051,19 @@ elf_dynsym_iterator_next(struct elf_dynsym_iterator *iter,
 	return ELF_ITER_OK;
 }
 
+bool
+elf_plt_by_name(struct elfobj *obj, const char *name, struct elf_plt *entry)
+{
+	ENTRY e = {(char *)name, NULL};
+	ENTRY *ep;
+
+	if (hsearch_r(e, FIND, &ep, &obj->cache.plt) != 0) {
+		memcpy(entry, ep->data, sizeof(*entry));
+		return true;
+	}
+	return false;
+}
+
 void
 elf_plt_iterator_init(struct elfobj *obj, struct elf_plt_iterator *iter)
 {

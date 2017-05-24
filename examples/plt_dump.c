@@ -1,3 +1,8 @@
+/*
+ * Prints the dynamic symbol names with the corresponding PLT address
+ * Same as plt_dump2, but uses the plt iterator.
+ */
+
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,18 +28,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	elf_plt_iterator_init(&obj, &iter);
-	for (;;) {
-		switch(elf_plt_iterator_next(&iter, &plt)) {
-		case ELF_ITER_DONE:
-			goto out;
-		case ELF_ITER_ERROR:
-			fprintf(stderr, "elf_plt_iterator_next failed\n");
-			goto out;
-		case ELF_ITER_OK:
-			printf("%#08lx: %s\n", plt.addr, plt.symname);
-			break;
-		}
-	}
-out:
+	while(elf_plt_iterator_next(&iter, &plt) == ELF_ITER_OK) 
+		printf("%#08lx: %s\n", plt.addr, plt.symname);
 	return 0;
 }
