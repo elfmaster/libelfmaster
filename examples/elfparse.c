@@ -181,6 +181,7 @@ int main(int argc, char **argv)
 	 */
 	if (obj.flags & ELF_DYNAMIC_F)
 		printf("\n*** ELF shared object dependency resolution\n");
+
 	if (elf_shared_object_iterator_init(&obj, &so_iter,
 	    NULL, ELF_SO_RESOLVE_ALL_F, &error) == false) {
 		printf("elf_shared_object_iterator_init failed: %s\n", elf_error_msg(&error));
@@ -196,10 +197,7 @@ int main(int argc, char **argv)
 		}
 		printf("Basename: %s path: %s\n", object.basename, object.path);
 	}
-	/*
-	 * Uses a sorted array of pointers to elf_section structs, and therefore is able
-	 * to perform a binary search for faster lookups.
-	 */
+
 	if (elf_section_by_name(&obj, ".dynamic", &dynamic_section) == false) {
 		printf("Couldn't find ELF section: .dynamic\n");
 	}

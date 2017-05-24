@@ -6,3 +6,4 @@
 
 * Write a tool for printing the PLT entries for every JUMP_SLOT symbol
 
+* elf_plt_iterator_next prints "PLT-0" as its final (extra) iteration.
