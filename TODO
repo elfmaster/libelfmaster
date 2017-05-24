@@ -1,0 +1,8 @@
+## TODO 5/24/2017
+
+* If there are no section headers then make sure to use dynamic segment to setup symtab and other items (.i.e plt/got)
+
+* elf_plt_by_name()
+
+* Write a tool for printing the PLT entries for every JUMP_SLOT symbol
+
