@@ -16,6 +16,9 @@
 #include "misc.h"
 
 
+/*
+ * TODO Why is this defined in internal.c?
+ */
 bool
 elf_error_set(elf_error_t *error, const char *fmt, ...)
 {
@@ -28,11 +31,6 @@ elf_error_set(elf_error_t *error, const char *fmt, ...)
 	return false;
 }
 
-/*
- * TODO, switch to using qsort_r, and add two separate sorted arrays
- * of pointers to section structs. One which is sorted by address, and
- * one sorted by name.
- */
 int
 section_name_cmp(const void *p0, const void *p1)
 {
@@ -631,3 +629,19 @@ free_arrays(elfobj_t *obj)
 	free(obj->sections);
 	return;
 }
+
+bool
+insane_headers(elfobj_t *obj)
+{
+
+	return (obj->anomalies > 0);
+}
+
+bool
+reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
+{
+	(void)e;
+
+	return true;
+}
+

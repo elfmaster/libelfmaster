@@ -41,6 +41,8 @@
 #define PT_GNU_RELRO 0x6474e552
 #endif
 
+#define MAX_VALID_SHNUM 65535 - 1
+
 typedef struct elf_error {
         char string[MAX_ERROR_STR_LEN];
         int _errno;
@@ -138,6 +140,16 @@ typedef struct elf_plt {
 } elf_plt_t;
 
 /*
+ * Flags for uint64_t anomalies
+ */
+#define INVALID_F_SHOFF		(1ULL << 0)
+#define INVALID_F_SHSTRNDX	(1ULL << 1)
+#define INVALID_F_SHOFFSET	(1ULL << 2)
+#define INVALID_F_SHNUM		(1ULL << 3)
+#define INVALID_F_SHENTSIZE	(1ULL << 4)
+#define INVALID_F_SH_HEADERS	(1ULL << 5)
+
+/*
  * This struct is not meant to access directly. It is an opaque
  * type. It is only accessed directly from within the API code
  * itself (obviously).
@@ -147,6 +159,7 @@ typedef struct elfobj {
 	elf_class_t e_class;
 	elf_obj_flags_t flags;
 	unsigned int type;
+	unsigned long long int anomalies;
 	union {
 		Elf32_Ehdr *ehdr32;
 		Elf64_Ehdr *ehdr64;
@@ -357,9 +370,6 @@ typedef struct elf_relocation_iterator {
 	struct elf_rel_helper_node *current, *head;
 } elf_relocation_iterator_t;
 
-#define ELF_LDSO_CACHE_OLD (1 << 0)
-#define ELF_LDSO_CACHE_NEW (1 << 1)
-
 /*
  * Resolve basenames to full paths using ld.so.cache parsing
  */
@@ -390,13 +400,24 @@ typedef struct elf_shared_object_iterator {
 } elf_shared_object_iterator_t;
 
 /*
+ * API flags for loading.
+ */
+#define ELF_LOAD_F_STRICT	(1UL << 0) //only load binaries if ALL headers are sane
+#define ELF_LOAD_F_SMART 	(1UL << 1) //(implicit flag) load any binary that the kernel can load and reconstruct
+					   //--although symbols and sections won't be available... see next flag
+#define ELF_LOAD_F_FORENSICS	(1UL << 2) //this flag will fully reconstruct all forensics relevant data similarly
+					   //if the section header tables and symbols are missing or are corrupted.
+#define ELF_LOAD_F_MODIFY	(1UL << 3) //Used for modifying binaries
+#define ELF_LOAD_F_ULEXEC	(1UL << 4) //Used for ulexec based debugging API
+
+/*
  * Loads an ELF object of any type, for reading or modifying.
  * arg1: file path
  * arg2: ELF object handle to be filled in
- * arg3: Going to modify this object? true/false
+ * arg3: ELF Load flags (i.e. ELF_LOAD_FLAGS_STRICT|ELF_LOAD_FLAGS_MODIFY)
  * arg4: error object handle to be filled in upon failure.
  */
-bool elf_open_object(const char *path, elfobj_t *, bool, elf_error_t *);
+bool elf_open_object(const char *path, elfobj_t *, uint64_t, elf_error_t *);
 void elf_close_object(elfobj_t *);
 
 /*

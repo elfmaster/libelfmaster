@@ -26,7 +26,7 @@ int main(int argc, char **argv)
 		printf("Usage: %s <binary>\n", argv[0]);
 		exit(EXIT_SUCCESS);
 	}
-	if (elf_open_object(argv[1], &obj, false, &error) == false) {
+	if (elf_open_object(argv[1], &obj, ELF_LOAD_F_STRICT, &error) == false) {
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}

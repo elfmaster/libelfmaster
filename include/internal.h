@@ -32,6 +32,9 @@ struct cache_file {
 #define CACHEMAGIC_NEW "glibc-ld.so.cache"
 #define CACHE_VERSION "1.1"
 
+#define ELF_LDSO_CACHE_OLD (1 << 0)
+#define ELF_LDSO_CACHE_NEW (1 << 1)
+
 struct file_entry_new {
 	int32_t flags;
 	uint32_t key;
@@ -132,4 +135,7 @@ void free_caches(elfobj_t *);
 
 void free_arrays(elfobj_t *);
 
+bool insane_headers(elfobj_t *);
+
+bool reconstruct_elf_sections(elfobj_t *, elf_error_t *);
 #endif // _LIBELFMASTER_INTERNAL_H_
