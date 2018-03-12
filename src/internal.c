@@ -501,6 +501,10 @@ load_dynamic_segment_data(struct elfobj *obj)
 	elf_dynamic_iterator_t iter;
 	elf_iterator_res_t res;
 	struct elf_shared_object_node *so;
+	uint32_t dt_pltgot = 0, dt_pltrelsz = 0, dt_symtab = 0,
+	    dt_strtab = 0, dt_strsz = 0, dt_hash = 0, dt_pltrel = 0,
+	    dt_jmprel = 0, dt_rela = 0, dt_relasz = 0, dt_rel = 0, dt_relsz = 0,
+	    dt_fini = 0, dt_init = 0;
 
 	LIST_INIT(&obj->list.shared_objects);
 	elf_dynamic_iterator_init(obj, &iter);
@@ -510,51 +514,95 @@ load_dynamic_segment_data(struct elfobj *obj)
 			return true;
 		if (res == ELF_ITER_ERROR)
 			return false;
+		/*
+		 * SECURITY: Some of these tags are expected more
+		 * than once
+		 * like DT_NEEDED. But an attacker who wants to
+		 * circumvent our reconstruction could put two
+		 * DT_PLTGOT tags for instance and we would save
+		 * the second one as the PLT/GOT address, and it
+		 * could be bunk. So lets make sure there's only
+		 * one of each unless it expected otherwise.
+		 * Eventually lets make sure to do further validation
+		 * i.e. does the pltgot.addr even point to a valid
+		 * location? (i.e. is it in the data segment)
+		 */
 		switch(entry.tag) {
 		case DT_PLTGOT:
+			if (dt_pltgot++ > 0)
+				break;
 			obj->dynseg.pltgot.addr = entry.value;
 			break;
 		case DT_PLTRELSZ:
+			if (dt_pltrelsz++ > 0)
+				break;
 			obj->dynseg.pltrel.size = entry.value;
 			break;
 		case DT_SYMTAB:
+			if (dt_symtab++ > 0)
+				break;
 			obj->dynseg.dynsym.addr = entry.value;
 			break;
 		case DT_STRTAB:
+			if (dt_strtab++ > 0)
+				break;
 			obj->dynseg.dynstr.addr = entry.value;
 			break;
 		case DT_STRSZ:
+			if (dt_strsz++ > 0)
+				break;
 			obj->dynseg.dynstr.size = entry.value;
 			break;
 		case DT_HASH:
+			if (dt_hash++ > 0)
+				break;
 			obj->dynseg.hash.addr = entry.value;
 			break;
 		case DT_PLTREL:
+			if (dt_pltrel++ > 0)
+				break;
 			obj->flags |= ELF_PLT_RELOCS_F;
 			obj->dynseg.pltrel.type = entry.value;
 			break;
 		case DT_JMPREL:
+			if (dt_jmprel++ > 0)
+				break;
 			obj->dynseg.pltrel.addr = entry.value;
 			break;
 		case DT_RELA:
+			if (dt_rela++ > 0)
+				break;
 			obj->dynseg.rela.addr = entry.value;
 			break;
 		case DT_RELASZ:
+			if (dt_relasz++ > 0)
+				break;
 			obj->dynseg.rela.size = entry.value;
 			break;
 		case DT_REL:
+			if (dt_rel++ > 0)
+				break;
 			obj->dynseg.rel.addr = entry.value;
 			break;
 		case DT_RELSZ:
+			if (dt_relsz++ > 0)
+				break;
 			obj->dynseg.rel.size = entry.value;
 			break;
 		case DT_INIT:
+			if (dt_init++ > 0)
+				break;
 			obj->dynseg.init.addr = entry.value;
 			break;
 		case DT_FINI:
+			if (dt_fini++ > 0)
+				break;
 			obj->dynseg.fini.addr = entry.value;
 			break;
 		case DT_NEEDED:
+			/*
+			 * We expect multiple NEEDED tags.
+			 */
 			so = malloc(sizeof(*so));
 			if (so == NULL)
 				return false;
@@ -641,6 +689,7 @@ bool
 reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 {
 	(void)e;
+	(void)obj;
 
 	return true;
 }
