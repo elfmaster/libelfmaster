@@ -76,7 +76,7 @@ struct elf_rel_helper_node {
  * that is a maximum of this size.
  */
 #define INTERNAL_SHSTRTAB_SIZE 1024
-#define INTERNAL_SECTIONS_SIZE 4096
+#define INTERNAL_SECTION_COUNT 4096
 /*
  * This should only be used internally.
  */

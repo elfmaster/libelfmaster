@@ -1382,7 +1382,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 	int fd;
 	uint32_t i;
 	unsigned int open_flags = O_RDONLY;
-	unsigned int mmap_perms = PROT_READ;
+	unsigned int mmap_perms = PROT_READ|PROT_WRITE;
 	unsigned int mmap_flags = MAP_PRIVATE;
 	uint8_t *mem;
 	uint8_t e_class;
@@ -1399,8 +1399,6 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 	memset(obj, 0, sizeof(*obj));
 
 	if (load_flags & ELF_LOAD_F_MODIFY) {
-		open_flags = O_RDWR;
-		mmap_perms = PROT_READ|PROT_WRITE;
 		mmap_flags = MAP_SHARED;
 	}
 	if (load_flags & ELF_LOAD_F_STRICT) {

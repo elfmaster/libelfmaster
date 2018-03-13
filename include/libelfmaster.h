@@ -273,7 +273,7 @@ typedef struct elfobj {
 	char *dynstr;
 	char *strtab;
 	char *shstrtab;
-	size_t internal_sections_size;
+	size_t internal_section_count;
 	size_t internal_shstrtab_size;
 	size_t strindex; // used only when creating custom strtabs
 	size_t shdrindex; // used only when reconstructing sections
