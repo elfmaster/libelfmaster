@@ -72,6 +72,12 @@ struct elf_rel_helper_node {
 };
 
 /*
+ * When we reconstruct sections we create a string table
+ * that is a maximum of this size.
+ */
+#define INTERNAL_SHSTRTAB_SIZE 1024
+#define INTERNAL_SECTIONS_SIZE 4096
+/*
  * This should only be used internally.
  */
 struct elf_symbol_node {
@@ -83,6 +89,19 @@ struct elf_symbol_node {
 	uint8_t type;
 	uint8_t visibility;
 	LIST_ENTRY(elf_symbol_node) _linkage;
+};
+
+struct elf_section_node {
+	char *name;
+	uint32_t type;
+	uint32_t link;
+	uint32_t info;
+	uint64_t align;
+	uint64_t entsize;
+	uint64_t offset;
+	uint64_t address;
+	size_t size;
+	LIST_ENTRY(elf_section_node) _linkage;
 };
 
 typedef struct elf_shared_object_node {

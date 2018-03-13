@@ -685,12 +685,118 @@ insane_headers(elfobj_t *obj)
 	return (obj->anomalies > 0);
 }
 
+/*
+ * Returns string table offset, which can then be
+ * set into sh_name for the given shdr entry.
+ */
+static bool
+add_shstrtab_entry(elfobj_t *obj, const char *name, uint32_t *out)
+{
+
+	if (obj->strindex + strlen(name) + 1 >= obj->internal_shstrtab_size) {
+		obj->shstrtab =
+		    realloc(obj->shstrtab, obj->internal_shstrtab_size <<= 1);
+		if (obj->shstrtab == NULL)
+			return false;
+	}
+	strcpy(&obj->shstrtab[obj->strindex], name);
+	obj->strindex += strlen(name) + 1;
+	*out = (uint32_t)obj->strindex;
+	return true;
+}
+
+void
+add_section_entry(elfobj_t *obj, void *ptr)
+{
+
+	if (obj->e_class == elfclass32) {
+		obj->ehdr32->e_shnum++;
+		memcpy(&obj->shdr32[obj->shdrindex++],
+		    ptr, sizeof(Elf32_Shdr));
+	} else {
+		obj->ehdr64->e_shnum++;
+		memcpy(&obj->shdr64[obj->shdrindex++],
+		    ptr, sizeof(Elf64_Shdr));
+	}
+	obj->section_count++;
+	return;
+}
+
 bool
 reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 {
-	(void)e;
-	(void)obj;
+	union {
+		Elf32_Shdr shdr32;
+		Elf64_Shdr shdr64;
+	} elf;
+	uint32_t soffset; /* string table offset */
 
+	obj->internal_sections_size = INTERNAL_SECTIONS_SIZE;
+	obj->internal_shstrtab_size = INTERNAL_SHSTRTAB_SIZE;
+	/*
+	 * We only reconstruct ELF sections if the section headers
+	 * are damaged or don't exist so we must create our own
+	 * string table. Keep in mind we don't update the binary
+	 * with section headers, these are for internal representation
+	 * only.
+	 */
+	obj->strindex = 0; /* Should be initialized already anyway */
+	obj->shstrtab = malloc(obj->internal_shstrtab_size);
+	if (obj->shstrtab == NULL) {
+		return elf_error_set(e, "malloc failed");
+	}
+	/*
+	 * Lets reconstruct the dynamic segment
+	 * into forensics relevant data.
+	 */
+	switch(obj->e_class) {
+	case elfclass32:
+		obj->ehdr32->e_shnum = 0; /* initialize incase it was corrupted */
+		if (obj->dynseg.exists == false)
+			break;
+		obj->shdr32 =
+		    malloc(sizeof(Elf32_Shdr) * obj->internal_sections_size);
+		if (obj->shdr32 == NULL)
+			return elf_error_set(e, "malloc");
+		/*
+		 * Create internal representation of .dynsym section
+		 */
+		if (add_shstrtab_entry(obj, ".dynstr", &soffset) == false) {
+			return elf_error_set(e, "add_shstrtab_entry failed");
+		}
+		elf.shdr32.sh_addr = obj->dynseg.dynsym.addr;
+		elf.shdr32.sh_size =
+		    obj->dynseg.dynstr.addr - obj->dynseg.dynstr.addr;
+		elf.shdr32.sh_link = 1;
+		elf.shdr32.sh_offset =
+		    obj->dynseg.dynsym.addr - elf_text_base(obj);
+		elf.shdr32.sh_addralign = sizeof(long);
+		elf.shdr32.sh_info = 0;
+		elf.shdr32.sh_flags = SHF_ALLOC;
+		elf.shdr32.sh_name = soffset;
+		add_section_entry(obj, &elf.shdr32);
+
+		/*
+		 * .dynstr
+		 */
+		if (add_shstrtab_entry(obj, ".dynstr", &soffset) == false) {
+			return elf_error_set(e, "add_shstrtab_entry failed");
+		}
+		elf.shdr32.sh_addr = obj->dynseg.dynstr.addr;
+		elf.shdr32.sh_size = obj->dynseg.dynstr.size;
+		elf.shdr32.sh_link = 0;
+		elf.shdr32.sh_offset =
+		    obj->dynseg.dynstr.addr - elf_text_base(obj);
+		elf.shdr32.sh_addralign = 1;
+		elf.shdr32.sh_info = 0;
+		elf.shdr32.sh_flags = SHF_ALLOC;
+		elf.shdr32.sh_name = soffset;
+		add_section_entry(obj, &elf.shdr32);
+		break;
+	case elfclass64:
+	default:
+		break;
+	}
 	return true;
 }
 

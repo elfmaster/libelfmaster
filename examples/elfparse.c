@@ -34,7 +34,7 @@ int main(int argc, char **argv)
 	struct timeval tv, tv2;
 	unsigned int count = 0;
 
-	if (elf_open_object(argv[1], &obj, ELF_LOAD_F_SMART, &error) == false) {
+	if (elf_open_object(argv[1], &obj, ELF_LOAD_F_SMART|ELF_LOAD_F_FORENSICS, &error) == false) {
 		printf("%s\n", elf_error_msg(&error));
 		return -1;
 	}

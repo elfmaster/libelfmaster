@@ -224,6 +224,7 @@ typedef struct elfobj {
 		LIST_HEAD(elf_dynsym_list, elf_symbol_node) dynsym;
 		LIST_HEAD(elf_plt_list, elf_plt_node) plt;
 		LIST_HEAD(elf_shared_object_list, elf_shared_object_node) shared_objects;
+		LIST_HEAD(elf_section_list, elf_section_node) sections;
 	} list;
 	/*
 	 * dynamic segment values
@@ -263,6 +264,7 @@ typedef struct elfobj {
 		struct {
 			uint64_t addr;
 		} hash;
+		bool exists;
 	} dynseg;
 
 	/*
@@ -271,6 +273,10 @@ typedef struct elfobj {
 	char *dynstr;
 	char *strtab;
 	char *shstrtab;
+	size_t internal_sections_size;
+	size_t internal_shstrtab_size;
+	size_t strindex; // used only when creating custom strtabs
+	size_t shdrindex; // used only when reconstructing sections
 	uint8_t *mem;
 	size_t size;
 	size_t section_count;

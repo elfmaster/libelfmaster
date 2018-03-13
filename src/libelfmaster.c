@@ -1331,11 +1331,13 @@ elf_section_iterator_next(struct elf_section_iterator *iter,
 {
 	elfobj_t *obj = iter->obj;
 
+	printf("Comparing %d to %d\n", iter->index, obj->section_count);
 	if (iter->index >= obj->section_count)
 		return ELF_ITER_DONE;
 
 	switch(obj->e_class) {
 	case elfclass32:
+		printf("Checking\n");
 		if (obj->shdr32 == NULL || obj->shstrtab == NULL)
 			return ELF_ITER_DONE;
 		section->name = &obj->shstrtab[obj->shdr32[iter->index].sh_name];
@@ -1734,8 +1736,10 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 	 * in my beloved ECFS v1 (If the ELF_LOAD_F_FORENSICS flag is set) otherwise
 	 * we just skip section parsing/loading.
 	 */
-	if (insane_headers(obj) == true)
+	if (insane_headers(obj) == true) {
+		printf("insane headers!\n");
 		goto final_load_stages;
+	}
 
 	/*
 	 * Sort the ELF sections if applies. Otherwise we do this by reconstructing
@@ -1866,15 +1870,21 @@ final_load_stages:
 	 * we must reconstruct the internal section data using the
 	 * the state-of-the-art methods used by ECFS.
 	 */
-	if (insane_headers(obj) == true) {
+	if (insane_headers(obj) == true &&
+	    (load_flags & ELF_LOAD_F_FORENSICS)) {
 		elf_error_t suberror;
 
+		printf("Reconstructing ELF headers\n");
 		if (reconstruct_elf_sections(obj, &suberror) == false) {
 			elf_error_set(error, "failed to build forensics data: %s",
 			    elf_error_msg(&suberror));
 			goto err;
 		}
+	} else {
+		if (insane_headers(obj) == true)
+			goto finalize;
 	}
+
 	if (build_dynsym_data(obj) == false) {
 		elf_error_set(error, "failed to build dynamic symbol data");
 		goto err;
@@ -1889,6 +1899,7 @@ final_load_stages:
 			goto err;
 		}
 	}
+finalize:
 	if (obj->dynsym_count > 0)
 		obj->flags |= ELF_DYNSYM_F;
 	if (obj->symtab_count > 0)
