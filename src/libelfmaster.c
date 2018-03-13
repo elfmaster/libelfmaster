@@ -1331,13 +1331,11 @@ elf_section_iterator_next(struct elf_section_iterator *iter,
 {
 	elfobj_t *obj = iter->obj;
 
-	printf("Comparing %d to %d\n", iter->index, obj->section_count);
 	if (iter->index >= obj->section_count)
 		return ELF_ITER_DONE;
 
 	switch(obj->e_class) {
 	case elfclass32:
-		printf("Checking\n");
 		if (obj->shdr32 == NULL || obj->shstrtab == NULL)
 			return ELF_ITER_DONE;
 		section->name = &obj->shstrtab[obj->shdr32[iter->index].sh_name];
@@ -1735,7 +1733,6 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 	 * we just skip section parsing/loading.
 	 */
 	if (insane_headers(obj) == true) {
-		printf("insane headers!\n");
 		goto final_load_stages;
 	}
 
@@ -1743,6 +1740,11 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 	 * Sort the ELF sections if applies. Otherwise we do this by reconstructing
 	 * them later on in the loading process (If MALWARE loading flag is set)
 	 */
+	if (sort_elf_sections(obj, error) == false) {
+		elf_error_set(error, "sort_elf_sections failed");
+		goto err;
+	}
+#if 0
 	obj->sections = (struct elf_section **)
 	    malloc(sizeof(struct elf_section *) * (section_count + 1));
 	if (obj->sections == NULL) {
@@ -1790,7 +1792,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 	 */
 	qsort(obj->sections, section_count,
 	    sizeof(struct elf_section *), section_name_cmp);
-
+#endif
 	/*
 	 * Set the remaining elf object pointers to the various data structures in the
 	 * ELF file.

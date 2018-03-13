@@ -706,7 +706,7 @@ add_shstrtab_entry(elfobj_t *obj, const char *name, uint32_t *out)
 	return true;
 }
 
-void
+static void
 add_section_entry(elfobj_t *obj, void *ptr)
 {
 
@@ -731,6 +731,8 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		Elf64_Shdr shdr64;
 	} elf;
 	uint32_t soffset; /* string table offset */
+	size_t dynsym_size; /* necessary for calculating various other sizes */
+	size_t dynsym_count;
 
 	obj->internal_section_count = INTERNAL_SECTION_COUNT;
 	obj->internal_shstrtab_size = INTERNAL_SHSTRTAB_SIZE;
@@ -748,7 +750,10 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 	}
 	/*
 	 * Lets reconstruct the dynamic segment
-	 * into forensics relevant data.
+	 * into forensics relevant data in this first
+	 * big block of code. Next we will reconstruct
+	 * some other areas that don't have to do with the
+	 * data segment.
 	 */
 	switch(obj->e_class) {
 	case elfclass32:
@@ -766,8 +771,8 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 			return elf_error_set(e, "add_shstrtab_entry failed");
 		}
 		elf.shdr32.sh_addr = obj->dynseg.dynsym.addr;
-		elf.shdr32.sh_size =
-		    obj->dynseg.dynstr.addr - obj->dynseg.dynstr.addr;
+		dynsym_size = elf.shdr32.sh_size =
+		    obj->dynseg.dynstr.addr - obj->dynseg.dynsym.addr;
 		elf.shdr32.sh_link = 1;
 		elf.shdr32.sh_offset =
 		    obj->dynseg.dynsym.addr - elf_text_base(obj);
@@ -795,6 +800,37 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		elf.shdr32.sh_name = soffset;
 		elf.shdr32.sh_entsize = 1;
 		add_section_entry(obj, &elf.shdr32);
+		/*
+		 * NOTE: set the ELF_DYNSYM_F flag so the client code knows
+		 * if its able to use the dynamic symbol table.
+		 */
+		obj->flags |= ELF_DYNSYM_F;
+
+		/*
+		 * .got.plt
+		 */
+		if (add_shstrtab_entry(obj, ".got.plt", &soffset) == false) {
+			return elf_error_set(e, "add_shstrtab_entry failed");
+		}
+		elf.shdr32.sh_addr = obj->dynseg.pltgot.addr;
+		/*
+		 * GOT should be big enough for 3 reserved entries and
+		 * then enough slots for each dynamic symbol.
+		 */
+		dynsym_count = dynsym_size / sizeof(Elf32_Sym);
+		elf.shdr32.sh_size = (sizeof(uintptr_t) * 3) +
+		    (sizeof(uintptr_t) * dynsym_count);
+		elf.shdr32.sh_link = 0;
+		elf.shdr32.sh_offset =
+		    obj->dynseg.pltgot.addr - elf_text_base(obj);
+		elf.shdr32.sh_addralign = sizeof(uintptr_t);
+		elf.shdr32.sh_info = 0;
+		elf.shdr32.sh_flags = SHF_ALLOC|SHF_WRITE;
+		elf.shdr32.sh_name = soffset;
+		elf.shdr32.sh_entsize = sizeof(uintptr_t);
+		add_section_entry(obj, &elf.shdr32);
+		obj->flags |= ELF_PLTGOT_F;
+
 		break;
 	case elfclass64:
 		obj->ehdr64->e_shnum = 0;
@@ -812,8 +848,8 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 			return elf_error_set(e, "add_shstrtab_entry failed");
 		}
 		elf.shdr64.sh_addr = obj->dynseg.dynsym.addr;
-		elf.shdr64.sh_size =
-		    obj->dynseg.dynsym.addr - obj->dynseg.dynsym.addr;
+		dynsym_size = elf.shdr64.sh_size =
+		    obj->dynseg.dynstr.addr - obj->dynseg.dynsym.addr;
 		elf.shdr64.sh_link = 1;
 		elf.shdr64.sh_offset =
 		    obj->dynseg.dynsym.addr - elf_text_base(obj);
@@ -840,10 +876,96 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		elf.shdr64.sh_name = soffset;
 		elf.shdr64.sh_entsize = 1;
 		add_section_entry(obj, &elf.shdr64);
+		/*
+		 * NOTE: set the ELF_DYNSYM_F flag so the client code knows
+		 * if its able to use the dynamic symbol table.
+		 */
+		obj->flags |= ELF_DYNSYM_F;
+
+		/*
+		 * .got.plt
+		 */
+		if (add_shstrtab_entry(obj, ".got.plt", &soffset) == false) {
+			return elf_error_set(e, "add_shstrtab_entry failed");
+		}
+		elf.shdr64.sh_addr = obj->dynseg.pltgot.addr;
+		/*
+		 * GOT should be big enough for 3 reserved entries and
+		 * then enough slots for each dynamic symbol.
+		 */
+		dynsym_count = dynsym_size / sizeof(Elf64_Sym);
+		elf.shdr64.sh_size = (sizeof(uintptr_t) * 3) +
+		    (sizeof(uintptr_t) * dynsym_count);
+		elf.shdr64.sh_link = 0;
+		elf.shdr64.sh_offset =
+		    (obj->dynseg.pltgot.addr - elf_data_base(obj)) + elf_data_offset(obj);
+		elf.shdr64.sh_addralign = sizeof(uintptr_t);
+		elf.shdr64.sh_info = 0;
+		elf.shdr64.sh_flags = SHF_ALLOC|SHF_WRITE;
+		elf.shdr64.sh_name = soffset;
+		elf.shdr64.sh_entsize = sizeof(uintptr_t);
+		add_section_entry(obj, &elf.shdr64);
+		obj->flags |= ELF_PLTGOT_F;
 		break;
 	default:
 		break;
 	}
-	return true;
+	return sort_elf_sections(obj, e);
 }
 
+bool
+sort_elf_sections(elfobj_t *obj, elf_error_t *error)
+{
+	size_t section_count = obj->section_count;
+	size_t i;
+
+	obj->sections = (struct elf_section **)
+	    malloc(sizeof(struct elf_section *) * (section_count + 1));
+
+	if (obj->sections == NULL) {
+		elf_error_set(error, "malloc: %s", strerror(errno));
+		return false;
+	}
+	for (i = 0; i < section_count; i++) {
+		obj->sections[i] = malloc(sizeof(struct elf_section));
+		if (obj->sections[i] == NULL) {
+			elf_error_set(error, "malloc: %s", strerror(errno));
+			return false;
+		}
+		switch(obj->e_class) {
+		case elfclass32:
+			obj->sections[i]->name =
+			    strdup(&obj->shstrtab[obj->shdr32[i].sh_name]);
+			obj->sections[i]->type = obj->shdr32[i].sh_type;
+			obj->sections[i]->link = obj->shdr32[i].sh_link;
+			obj->sections[i]->info = obj->shdr32[i].sh_info;
+			obj->sections[i]->flags = obj->shdr32[i].sh_flags;
+			obj->sections[i]->align = obj->shdr32[i].sh_addralign;
+			obj->sections[i]->entsize = obj->shdr32[i].sh_entsize;
+			obj->sections[i]->offset = obj->shdr32[i].sh_offset;
+			obj->sections[i]->address = obj->shdr32[i].sh_addr;
+			obj->sections[i]->size = obj->shdr32[i].sh_size;
+			break;
+		case elfclass64:
+			obj->sections[i]->name =
+			    strdup(&obj->shstrtab[obj->shdr64[i].sh_name]);
+			obj->sections[i]->type = obj->shdr64[i].sh_type;
+			obj->sections[i]->link = obj->shdr64[i].sh_link;
+			obj->sections[i]->info = obj->shdr64[i].sh_info;
+			obj->sections[i]->flags = obj->shdr64[i].sh_flags;
+			obj->sections[i]->align = obj->shdr64[i].sh_addralign;
+			obj->sections[i]->entsize = obj->shdr64[i].sh_entsize;
+			obj->sections[i]->offset = obj->shdr64[i].sh_offset;
+			obj->sections[i]->address = obj->shdr64[i].sh_addr;
+			obj->sections[i]->size = obj->shdr64[i].sh_size;
+			break;
+		}
+	}
+
+        /*
+         * Sorting an array of pointers to struct elf_section
+         */
+	qsort(obj->sections, section_count,
+	    sizeof(struct elf_section *), section_name_cmp);
+	return true;
+}

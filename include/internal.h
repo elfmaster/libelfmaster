@@ -157,4 +157,6 @@ void free_arrays(elfobj_t *);
 bool insane_headers(elfobj_t *);
 
 bool reconstruct_elf_sections(elfobj_t *, elf_error_t *);
+
+bool sort_elf_sections(elfobj_t *obj, elf_error_t *);
 #endif // _LIBELFMASTER_INTERNAL_H_
