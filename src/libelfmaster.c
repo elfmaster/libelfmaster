@@ -566,6 +566,10 @@ elf_section_pointer(elfobj_t *obj, void *shdr)
 	return NULL;
 }
 
+#if 0
+Ignore this function, it has been totally re-written in a way that makes
+sense for another branch (ul_exec branch), this code is wrong and bad.
+#endif
 bool
 elf_map_loadable_segments(struct elfobj *obj, struct elf_mapping *mapping,
     elf_error_t *error)
@@ -1374,13 +1378,13 @@ elf_section_iterator_next(struct elf_section_iterator *iter,
  * Secure ELF loader.
  */
 bool
-elf_open_object(const char *path, struct elfobj *obj, bool modify,
+elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
     elf_error_t *error)
 {
 	int fd;
 	uint32_t i;
 	unsigned int open_flags = O_RDONLY;
-	unsigned int mmap_perms = PROT_READ;
+	unsigned int mmap_perms = PROT_READ|PROT_WRITE;
 	unsigned int mmap_flags = MAP_PRIVATE;
 	uint8_t *mem;
 	uint8_t e_class;
@@ -1388,17 +1392,19 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 	struct stat st;
 	size_t section_count;
 	bool text_found = false, data_found = false;
+	bool __strict = false;
+
 	/*
 	 * We count on this being initialized for various sanity checks.
 	 */
 	memset(obj, 0, sizeof(*obj));
 
-	if (modify == true) {
-		open_flags = O_RDWR;
-		mmap_perms = PROT_READ|PROT_WRITE;
+	if (load_flags & ELF_LOAD_F_MODIFY) {
 		mmap_flags = MAP_SHARED;
 	}
-
+	if (load_flags & ELF_LOAD_F_STRICT) {
+		__strict = true;
+	}
 	fd = open(path, open_flags);
 	if (fd < 0) {
 		elf_error_set(error, "open: %s", strerror(errno));
@@ -1444,6 +1450,10 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 	 * Set the ELF header pointers as contingent upon the supported arch
 	 * types. Also enforce some rudimentary security checks/sanity checks
 	 * to prevent possible invalid memory derefs down the road.
+	 * We must make sure that we are able to load any binary the kernel can
+	 * (unless in strict mode) and then we will ultimately reconstruct
+	 * the data that is normally only accessible by sections, and store them
+	 * within our internal data structures.
 	 */
 	switch(e_class) {
 	case ELFCLASS32:
@@ -1453,25 +1463,62 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 			obj->flags |= ELF_SHDRS_F;
 		if (obj->ehdr32->e_phnum > 0)
 			obj->flags |= ELF_PHDRS_F;
+		if (obj->ehdr32->e_shnum > MAX_VALID_SHNUM)
+			obj->anomalies |= INVALID_F_SHNUM;
+
+		if (obj->ehdr32->e_phoff > obj->size - sizeof(Elf32_Phdr) - 1) {
+				elf_error_set(error, "invalid e_phoff: %lx", obj->ehdr32->e_phoff);
+				goto err;
+		}
+		if (obj->ehdr32->e_shoff > obj->size - (sizeof(Elf32_Shdr) - 1)) {
+			if (__strict) {
+				elf_error_set(error, "invalid e_shoff: %lx", obj->ehdr32->e_shoff);
+				goto err;
+			}
+			obj->anomalies |= INVALID_F_SHOFF;
+		}
+		/*
+		 * We can trust e_phoff cuz its necessary for loading and we
+		 * would have exited by now.
+		 */
 		obj->phdr32 = (Elf32_Phdr *)&mem[obj->ehdr32->e_phoff];
-		obj->shdr32 = (Elf32_Shdr *)&mem[obj->ehdr32->e_shoff];
+		/*
+		 * Any headers not necessary for loaded should only be loaded if
+		 * they have valid headers. We can reconstruct what they had in them
+		 * later on using the program headers.
+		 */
+		if ((obj->anomalies & INVALID_F_SHOFF) == 0)
+			obj->shdr32 = (Elf32_Shdr *)&mem[obj->ehdr32->e_shoff];
+
 		obj->entry_point = obj->ehdr32->e_entry;
 		obj->type = obj->ehdr32->e_type;
 		obj->segment_count = obj->ehdr32->e_phnum;
 		obj->flags |= (obj->ehdr32->e_shnum > 0 ? ELF_SHDRS_F : 0);
+
 		if (obj->ehdr32->e_shstrndx > obj->ehdr32->e_shnum - 1) {
-			elf_error_set(error, "invalid e_shstrndx: %u\n",
-			    obj->ehdr32->e_shstrndx);
-			goto err;
+			if (__strict) {
+				elf_error_set(error, "invalid e_shstrndx: %u\n",
+				    obj->ehdr32->e_shstrndx);
+				goto err;
+			}
+			obj->anomalies |= INVALID_F_SHSTRNDX;
 		}
-		if (obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset > obj->size) {
-			elf_error_set(error, "invalid section header string table offset: %lx",
-			    obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset);
-			goto err;
+		if (obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset >
+		    obj->size - sizeof(Elf32_Shdr) - 1) {
+			if (__strict) {
+				elf_error_set(error,
+				    "invalid section header string table offset: %lx",
+				    obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset);
+				goto err;
+			}
+			obj->anomalies |= INVALID_F_SHOFFSET;
 		}
+
 		obj->shstrtab =
 		    (char *)&mem[obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset];
+
 		obj->section_count = section_count = obj->ehdr32->e_shnum;
+
 		if (obj->ehdr32->e_type != ET_REL) {
 			if ((obj->ehdr32->e_phoff +
 			     (obj->ehdr32->e_phnum * sizeof(Elf32_Phdr))) > obj->size) {
@@ -1481,8 +1528,19 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 		}
 		if ((obj->ehdr32->e_shoff +
 		    (obj->ehdr32->e_shnum * sizeof(Elf32_Shdr))) > obj->size) {
-			elf_error_set(error, "unsafe shdr value");
-			goto err;
+			if (__strict) {
+				elf_error_set(error, "unsafe shdr value");
+				goto err;
+			}
+			obj->anomalies |= INVALID_F_SH_HEADERS;
+		}
+		if (obj->ehdr32->e_shentsize != sizeof(Elf32_Shdr)) {
+			if (__strict) {
+				elf_error_set(error, "invalid shentsize: %u",
+				    obj->ehdr32->e_shentsize);
+				goto err;
+			}
+			obj->anomalies |= INVALID_F_SHENTSIZE;
 		}
 		if (obj->ehdr32->e_type != ET_REL) {
 			if (obj->ehdr32->e_phentsize != sizeof(Elf32_Phdr)) {
@@ -1490,11 +1548,6 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 				    obj->ehdr32->e_phentsize);
 				goto err;
 			}
-		}
-		if (obj->ehdr32->e_shentsize != sizeof(Elf32_Shdr)) {
-			elf_error_set(error, "invalid e_shentsize: %u",
-			    obj->ehdr32->e_shentsize);
-			goto err;
 		}
 		if (obj->ehdr32->e_type == ET_REL)
 			break;
@@ -1539,29 +1592,65 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 	case ELFCLASS64:
 		obj->e_class = elfclass64;
 		obj->ehdr64 = (Elf64_Ehdr *)mem;
+
 		if (obj->ehdr64->e_shnum > 0)
 			obj->flags |= ELF_SHDRS_F;
 		if (obj->ehdr64->e_phnum > 0)
 			obj->flags |= ELF_PHDRS_F;
+
+		if (obj->ehdr64->e_phoff > obj->size - sizeof(Elf64_Phdr) - 1) {
+			elf_error_set(error, "invalid e_phoff: %lx",
+			    obj->ehdr64->e_phoff);
+			goto err;
+		}
+		if (obj->ehdr64->e_shoff > obj->size - (sizeof(Elf64_Shdr) - 1)) {
+			if (__strict) {
+				elf_error_set(error,
+				    "invalid e_shoff: %lx", obj->ehdr64->e_shoff);
+				goto err;
+			}
+			obj->anomalies |= INVALID_F_SHOFF;
+		}
+		/*
+		 * We can trust e_phoff cuz its necessary for loading and
+		 * we would have exited by now if it was a bad value.
+		 */
 		obj->phdr64 = (Elf64_Phdr *)&mem[obj->ehdr64->e_phoff];
-		obj->shdr64 = (Elf64_Shdr *)&mem[obj->ehdr64->e_shoff];
+		/*
+		 * Again: any headers not necessary for loading are only
+		 * loaded if they are valid.
+		 */
+		if ((obj->anomalies & INVALID_F_SHOFF) == 0)
+			obj->shdr64 = (Elf64_Shdr *)&mem[obj->ehdr64->e_shoff];
+
 		obj->entry_point = obj->ehdr64->e_entry;
 		obj->type = obj->ehdr64->e_type;
 		obj->segment_count = obj->ehdr64->e_phnum;
 		obj->flags |= (obj->ehdr64->e_shnum > 0 ? ELF_SHDRS_F : 0);
+
 		if (obj->ehdr64->e_shstrndx > obj->ehdr64->e_shnum - 1) {
-			elf_error_set(error, "invalid e_shstrndx: %lu",
-			    obj->ehdr64->e_shstrndx);
-			goto err;
+			if (__strict) {
+				elf_error_set(error, "invalid e_shstrndx: %lu",
+				     obj->ehdr64->e_shstrndx);
+				goto err;
+			}
+			obj->anomalies |= INVALID_F_SHSTRNDX;
 		}
-		if (obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset > obj->size) {
-			elf_error_set(error, "invalid section header string table offset: %lx",
-			    obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset);
-			goto err;
+		if (obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset >
+		    obj->size - sizeof(Elf64_Shdr) - 1) {
+			if (__strict ) {
+				elf_error_set(error, "invalid section header string table offset: %lx",
+				    obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset);
+				goto err;
+			}
+			obj->anomalies |= INVALID_F_SHOFFSET;
 		}
+
 		obj->shstrtab =
 		    (char *)&mem[obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset];
+
 		obj->section_count = section_count = obj->ehdr64->e_shnum;
+
 		if (obj->ehdr64->e_type != ET_REL) {
 			if ((obj->ehdr64->e_phoff +
 			    (obj->ehdr64->e_phnum * sizeof(Elf64_Phdr))) > obj->size) {
@@ -1571,8 +1660,19 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 		}
 		if ((obj->ehdr64->e_shoff +
 		    (obj->ehdr64->e_shnum * sizeof(Elf64_Shdr))) > obj->size) {
-			elf_error_set(error, "unsafe shdr values");
-			goto err;
+			if (__strict) {
+				elf_error_set(error, "unsafe shdr values");
+				goto err;
+			}
+			obj->anomalies |= INVALID_F_SH_HEADERS;
+		}
+		if (obj->ehdr64->e_shentsize != sizeof(Elf64_Shdr)) {
+			if (__strict) {
+				elf_error_set(error, "invalid_e_shentsize: %u",
+				    obj->ehdr64->e_shentsize);
+				goto err;
+			}
+			obj->anomalies |= INVALID_F_SHENTSIZE;
 		}
 		if (obj->ehdr64->e_type != ET_REL) {
 			if (obj->ehdr64->e_phentsize != sizeof(Elf64_Phdr)) {
@@ -1580,11 +1680,6 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 				    obj->ehdr64->e_phentsize);
 				goto err;
 			}
-		}
-		if (obj->ehdr64->e_shentsize != sizeof(Elf64_Shdr)) {
-			elf_error_set(error, "invalid_e_shentsize: %u",
-			    obj->ehdr64->e_shentsize);
-			goto err;
 		}
 		if (obj->ehdr64->e_type == ET_REL)
 			break;
@@ -1633,56 +1728,26 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 	}
 
 	/*
-	 * Lets sort the section header string table.
+	 * Were any of the ELF header anomalies such that we should not be
+	 * trying to load the section header table? If so lets NOT fuck ourselves.
+	 * Sanity checks are good. So Instead lets load all of the section header
+	 * data using state of the art reconstruction techniques that were employed
+	 * in my beloved ECFS v1 (If the ELF_LOAD_F_FORENSICS flag is set) otherwise
+	 * we just skip section parsing/loading, after which we can sort them but
+	 * but not now.
 	 */
-	obj->sections = (struct elf_section **)
-	    malloc(sizeof(struct elf_section *) * (section_count + 1));
-	if (obj->sections == NULL) {
-		elf_error_set(error, "malloc: %s", strerror(errno));
-		goto err;
-	}
-	for (i = 0; i < section_count; i++) {
-		obj->sections[i] = malloc(sizeof(struct elf_section));
-		if (obj->sections[i] == NULL) {
-			elf_error_set(error, "malloc: %s", strerror(errno));
-			goto err;
-		}
-		switch(obj->e_class) {
-		case elfclass32:
-			obj->sections[i]->name =
-			    strdup(&obj->shstrtab[obj->shdr32[i].sh_name]);
-			obj->sections[i]->type = obj->shdr32[i].sh_type;
-			obj->sections[i]->link = obj->shdr32[i].sh_link;
-			obj->sections[i]->info = obj->shdr32[i].sh_info;
-			obj->sections[i]->flags = obj->shdr32[i].sh_flags;
-			obj->sections[i]->align = obj->shdr32[i].sh_addralign;
-			obj->sections[i]->entsize = obj->shdr32[i].sh_entsize;
-			obj->sections[i]->offset = obj->shdr32[i].sh_offset;
-			obj->sections[i]->address = obj->shdr32[i].sh_addr;
-			obj->sections[i]->size = obj->shdr32[i].sh_size;
-			break;
-		case elfclass64:
-			obj->sections[i]->name =
-			    strdup(&obj->shstrtab[obj->shdr64[i].sh_name]);
-			obj->sections[i]->type = obj->shdr64[i].sh_type;
-			obj->sections[i]->link = obj->shdr64[i].sh_link;
-			obj->sections[i]->info = obj->shdr64[i].sh_info;
-			obj->sections[i]->flags = obj->shdr64[i].sh_flags;
-			obj->sections[i]->align = obj->shdr64[i].sh_addralign;
-			obj->sections[i]->entsize = obj->shdr64[i].sh_entsize;
-			obj->sections[i]->offset = obj->shdr64[i].sh_offset;
-			obj->sections[i]->address = obj->shdr64[i].sh_addr;
-			obj->sections[i]->size = obj->shdr64[i].sh_size;
-			break;
-		}
+	if (insane_headers(obj) == true) {
+		goto final_load_stages;
 	}
 
 	/*
-	 * Sorting an array of pointers to struct elf_section
+	 * Sort the ELF sections if applies. Otherwise we do this by reconstructing
+	 * them later on in the loading process (If MALWARE loading flag is set)
 	 */
-	qsort(obj->sections, section_count,
-	    sizeof(struct elf_section *), section_name_cmp);
-
+	if (sort_elf_sections(obj, error) == false) {
+		elf_error_set(error, "sort_elf_sections failed");
+		goto err;
+	}
 	/*
 	 * Set the remaining elf object pointers to the various data structures in the
 	 * ELF file.
@@ -1740,6 +1805,8 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 			obj->flags |= ELF_PLT_F;
 		}
 	}
+
+final_load_stages:
 	if (load_dynamic_segment_data(obj) == false) {
 		elf_error_set(error, "failed to build dynamic segment data");
 		goto err;
@@ -1750,6 +1817,28 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 	hcreate_r(obj->symtab_count, &obj->cache.symtab);
 	hcreate_r(obj->dynsym_count, &obj->cache.dynsym);
 	hcreate_r(obj->dynsym_count, &obj->cache.plt);
+
+	/*
+	 * These next two build_*sym_data() functions will NOT work
+	 * if there are no section headers. They will rely on all
+	 * sorts of data being available in the section headers so
+	 * we must reconstruct the internal section data using the
+	 * the state-of-the-art methods used by ECFS.
+	 */
+	if (insane_headers(obj) == true &&
+	    (load_flags & ELF_LOAD_F_FORENSICS)) {
+		elf_error_t suberror;
+
+		printf("Reconstructing ELF headers\n");
+		if (reconstruct_elf_sections(obj, &suberror) == false) {
+			elf_error_set(error, "failed to build forensics data: %s",
+			    elf_error_msg(&suberror));
+			goto err;
+		}
+	} else {
+		if (insane_headers(obj) == true)
+			goto finalize;
+	}
 
 	if (build_dynsym_data(obj) == false) {
 		elf_error_set(error, "failed to build dynamic symbol data");
@@ -1765,6 +1854,7 @@ elf_open_object(const char *path, struct elfobj *obj, bool modify,
 			goto err;
 		}
 	}
+finalize:
 	if (obj->dynsym_count > 0)
 		obj->flags |= ELF_DYNSYM_F;
 	if (obj->symtab_count > 0)

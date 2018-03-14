@@ -32,6 +32,9 @@ struct cache_file {
 #define CACHEMAGIC_NEW "glibc-ld.so.cache"
 #define CACHE_VERSION "1.1"
 
+#define ELF_LDSO_CACHE_OLD (1 << 0)
+#define ELF_LDSO_CACHE_NEW (1 << 1)
+
 struct file_entry_new {
 	int32_t flags;
 	uint32_t key;
@@ -69,6 +72,12 @@ struct elf_rel_helper_node {
 };
 
 /*
+ * When we reconstruct sections we create a string table
+ * that is a maximum of this size.
+ */
+#define INTERNAL_SHSTRTAB_SIZE 1024
+#define INTERNAL_SECTION_COUNT 4096
+/*
  * This should only be used internally.
  */
 struct elf_symbol_node {
@@ -80,6 +89,19 @@ struct elf_symbol_node {
 	uint8_t type;
 	uint8_t visibility;
 	LIST_ENTRY(elf_symbol_node) _linkage;
+};
+
+struct elf_section_node {
+	char *name;
+	uint32_t type;
+	uint32_t link;
+	uint32_t info;
+	uint64_t align;
+	uint64_t entsize;
+	uint64_t offset;
+	uint64_t address;
+	size_t size;
+	LIST_ENTRY(elf_section_node) _linkage;
 };
 
 typedef struct elf_shared_object_node {
@@ -132,4 +154,9 @@ void free_caches(elfobj_t *);
 
 void free_arrays(elfobj_t *);
 
+bool insane_headers(elfobj_t *);
+
+bool reconstruct_elf_sections(elfobj_t *, elf_error_t *);
+
+bool sort_elf_sections(elfobj_t *obj, elf_error_t *);
 #endif // _LIBELFMASTER_INTERNAL_H_
