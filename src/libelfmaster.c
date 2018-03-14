@@ -566,6 +566,10 @@ elf_section_pointer(elfobj_t *obj, void *shdr)
 	return NULL;
 }
 
+#if 0
+Ignore this function, it has been totally re-written in a way that makes
+sense for another branch (ul_exec branch), this code is wrong and bad.
+#endif
 bool
 elf_map_loadable_segments(struct elfobj *obj, struct elf_mapping *mapping,
     elf_error_t *error)
@@ -1389,7 +1393,6 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 	size_t section_count;
 	bool text_found = false, data_found = false;
 	bool __strict = false;
-	bool res;
 
 	/*
 	 * We count on this being initialized for various sanity checks.
@@ -1730,7 +1733,8 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 	 * Sanity checks are good. So Instead lets load all of the section header
 	 * data using state of the art reconstruction techniques that were employed
 	 * in my beloved ECFS v1 (If the ELF_LOAD_F_FORENSICS flag is set) otherwise
-	 * we just skip section parsing/loading.
+	 * we just skip section parsing/loading, after which we can sort them but
+	 * but not now.
 	 */
 	if (insane_headers(obj) == true) {
 		goto final_load_stages;
@@ -1744,55 +1748,6 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 		elf_error_set(error, "sort_elf_sections failed");
 		goto err;
 	}
-#if 0
-	obj->sections = (struct elf_section **)
-	    malloc(sizeof(struct elf_section *) * (section_count + 1));
-	if (obj->sections == NULL) {
-		elf_error_set(error, "malloc: %s", strerror(errno));
-		goto err;
-	}
-	for (i = 0; i < section_count; i++) {
-		obj->sections[i] = malloc(sizeof(struct elf_section));
-		if (obj->sections[i] == NULL) {
-			elf_error_set(error, "malloc: %s", strerror(errno));
-			goto err;
-		}
-		switch(obj->e_class) {
-		case elfclass32:
-			obj->sections[i]->name =
-			    strdup(&obj->shstrtab[obj->shdr32[i].sh_name]);
-			obj->sections[i]->type = obj->shdr32[i].sh_type;
-			obj->sections[i]->link = obj->shdr32[i].sh_link;
-			obj->sections[i]->info = obj->shdr32[i].sh_info;
-			obj->sections[i]->flags = obj->shdr32[i].sh_flags;
-			obj->sections[i]->align = obj->shdr32[i].sh_addralign;
-			obj->sections[i]->entsize = obj->shdr32[i].sh_entsize;
-			obj->sections[i]->offset = obj->shdr32[i].sh_offset;
-			obj->sections[i]->address = obj->shdr32[i].sh_addr;
-			obj->sections[i]->size = obj->shdr32[i].sh_size;
-			break;
-		case elfclass64:
-			obj->sections[i]->name =
-			    strdup(&obj->shstrtab[obj->shdr64[i].sh_name]);
-			obj->sections[i]->type = obj->shdr64[i].sh_type;
-			obj->sections[i]->link = obj->shdr64[i].sh_link;
-			obj->sections[i]->info = obj->shdr64[i].sh_info;
-			obj->sections[i]->flags = obj->shdr64[i].sh_flags;
-			obj->sections[i]->align = obj->shdr64[i].sh_addralign;
-			obj->sections[i]->entsize = obj->shdr64[i].sh_entsize;
-			obj->sections[i]->offset = obj->shdr64[i].sh_offset;
-			obj->sections[i]->address = obj->shdr64[i].sh_addr;
-			obj->sections[i]->size = obj->shdr64[i].sh_size;
-			break;
-		}
-	}
-
-	/*
-	 * Sorting an array of pointers to struct elf_section
-	 */
-	qsort(obj->sections, section_count,
-	    sizeof(struct elf_section *), section_name_cmp);
-#endif
 	/*
 	 * Set the remaining elf object pointers to the various data structures in the
 	 * ELF file.
