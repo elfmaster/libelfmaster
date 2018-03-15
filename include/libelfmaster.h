@@ -367,7 +367,8 @@ typedef struct elf_pltgot_entry {
 typedef enum elf_iterator_res {
 	ELF_ITER_OK,
 	ELF_ITER_DONE,
-	ELF_ITER_ERROR
+	ELF_ITER_ERROR,
+	ELF_ITER_NOTFOUND
 } elf_iterator_res_t;
 
 typedef struct elf_relocation_iterator {
