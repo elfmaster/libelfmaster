@@ -455,7 +455,7 @@ ldso_recursive_cache_resolve(struct elf_shared_object_iterator *iter,
 		return true;
 	}
 	if (elf_open_object(path, &obj, false, &error) == false) {
-		goto done;
+		return false;
 	}
 	if (LIST_EMPTY(&obj.list.shared_objects))
 		goto done;
