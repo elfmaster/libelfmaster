@@ -731,7 +731,7 @@ elf_iterator_res_t
 elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
     struct elf_shared_object *entry, elf_error_t *error)
 {
-	int result;
+	bool result;
 
 	if (iter->current == NULL && LIST_EMPTY(&iter->yield_list)) {
 		ldso_cleanup(iter);
