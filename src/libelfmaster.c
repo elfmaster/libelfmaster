@@ -777,14 +777,12 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 		if (result) {
 			/*if dependency path was not found in ld.so.cache, just set path name as NULL and get next basename*/
 			entry->path = (char *)ldso_cache_bsearch(iter, iter->current->basename);
-			if (entry->path == NULL) {
-				entry->basename = iter->current->basename;
-				iter->current = LIST_NEXT(iter->current, _linkage);
-				return ELF_ITER_NOTFOUND;
-			}
-	
 			entry->basename = iter->current->basename;
 			iter->current = LIST_NEXT(iter->current, _linkage);
+			
+			if (entry->path == NULL) {	
+				return ELF_ITER_NOTFOUND;
+			}
 			if (ldso_insert_yield_cache(iter, entry->path) == false) {
 				elf_error_set(error, "ldso_insert_yield_cache failed");
 				goto err;
