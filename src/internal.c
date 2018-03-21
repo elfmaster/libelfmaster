@@ -722,7 +722,15 @@ add_section_entry(elfobj_t *obj, void *ptr)
 	obj->section_count++;
 	return;
 }
-
+/*
+ * This reconstructs the section header tables internally if the
+ * FORENSICS flag is passed to elf_object_open(), which is very
+ * useful with malware that has corrupted or stripped section
+ * headers. The result is that we use techniques such as the
+ * dynamic symbol table, and the PT_GNU_EH_FRAME segment to
+ * reconstruct symbol and function data which is indespensible
+ * for forensics analysts.
+ */
 bool
 reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 {

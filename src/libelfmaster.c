@@ -1829,7 +1829,6 @@ final_load_stages:
 	    (load_flags & ELF_LOAD_F_FORENSICS)) {
 		elf_error_t suberror;
 
-		printf("Reconstructing ELF headers\n");
 		if (reconstruct_elf_sections(obj, &suberror) == false) {
 			elf_error_set(error, "failed to build forensics data: %s",
 			    elf_error_msg(&suberror));
