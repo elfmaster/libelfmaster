@@ -40,7 +40,11 @@ int main(int argc, char **argv)
 			    elf_error_msg(&error));
 			break;
 		}
-		printf("%s\n", object.path);
+		if (res == ELF_ITER_OK) {
+			printf("%-30s -->\t%s\n", object.basename, object.path);
+		} else if (res == ELF_ITER_NOTFOUND) {
+			printf("%-30s -->\t%s\n", object.basename, object.path);
+		}
 	}
 	exit(0);
 }

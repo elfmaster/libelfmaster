@@ -451,20 +451,19 @@ ldso_recursive_cache_resolve(struct elf_shared_object_iterator *iter,
 	elfobj_t obj;
 	elf_error_t error;
 
-	if (path == NULL)
+	if (path == NULL) {
+		return true;
+	}
+	if (elf_open_object(path, &obj, false, &error) == false) {
 		return false;
-
-	if (elf_open_object(path, &obj, false, &error) == false)
-		return false;
-
+	}
 	if (LIST_EMPTY(&obj.list.shared_objects))
 		goto done;
 
 	LIST_FOREACH(current, &obj.list.shared_objects, _linkage) {
-
-		if (current->basename == NULL)
+		if (current->basename == NULL) {
 			goto err;
-
+		}
 		path = (char *)ldso_cache_bsearch(iter, current->basename);
 		if (path == NULL) {
 			DEBUG_LOG("cannot resolve %s\n", current->basename);
@@ -476,12 +475,15 @@ ldso_recursive_cache_resolve(struct elf_shared_object_iterator *iter,
 		 * object iterator will use the linked list cache.
 		 */
 		current->path = ldso_strdup(iter, path);
-		if (current->path == NULL)
+		if (current->path == NULL) {
 			goto err;
-		if (ldso_insert_yield_entry(iter, current->path) == false)
+		}
+		if (ldso_insert_yield_entry(iter, current->path) == false){
 			goto err;
-		if (ldso_recursive_cache_resolve(iter, current->basename) == false)
+		}
+		if (ldso_recursive_cache_resolve(iter, current->basename) == false){
 			goto err;
+		}
 	}
 done:
 	elf_close_object(&obj);
@@ -722,7 +724,15 @@ add_section_entry(elfobj_t *obj, void *ptr)
 	obj->section_count++;
 	return;
 }
-
+/*
+ * This reconstructs the section header tables internally if the
+ * FORENSICS flag is passed to elf_object_open(), which is very
+ * useful with malware that has corrupted or stripped section
+ * headers. The result is that we use techniques such as the
+ * dynamic symbol table, and the PT_GNU_EH_FRAME segment to
+ * reconstruct symbol and function data which is indespensible
+ * for forensics analysts.
+ */
 bool
 reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 {

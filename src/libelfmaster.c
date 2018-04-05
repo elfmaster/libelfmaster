@@ -731,6 +731,7 @@ elf_iterator_res_t
 elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
     struct elf_shared_object *entry, elf_error_t *error)
 {
+	bool result;
 
 	if (iter->current == NULL && LIST_EMPTY(&iter->yield_list)) {
 		ldso_cleanup(iter);
@@ -766,32 +767,28 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 		 * Otherwise move on to resolving the next dependencies for
 		 * iter->current->basename.
 		 */
-		if (ldso_recursive_cache_resolve(iter, iter->current->basename)
-		    == false) {
+		result = ldso_recursive_cache_resolve(iter, iter->current->basename);
+		if (!result) {
 			elf_error_set(error, "ldso_recursive_cache_resolve(%p, %s) failed\n",
 			    iter, iter->current->basename);
 			goto err;
 		}
-		/*
-		 * If we succeeded, then we should have a yield list containing
-		 * all of the so dependencies for iter->current->basename. But
-		 * first lets yield the top-level basename/path, then in the next
-		 * iteration we will begin yielding items from the list until its
-		 * empty again.
-		 */
-		entry->path = (char *)ldso_cache_bsearch(iter, iter->current->basename);
-		if (entry->path == NULL) {
-			elf_error_set(error, "ldso_cache_bsearch(%p, %s) failed",
-			    iter, iter->current->basename);
-			goto err;
+		
+		if (result) {
+			/*if dependency path was not found in ld.so.cache, just set path name as NULL and get next basename*/
+			entry->path = (char *)ldso_cache_bsearch(iter, iter->current->basename);
+			entry->basename = iter->current->basename;
+			iter->current = LIST_NEXT(iter->current, _linkage);
+			
+			if (entry->path == NULL) {	
+				return ELF_ITER_NOTFOUND;
+			}
+			if (ldso_insert_yield_cache(iter, entry->path) == false) {
+				elf_error_set(error, "ldso_insert_yield_cache failed");
+				goto err;
+			}
+			return ELF_ITER_OK;
 		}
-		entry->basename = iter->current->basename;
-		iter->current = LIST_NEXT(iter->current, _linkage);
-		if (ldso_insert_yield_cache(iter, entry->path) == false) {
-			elf_error_set(error, "ldso_insert_yield_cache failed");
-			goto err;
-		}
-		return ELF_ITER_OK;
 	}
 	entry->path = (char *)ldso_cache_bsearch(iter, iter->current->basename);
 	if (entry->path == NULL) {
@@ -799,6 +796,7 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 		    iter, iter->current->basename);
 		goto err;
 	}
+
 next_basename:
 	entry->basename = iter->current->basename;
 	iter->current = LIST_NEXT(iter->current, _linkage);
@@ -1829,7 +1827,6 @@ final_load_stages:
 	    (load_flags & ELF_LOAD_F_FORENSICS)) {
 		elf_error_t suberror;
 
-		printf("Reconstructing ELF headers\n");
 		if (reconstruct_elf_sections(obj, &suberror) == false) {
 			elf_error_set(error, "failed to build forensics data: %s",
 			    elf_error_msg(&suberror));
