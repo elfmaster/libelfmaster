@@ -87,8 +87,9 @@ build_plt_data(struct elfobj *obj)
 
 	for (;;) {
 		res = elf_relocation_iterator_next(&r_iter, &r_entry);
-		if (res == ELF_ITER_ERROR)
+		if (res == ELF_ITER_ERROR) {
 			return false;
+		}
 		if (res == ELF_ITER_DONE)
 			break;
 		if (r_entry.type != ELF_RELOC_JUMP_SLOT)
@@ -116,7 +117,7 @@ build_dynsym_data(struct elfobj *obj)
 	Elf64_Sym *dsym64;
 	struct elf_dynsym_list *list = &obj->list.dynsym;
 
-	LIST_INIT(&obj->list.symtab);
+	LIST_INIT(&obj->list.dynsym);
 
 	for (i = 0; i < obj->dynsym_count; i++) {
 		struct elf_symbol_node *symbol = malloc(sizeof(*symbol));
@@ -785,6 +786,9 @@ resolve_plt_addr(elfobj_t *obj)
  * reconstruct symbol and function data which is indespensible
  * for forensics analysts.
  */
+#define RELA_ENT_SIZE 24 /* REL_ENT_SIZE is 12 */
+#define REL_ENT_SIZE 12
+
 bool
 reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 {
@@ -796,6 +800,10 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 	size_t dynsym_size; /* necessary for calculating various other sizes */
 	size_t dynsym_count;
 	size_t relaplt_count, relaplt_size;
+	size_t word_size = obj->arch == i386 ? 4 : 8;
+	int dynsym_index = 0;
+	int gotplt_index = 0;
+	const char *sname = NULL;
 
 	obj->internal_section_count = INTERNAL_SECTION_COUNT;
 	obj->internal_shstrtab_size = INTERNAL_SHSTRTAB_SIZE;
@@ -836,7 +844,7 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		elf.shdr32.sh_addr = obj->dynseg.dynsym.addr;
 		dynsym_size = elf.shdr32.sh_size =
 		    obj->dynseg.dynstr.addr - obj->dynseg.dynsym.addr;
-		elf.shdr32.sh_link = 1;
+		elf.shdr32.sh_link = obj->section_count + 1; /* The next section will be .dynstr */
 		elf.shdr32.sh_offset =
 		    obj->dynseg.dynsym.addr - elf_text_base(obj);
 		elf.shdr32.sh_addralign = sizeof(long);
@@ -844,8 +852,17 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		elf.shdr32.sh_flags = SHF_ALLOC;
 		elf.shdr32.sh_name = soffset;
 		elf.shdr32.sh_entsize = sizeof(Elf32_Sym);
+		elf.shdr32.sh_type = SHT_SYMTAB;
+		dynsym_index = obj->section_count;
+		/*
+		 * We must set dynsym_count and dynsym32 so that build_dynsym_data
+		 * can be run properly. We also will need the dynstr section properly
+		 * setup to retrieve the symbol names.
+		 */
+		obj->dynsym_count = elf.shdr32.sh_size / elf.shdr32.sh_entsize;
+		obj->dynsym32 = (Elf32_Sym *)((uint8_t *)&obj->mem[elf.shdr32.sh_offset]);
 		add_section_entry(obj, &elf.shdr32);
-
+		obj->flags |= ELF_DYNSYM_F;
 		/*
 		 * .dynstr
 		 */
@@ -862,12 +879,14 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		elf.shdr32.sh_flags = SHF_ALLOC;
 		elf.shdr32.sh_name = soffset;
 		elf.shdr32.sh_entsize = 1;
+		elf.shdr32.sh_type = SHT_STRTAB;
+		obj->dynstr = (char *)&obj->mem[elf.shdr32.sh_offset];
 		add_section_entry(obj, &elf.shdr32);
 		/*
 		 * NOTE: set the ELF_DYNSYM_F flag so the client code knows
 		 * if its able to use the dynamic symbol table.
 		 */
-		obj->flags |= ELF_DYNSYM_F;
+		obj->flags |= ELF_DYNSTR_F;
 
 		/*
 		 * .got.plt
@@ -881,16 +900,18 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		 * then enough slots for each dynamic symbol.
 		 */
 		dynsym_count = dynsym_size / sizeof(Elf32_Sym);
-		elf.shdr32.sh_size = (sizeof(uintptr_t) * 3) +
-		    (sizeof(uintptr_t) * dynsym_count);
+		elf.shdr32.sh_size = (word_size * 3) +
+		    (word_size * dynsym_count);
 		elf.shdr32.sh_link = 0;
 		elf.shdr32.sh_offset =
 		    obj->dynseg.pltgot.addr - elf_text_base(obj);
-		elf.shdr32.sh_addralign = sizeof(uintptr_t);
+		elf.shdr32.sh_addralign = word_size;
 		elf.shdr32.sh_info = 0;
 		elf.shdr32.sh_flags = SHF_ALLOC|SHF_WRITE;
 		elf.shdr32.sh_name = soffset;
-		elf.shdr32.sh_entsize = sizeof(uintptr_t);
+		elf.shdr32.sh_entsize = word_size;
+		elf.shdr32.sh_type = SHT_PROGBITS;
+		gotplt_index = obj->section_count;
 		add_section_entry(obj, &elf.shdr32);
 		obj->flags |= ELF_PLTGOT_F;
 
@@ -912,8 +933,30 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		elf.shdr32.sh_flags = SHF_ALLOC|SHF_EXECINSTR;
 		elf.shdr32.sh_name = soffset;
 		elf.shdr32.sh_entsize = 16;
+		elf.shdr32.sh_type = SHT_PROGBITS;
 		add_section_entry(obj, &elf.shdr32);
 		obj->flags |= ELF_PLT_F;
+
+		/*
+		 * .rel[a].plt (Necessary for plt iterators)
+		 */
+		sname = obj->dynseg.relent.size == RELA_ENT_SIZE ? ".rela.plt" :
+		    "rel.plt";
+
+		if (add_shstrtab_entry(obj, sname, &soffset) == false) {
+			return elf_error_set(e, sname, &soffset);
+		}
+		elf.shdr32.sh_addr = obj->dynseg.pltrel.addr;
+		elf.shdr32.sh_size = obj->dynseg.pltrel.size;
+		elf.shdr32.sh_link = dynsym_index;
+		elf.shdr32.sh_offset = obj->dynseg.pltrel.addr - elf_text_base(obj);
+		elf.shdr32.sh_info = gotplt_index;
+		elf.shdr32.sh_entsize = obj->dynseg.relent.size;
+		elf.shdr32.sh_name = soffset;
+		elf.shdr32.sh_type = obj->dynseg.relent.size ==
+		    RELA_ENT_SIZE ? SHT_RELA : SHT_REL;
+		add_section_entry(obj, &elf.shdr32);
+		obj->flags |= ELF_PLT_RELOCS_F;
 		break;
 	case elfclass64:
 		obj->ehdr64->e_shnum = 0;
@@ -941,8 +984,10 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		elf.shdr64.sh_flags = SHF_ALLOC;
 		elf.shdr64.sh_name = soffset;
 		elf.shdr64.sh_entsize = sizeof(Elf64_Sym);
+		obj->dynsym_count = elf.shdr64.sh_size / elf.shdr64.sh_entsize;
+		obj->dynsym64 = (Elf64_Sym *)((uint8_t *)&obj->mem[elf.shdr64.sh_offset]);
 		add_section_entry(obj, &elf.shdr64);
-
+		obj->flags |= ELF_DYNAMIC_F;
 		/*
 		 * .dynstr
 		 */
@@ -958,12 +1003,13 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		elf.shdr64.sh_flags = SHF_ALLOC;
 		elf.shdr64.sh_name = soffset;
 		elf.shdr64.sh_entsize = 1;
+		obj->dynstr = (char *)&obj->mem[elf.shdr64.sh_offset];
 		add_section_entry(obj, &elf.shdr64);
 		/*
 		 * NOTE: set the ELF_DYNSYM_F flag so the client code knows
 		 * if its able to use the dynamic symbol table.
 		 */
-		obj->flags |= ELF_DYNSYM_F;
+		obj->flags |= ELF_DYNSTR_F;
 
 		/*
 		 * .got.plt
@@ -977,16 +1023,16 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		 * then enough slots for each dynamic symbol.
 		 */
 		dynsym_count = dynsym_size / sizeof(Elf64_Sym);
-		elf.shdr64.sh_size = (sizeof(uintptr_t) * 3) +
-		    (sizeof(uintptr_t) * dynsym_count);
+		elf.shdr64.sh_size = (word_size * 3) +
+		    (word_size * dynsym_count);
 		elf.shdr64.sh_link = 0;
 		elf.shdr64.sh_offset =
 		    (obj->dynseg.pltgot.addr - elf_data_base(obj)) + elf_data_offset(obj);
-		elf.shdr64.sh_addralign = sizeof(uintptr_t);
+		elf.shdr64.sh_addralign = word_size;
 		elf.shdr64.sh_info = 0;
 		elf.shdr64.sh_flags = SHF_ALLOC|SHF_WRITE;
 		elf.shdr64.sh_name = soffset;
-		elf.shdr64.sh_entsize = sizeof(uintptr_t);
+		elf.shdr64.sh_entsize = word_size;
 		add_section_entry(obj, &elf.shdr64);
 		obj->flags |= ELF_PLTGOT_F;
 
@@ -1010,6 +1056,26 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		elf.shdr64.sh_entsize = 16;
 		add_section_entry(obj, &elf.shdr64);
 		obj->flags |= ELF_PLT_F;
+
+		/*
+		 * .rel[a].plt (Necessary for plt iterators)
+		 */
+		sname = obj->dynseg.relent.size == RELA_ENT_SIZE ? ".rela.plt" :
+		    "rel.plt";
+		if (add_shstrtab_entry(obj, sname, &soffset) == false) {
+			return elf_error_set(e, sname, &soffset);
+		}
+		elf.shdr64.sh_addr = obj->dynseg.pltrel.addr;
+		elf.shdr64.sh_size = obj->dynseg.pltrel.size;
+		elf.shdr64.sh_link = dynsym_index;
+		elf.shdr64.sh_offset = obj->dynseg.pltrel.addr - elf_text_base(obj);
+		elf.shdr64.sh_info = gotplt_index;
+		elf.shdr64.sh_entsize = obj->dynseg.relent.size;
+		elf.shdr64.sh_name = soffset;
+		elf.shdr64.sh_type = obj->dynseg.relent.size == RELA_ENT_SIZE
+		    ? SHT_RELA : SHT_REL;
+		add_section_entry(obj, &elf.shdr32);
+		obj->flags |= ELF_PLT_RELOCS_F;
 		break;
 	default:
 		break;
