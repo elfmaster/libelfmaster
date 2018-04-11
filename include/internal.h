@@ -159,4 +159,11 @@ bool insane_headers(elfobj_t *);
 bool reconstruct_elf_sections(elfobj_t *, elf_error_t *);
 
 bool sort_elf_sections(elfobj_t *obj, elf_error_t *);
+
+/*
+ * Resolve PLT address since it is not directly in the dynamic segment
+ * and we need to locate it for stripped executables. We use a few
+ * simple tricks.
+ */
+uint64_t resolve_plt_addr(elfobj_t *obj);
 #endif // _LIBELFMASTER_INTERNAL_H_

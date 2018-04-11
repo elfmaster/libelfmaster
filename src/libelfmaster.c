@@ -817,14 +817,12 @@ elf_relocation_iterator_init(struct elfobj *obj,
 
 	LIST_INIT(&iter->list);
 	if (obj->e_class == elfclass32) {
-		Elf32_Ehdr *ehdr32 = obj->ehdr32;
 		Elf32_Shdr *shdr32 = obj->shdr32;
-
 		/*
 		 * We build a linked list which contains the relocation sections
 		 * that we must parse.
 		 */
-		for (i = 0; i <	ehdr32->e_shnum; i++) {
+		for (i = 0; i <	obj->section_count; i++) {
 			unsigned int type = shdr32[i].sh_type;
 
 			if (type == SHT_REL || type == SHT_RELA) {
@@ -854,10 +852,9 @@ elf_relocation_iterator_init(struct elfobj *obj,
 			}
 		}
 	} else if (obj->e_class == elfclass64) {
-		Elf64_Ehdr *ehdr64 = obj->ehdr64;
 		Elf64_Shdr *shdr64 = obj->shdr64;
 
-		for (i = 0; i < ehdr64->e_shnum; i++) {
+		for (i = 0; i < obj->section_count; i++) {
 			unsigned int type = shdr64[i].sh_type;
 
 			if (type == SHT_REL || type == SHT_RELA) {
@@ -923,11 +920,10 @@ begin:
 	 */
 	which = SHT_SYMTAB;
 	if (strstr(current->section_name, ".plt") ||
-	    strstr(current->section_name, ".dyn")) {
+	    strstr(current->section_name, ".dynamic")) {
 		if (obj->flags & ELF_DYNAMIC_F)
 			which = SHT_DYNSYM;
 	}
-
 	if (iter->obj->e_class == elfclass32) {
 		unsigned int i = iter->index++;
 		const size_t entsz = current->addend ? sizeof(Elf32_Rela) :
@@ -984,6 +980,7 @@ begin:
 
 			if (elf_symbol_by_index(obj, symidx, &symbol, which) == false)
 				goto err;
+
 			entry->offset = current->rela64[i].r_offset;
 			entry->type = ELF64_R_TYPE(current->rela64[i].r_info);
 			entry->addend = current->rela64[i].r_addend;
@@ -1810,13 +1807,6 @@ final_load_stages:
 		goto err;
 	}
 	/*
-	 * Build a cache for symtab and dynsym as needed.
-	 */
-	hcreate_r(obj->symtab_count, &obj->cache.symtab);
-	hcreate_r(obj->dynsym_count, &obj->cache.dynsym);
-	hcreate_r(obj->dynsym_count, &obj->cache.plt);
-
-	/*
 	 * These next two build_*sym_data() functions will NOT work
 	 * if there are no section headers. They will rely on all
 	 * sorts of data being available in the section headers so
@@ -1833,9 +1823,21 @@ final_load_stages:
 			goto err;
 		}
 	} else {
+		/*
+		 * If the headers are insane but we are not using the
+		 * FORENSICS flag in elf_open_object, then skip the
+		 * reconstruction of necessary data.
+		 */
 		if (insane_headers(obj) == true)
 			goto finalize;
 	}
+
+	/*
+	 * Build a cache for symtab and dynsym as needed.
+	 */
+	hcreate_r(obj->symtab_count, &obj->cache.symtab);
+	hcreate_r(obj->dynsym_count, &obj->cache.dynsym);
+	hcreate_r(obj->dynsym_count, &obj->cache.plt);
 
 	if (build_dynsym_data(obj) == false) {
 		elf_error_set(error, "failed to build dynamic symbol data");

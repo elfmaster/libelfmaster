@@ -71,7 +71,8 @@ typedef enum elf_obj_flags {
 	ELF_PIE_F =			(1 << 8),
 	ELF_DYNAMIC_F =			(1 << 9),
 	ELF_PLT_F =			(1 << 10),
-	ELF_PLTGOT_F =			(1 << 11)
+	ELF_PLTGOT_F =			(1 << 11),
+	ELF_DYNSTR_F =			(1 << 12)
 } elf_obj_flags_t;
 
 /*
@@ -234,7 +235,9 @@ typedef struct elfobj {
 		struct {
 			uint64_t addr;
 		} pltgot;
-
+		struct {
+			uint64_t size;
+		} relent;
 		struct {
 			uint64_t addr;
 			uint64_t size;
