@@ -506,7 +506,7 @@ load_dynamic_segment_data(struct elfobj *obj)
 	uint32_t dt_pltgot = 0, dt_pltrelsz = 0, dt_symtab = 0,
 	    dt_strtab = 0, dt_strsz = 0, dt_hash = 0, dt_pltrel = 0,
 	    dt_jmprel = 0, dt_rela = 0, dt_relasz = 0, dt_rel = 0, dt_relsz = 0,
-	    dt_fini = 0, dt_init = 0;
+	    dt_fini = 0, dt_init = 0, dt_relent = 0;
 
 	LIST_INIT(&obj->list.shared_objects);
 	elf_dynamic_iterator_init(obj, &iter);
@@ -612,6 +612,12 @@ load_dynamic_segment_data(struct elfobj *obj)
 			so->basename = elf_dynamic_string(obj, entry.value);
 			LIST_INSERT_HEAD(&obj->list.shared_objects, so,
 			    _linkage);
+			break;
+		case DT_RELAENT:
+		case DT_RELENT:
+			if (dt_relent++ > 0)
+				break;
+			obj->dynseg.relent.size = entry.value;
 			break;
 		default:
 			break;
@@ -723,6 +729,51 @@ add_section_entry(elfobj_t *obj, void *ptr)
 	}
 	obj->section_count++;
 	return;
+}
+
+/*
+ * XXX This is temporary and will only work on x86_64 architecture.
+ * We may want to consider using a disassembler we write ourselves, however
+ * that can be time consuming. We can use capstone as well.
+ */
+#define INIT_SIZE_THRESHOLD 60 /* This .init section is really about 25 bytes, but we need
+				* enough space to go past .init into the .plt
+				* until we find it.
+				*/
+uint64_t
+resolve_plt_addr(elfobj_t *obj)
+{
+
+	uint64_t init_offset = obj->dynseg.init.addr - elf_text_base(obj);
+	uint8_t *inst, *marker;
+	uint32_t i = 0;
+
+	/*
+	 * XXX this code won't work on 32bit binaries, because the opcodes
+	 * for the indirect GOT jump won't be using IP relative addressing.
+	 */
+	for (marker = inst = &obj->mem[init_offset]; inst; inst++, i++) {
+		if (*inst != 0x48 && *(inst + 1) != 0x83)
+			continue;
+		if (inst - marker > INIT_SIZE_THRESHOLD)
+			return 0;
+		for (;; inst++) {
+			if (*inst == 0xc3) {
+				for (;; inst++) {
+					if (*inst == 0xff && *(inst + 1) == 0x35) {
+						return (uint64_t)((uint8_t *)inst -
+						    (uint8_t *)marker) + obj->dynseg.init.addr;
+					}
+					if (inst - marker > INIT_SIZE_THRESHOLD) {
+						return 0;
+					}
+				}
+			}
+			if (inst - marker > INIT_SIZE_THRESHOLD)
+				return 0;
+		}
+	}
+	return 0;
 }
 /*
  * This reconstructs the section header tables internally if the
@@ -841,6 +892,30 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		add_section_entry(obj, &elf.shdr32);
 		obj->flags |= ELF_PLTGOT_F;
 
+		/*
+		 * .plt
+		 */
+		if (add_shstrtab_entry(obj, ".plt", &soffset) == false) {
+			return elf_error_set(e, ".plt", &soffset);
+		}
+		elf.shdr32.sh_addr = resolve_plt_addr(obj);
+		/*
+		 * Formula for calculating PLT size.
+		 * plt_size = .rela.plt / size relocation entry
+		 * plt_size *= 16;
+		 * plt_size += 16;
+		 */
+		elf.shdr32.sh_size = (obj->dynseg.pltrel.size / obj->dynseg.relent.size) * 16;
+		elf.shdr32.sh_size += 16;
+		elf.shdr32.sh_link = 0;
+		elf.shdr32.sh_offset =
+		    elf.shdr32.sh_addr - elf_text_base(obj);
+		elf.shdr32.sh_info = 0;
+		elf.shdr32.sh_flags = SHF_ALLOC|SHF_EXECINSTR;
+		elf.shdr32.sh_name = soffset;
+		elf.shdr32.sh_entsize = 16;
+		add_section_entry(obj, &elf.shdr32);
+		obj->flags |= ELF_PLT_F;
 		break;
 	case elfclass64:
 		obj->ehdr64->e_shnum = 0;
@@ -916,6 +991,25 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		elf.shdr64.sh_entsize = sizeof(uintptr_t);
 		add_section_entry(obj, &elf.shdr64);
 		obj->flags |= ELF_PLTGOT_F;
+
+		/*
+		 * .plt
+		 */
+		if (add_shstrtab_entry(obj, ".plt", &soffset) == false) {
+			return elf_error_set(e, ".plt", &soffset);
+		}
+		elf.shdr64.sh_addr = resolve_plt_addr(obj);
+		elf.shdr64.sh_size = (obj->dynseg.pltrel.size / obj->dynseg.relent.size) * 16;
+		elf.shdr64.sh_size += 16;
+		elf.shdr64.sh_link = 0;
+		elf.shdr64.sh_offset =
+		    elf.shdr64.sh_addr - elf_text_base(obj);
+                elf.shdr64.sh_info = 0;
+		elf.shdr64.sh_flags = SHF_ALLOC|SHF_EXECINSTR;
+		elf.shdr64.sh_name = soffset;
+		elf.shdr64.sh_entsize = 16;
+		add_section_entry(obj, &elf.shdr64);
+		obj->flags |= ELF_PLT_F;
 		break;
 	default:
 		break;

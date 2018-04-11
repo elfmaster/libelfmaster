@@ -234,7 +234,9 @@ typedef struct elfobj {
 		struct {
 			uint64_t addr;
 		} pltgot;
-
+		struct {
+			uint64_t size;
+		} relent;
 		struct {
 			uint64_t addr;
 			uint64_t size;
