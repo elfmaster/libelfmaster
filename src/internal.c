@@ -775,6 +775,7 @@ resolve_plt_addr(elfobj_t *obj)
 	}
 	return 0;
 }
+
 /*
  * This reconstructs the section header tables internally if the
  * FORENSICS flag is passed to elf_object_open(), which is very
@@ -794,6 +795,7 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 	uint32_t soffset; /* string table offset */
 	size_t dynsym_size; /* necessary for calculating various other sizes */
 	size_t dynsym_count;
+	size_t relaplt_count, relaplt_size;
 
 	obj->internal_section_count = INTERNAL_SECTION_COUNT;
 	obj->internal_shstrtab_size = INTERNAL_SHSTRTAB_SIZE;
@@ -899,13 +901,9 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 			return elf_error_set(e, ".plt", &soffset);
 		}
 		elf.shdr32.sh_addr = resolve_plt_addr(obj);
-		/*
-		 * Formula for calculating PLT size.
-		 * plt_size = .rela.plt / size relocation entry
-		 * plt_size *= 16;
-		 * plt_size += 16;
-		 */
-		elf.shdr32.sh_size = (obj->dynseg.pltrel.size / obj->dynseg.relent.size) * 16;
+		relaplt_count = obj->dynseg.pltrel.size / obj->dynseg.relent.size;
+		relaplt_size = relaplt_count * 16;
+		elf.shdr32.sh_size = relaplt_size;
 		elf.shdr32.sh_size += 16;
 		elf.shdr32.sh_link = 0;
 		elf.shdr32.sh_offset =
@@ -999,7 +997,9 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 			return elf_error_set(e, ".plt", &soffset);
 		}
 		elf.shdr64.sh_addr = resolve_plt_addr(obj);
-		elf.shdr64.sh_size = (obj->dynseg.pltrel.size / obj->dynseg.relent.size) * 16;
+		relaplt_count = obj->dynseg.pltrel.size / obj->dynseg.relent.size;
+		relaplt_size = relaplt_count * 16;
+		elf.shdr64.sh_size = relaplt_size;
 		elf.shdr64.sh_size += 16;
 		elf.shdr64.sh_link = 0;
 		elf.shdr64.sh_offset =
