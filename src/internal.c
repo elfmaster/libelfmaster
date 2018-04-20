@@ -87,9 +87,8 @@ build_plt_data(struct elfobj *obj)
 
 	for (;;) {
 		res = elf_relocation_iterator_next(&r_iter, &r_entry);
-		if (res == ELF_ITER_ERROR) {
+		if (res == ELF_ITER_ERROR)
 			return false;
-		}
 		if (res == ELF_ITER_DONE)
 			break;
 		if (r_entry.type != ELF_RELOC_JUMP_SLOT)
@@ -859,7 +858,7 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		 * can be run properly. We also will need the dynstr section properly
 		 * setup to retrieve the symbol names.
 		 */
-		obj->dynsym_count = elf.shdr32.sh_size / elf.shdr32.sh_entsize;
+		dynsym_count = obj->dynsym_count = (elf.shdr32.sh_size / elf.shdr32.sh_entsize);
 		obj->dynsym32 = (Elf32_Sym *)((uint8_t *)&obj->mem[elf.shdr32.sh_offset]);
 		add_section_entry(obj, &elf.shdr32);
 		obj->flags |= ELF_DYNSYM_F;
@@ -899,7 +898,6 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		 * GOT should be big enough for 3 reserved entries and
 		 * then enough slots for each dynamic symbol.
 		 */
-		dynsym_count = dynsym_size / sizeof(Elf32_Sym);
 		elf.shdr32.sh_size = (word_size * 3) +
 		    (word_size * dynsym_count);
 		elf.shdr32.sh_link = 0;
@@ -973,8 +971,9 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		if (add_shstrtab_entry(obj, ".dynsym", &soffset) == false) {
 			return elf_error_set(e, "add_shstrtab_entry failed");
 		}
+
 		elf.shdr64.sh_addr = obj->dynseg.dynsym.addr;
-		dynsym_size = elf.shdr64.sh_size =
+		elf.shdr64.sh_size =
 		    obj->dynseg.dynstr.addr - obj->dynseg.dynsym.addr;
 		elf.shdr64.sh_link = 1;
 		elf.shdr64.sh_offset =
@@ -984,7 +983,7 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		elf.shdr64.sh_flags = SHF_ALLOC;
 		elf.shdr64.sh_name = soffset;
 		elf.shdr64.sh_entsize = sizeof(Elf64_Sym);
-		obj->dynsym_count = elf.shdr64.sh_size / elf.shdr64.sh_entsize;
+		obj->dynsym_count = (elf.shdr64.sh_size / elf.shdr64.sh_entsize);
 		obj->dynsym64 = (Elf64_Sym *)((uint8_t *)&obj->mem[elf.shdr64.sh_offset]);
 		add_section_entry(obj, &elf.shdr64);
 		obj->flags |= ELF_DYNAMIC_F;
@@ -1022,9 +1021,8 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		 * GOT should be big enough for 3 reserved entries and
 		 * then enough slots for each dynamic symbol.
 		 */
-		dynsym_count = dynsym_size / sizeof(Elf64_Sym);
 		elf.shdr64.sh_size = (word_size * 3) +
-		    (word_size * dynsym_count);
+		    (word_size * obj->dynsym_count);
 		elf.shdr64.sh_link = 0;
 		elf.shdr64.sh_offset =
 		    (obj->dynseg.pltgot.addr - elf_data_base(obj)) + elf_data_offset(obj);

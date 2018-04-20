@@ -911,14 +911,35 @@ begin:
 		return ELF_ITER_DONE;
 	}
 	/*
-	 * If we're dealing sections rela.plt, rel.plt
+	 * !!! If we're dealing sections rela.plt, rel.plt
 	 * rela.dyn or rel.dyn, then we need to look up
 	 * symbol indexes in the dynamic symbol table..
 	 * UNLESS this is a statically linked executable
 	 * in which case there may still be a plt/got but
-	 * there will not be a .dynsym.
+	 * there will not be a .dynsym. Additionally we need
+	 * to account for fucked up binaries that are forensically
+	 * reconstructed. What if they have a .dynsym but not .symtab?
+	 * We need to make sure we are getting relocations that link
+	 * only to valid symbol tables.
 	 */
-	which = SHT_SYMTAB;
+	if (obj->symtab_count == 0) {
+		which = SHT_DYNSYM;
+	} else if (obj->dynsym_count == 0) {
+		which = SHT_SYMTAB;
+	} else if (obj->dynsym_count > 0 && obj->symtab_count > 0) {
+		which = SHT_SYMTAB;
+	} else if (obj->dynsym_count == 0 && obj->symtab_count == 0) {
+		/*
+		 * If no symbol tables are found then let's cleanly bail out
+		 * with an ELF_ITER_OK. There are simply no symbols which
+		 * are necessary for us.
+		 */
+		struct elf_rel_helper_node *next;
+
+		LIST_FOREACH_SAFE(current, &iter->list, _linkage, next);
+			free(current);
+		return ELF_ITER_DONE;
+	}
 	if (strstr(current->section_name, ".plt") ||
 	    strstr(current->section_name, ".dynamic")) {
 		if (obj->flags & ELF_DYNAMIC_F)
@@ -978,9 +999,9 @@ begin:
 			const unsigned int symidx =
 			    ELF64_R_SYM(current->rela64[i].r_info);
 
-			if (elf_symbol_by_index(obj, symidx, &symbol, which) == false)
+			if (elf_symbol_by_index(obj, symidx, &symbol, which) == false) {
 				goto err;
-
+			}
 			entry->offset = current->rela64[i].r_offset;
 			entry->type = ELF64_R_TYPE(current->rela64[i].r_info);
 			entry->addend = current->rela64[i].r_addend;
