@@ -792,6 +792,34 @@ i386:
 	return 0;
 }
 
+/* 
+ * This is of course only called if there are no section headers
+ * so lets locate the beginning of the text segment and search
+ * from there since we are looking for the _start glibc init code
+ * and if we can't find it we create a section called .text_segment
+ */
+#define GLIBC_START_CODE_64 "\x55\x48\x89\xe5\x48" /* enough to identify _start */
+#define GLIBC_START_CODE_32 "\x31\xed\x5e\x89\xe1" /* enough to identify _start */
+static uint64_t
+original_ep(elfobj_t *obj)
+{
+	uint8_t *ptr = &obj->mem[0];
+	uint8_t *inst, *marker;
+	size_t i;
+
+	for (i = 0, marker = inst = ptr; inst; inst++, i++) {
+		if (obj->arch == x64) {
+			if (memcmp(&inst[i], GLIBC_START_CODE_64,
+			    sizeof(GLIBC_START_CODE_64)) == 0)
+				return elf_text_base(obj) + inst - marker;
+		} else if (obj->arch == i386) {
+			if (memcmp(&inst[i], GLIBC_START_CODE_32,
+			    sizeof(GLIBC_START_CODE_32)) == 0)
+				return elf_text_base(obj) + inst - marker;
+		}
+	}
+	return 0;
+}
 /*
  * This reconstructs the section header tables internally if the
  * FORENSICS flag is passed to elf_object_open(), which is very
