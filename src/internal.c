@@ -732,9 +732,10 @@ add_section_entry(elfobj_t *obj, void *ptr)
 }
 
 /*
- * XXX This is temporary and will only work on x86_64 architecture.
+ * XXX This is temporary:
  * We may want to consider using a disassembler we write ourselves, however
- * that can be time consuming. We can use capstone as well.
+ * that can be time consuming. We can use capstone as well, but haven't really
+ * wanted to bring anything else open source into the project yet.
  */
 #define INIT_SIZE_THRESHOLD 60 /* This .init section is really about 25 bytes, but we need
 				* enough space to go past .init into the .plt
@@ -744,10 +745,13 @@ uint64_t
 resolve_plt_addr(elfobj_t *obj)
 {
 
+	uint64_t start = 25;
 	uint64_t init_offset = obj->dynseg.init.addr - elf_text_base(obj);
 	uint8_t *inst, *marker;
 	uint32_t i = 0;
 
+	if (obj->arch == i386)
+		goto i386;
 	/*
 	 * XXX this code won't work on 32bit binaries, because the opcodes
 	 * for the indirect GOT jump won't be using IP relative addressing.
@@ -774,6 +778,18 @@ resolve_plt_addr(elfobj_t *obj)
 		}
 	}
 	return 0;
+i386:
+	for (marker = inst = &obj->mem[init_offset + start]; inst; inst++, i++) {
+		if (*inst != 0x5b) /* pop %ebx */
+			continue;
+		if (*(inst + 1) == 0xc3) { /* ret */
+			return (uint64_t)((uint8_t *)inst -
+			    (uint8_t *)marker) + obj->dynseg.init.addr;
+		}
+		if (inst - marker > INIT_SIZE_THRESHOLD)
+			return 0;
+	}
+	return 0;
 }
 
 /*
@@ -796,7 +812,6 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		Elf64_Shdr shdr64;
 	} elf;
 	uint32_t soffset; /* string table offset */
-	size_t dynsym_size; /* necessary for calculating various other sizes */
 	size_t dynsym_count;
 	size_t relaplt_count, relaplt_size;
 	size_t word_size = obj->arch == i386 ? 4 : 8;
@@ -841,7 +856,7 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 			return elf_error_set(e, "add_shstrtab_entry failed");
 		}
 		elf.shdr32.sh_addr = obj->dynseg.dynsym.addr;
-		dynsym_size = elf.shdr32.sh_size =
+		elf.shdr32.sh_size =
 		    obj->dynseg.dynstr.addr - obj->dynseg.dynsym.addr;
 		elf.shdr32.sh_link = obj->section_count + 1; /* The next section will be .dynstr */
 		elf.shdr32.sh_offset =
