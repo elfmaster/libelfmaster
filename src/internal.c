@@ -506,7 +506,8 @@ load_dynamic_segment_data(struct elfobj *obj)
 	uint32_t dt_pltgot = 0, dt_pltrelsz = 0, dt_symtab = 0,
 	    dt_strtab = 0, dt_strsz = 0, dt_hash = 0, dt_pltrel = 0,
 	    dt_jmprel = 0, dt_rela = 0, dt_relasz = 0, dt_rel = 0, dt_relsz = 0,
-	    dt_fini = 0, dt_init = 0, dt_relent = 0;
+	    dt_fini = 0, dt_init = 0, dt_relent = 0, dt_init_array = 0, dt_init_arraysz = 0,
+	    dt_fini_array = 0, dt_fini_arraysz = 0;
 
 	LIST_INIT(&obj->list.shared_objects);
 	elf_dynamic_iterator_init(obj, &iter);
@@ -618,6 +619,26 @@ load_dynamic_segment_data(struct elfobj *obj)
 			if (dt_relent++ > 0)
 				break;
 			obj->dynseg.relent.size = entry.value;
+			break;
+		case DT_INIT_ARRAY:
+			if (dt_init_array++ > 0)
+				break;
+			obj->init_array_vaddr = entry.value;
+			break;
+		case DT_FINI_ARRAY:
+			if (dt_fini_array++ > 0)
+				break;
+			obj->fini_array_vaddr = entry.value;
+			break;
+		case DT_INIT_ARRAYSZ:
+			if (dt_init_arraysz++ > 0)
+				break;
+			obj->init_array_size = entry.value;
+			break;
+		case DT_FINI_ARRAYSZ:
+			if (dt_fini_arraysz++ > 0)
+				break;
+			obj->fini_array_size = entry.value;
 			break;
 		default:
 			break;
@@ -954,7 +975,7 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		 * .rel[a].plt (Necessary for plt iterators)
 		 */
 		sname = obj->dynseg.relent.size == RELA_ENT_SIZE ? ".rela.plt" :
-		    "rel.plt";
+		    ".rel.plt";
 
 		if (add_shstrtab_entry(obj, sname, &soffset) == false) {
 			return elf_error_set(e, sname, &soffset);
@@ -970,7 +991,46 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		    RELA_ENT_SIZE ? SHT_RELA : SHT_REL;
 		add_section_entry(obj, &elf.shdr32);
 		obj->flags |= ELF_PLT_RELOCS_F;
-		break;
+
+		if (obj->eh_frame_addr != 0) {
+			/*
+			 * .eh_frame (Necessary for stack unwinding)
+			 */
+			if (add_shstrtab_entry(obj, ".eh_frame_hdr",
+			    &soffset) == false) {
+				return elf_error_set(e, sname, &soffset);
+			}
+			elf.shdr32.sh_addr = obj->eh_frame_addr;
+			elf.shdr32.sh_size = obj->eh_frame_size;
+			elf.shdr32.sh_offset = obj->eh_frame_offset;
+			elf.shdr32.sh_link = 0;
+			elf.shdr32.sh_info = 0;
+			elf.shdr32.sh_entsize = sizeof(uint32_t);
+			elf.shdr32.sh_name = soffset;
+			elf.shdr32.sh_type = SHT_PROGBITS;
+			add_section_entry(obj, &elf.shdr32);
+
+			if (add_shstrtab_entry(obj, ".eh_frame",
+			    &soffset) == false) {
+				return elf_error_set(e, sname, &soffset);
+			}
+			elf.shdr32.sh_addr = obj->eh_frame_addr + obj->eh_frame_size +
+			    ((sizeof(uint32_t) - 1) & ~(sizeof(uint32_t) - 1));
+			/*
+			 * .eh_frame is right before .init_array, which is the first
+			 * section in the data segment.
+			 */
+			elf.shdr32.sh_offset = obj->eh_frame_offset + obj->eh_frame_size +
+			    ((sizeof(uint32_t) - 1) & ~(sizeof(uint32_t) - 1));
+			elf.shdr32.sh_size = obj->text_segment_filesz - elf.shdr32.sh_offset;
+			elf.shdr32.sh_name = soffset;
+			elf.shdr32.sh_link = 0;
+			elf.shdr32.sh_info = 0;
+			elf.shdr32.sh_entsize = sizeof(uintptr_t);
+			elf.shdr32.sh_type = SHT_PROGBITS;
+			add_section_entry(obj, &elf.shdr32);
+		}
+			break;
 	case elfclass64:
 		obj->ehdr64->e_shnum = 0;
 		if (obj->dynseg.exists == false)
@@ -1089,7 +1149,48 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		    ? SHT_RELA : SHT_REL;
 		add_section_entry(obj, &elf.shdr32);
 		obj->flags |= ELF_PLT_RELOCS_F;
-		break;
+		/*
+		 * .eh_frame/.eh_frame_hdr (Necessary for stack unwinding)
+		 */
+		if (obj->eh_frame_addr != 0) {
+
+			if (add_shstrtab_entry(obj, ".eh_frame_hdr",
+			    &soffset) == false) {
+				return elf_error_set(e, sname, &soffset);
+			}
+			elf.shdr64.sh_addr = obj->eh_frame_addr;
+			elf.shdr64.sh_size = obj->eh_frame_size;
+			elf.shdr64.sh_offset = obj->eh_frame_offset;
+			elf.shdr64.sh_link = 0;
+			elf.shdr64.sh_info = 0;
+			elf.shdr64.sh_entsize = sizeof(uint32_t);
+			elf.shdr64.sh_name = soffset;
+			elf.shdr64.sh_type = SHT_PROGBITS;
+			add_section_entry(obj, &elf.shdr64);
+
+			if (add_shstrtab_entry(obj, ".eh_frame",
+			    &soffset) == false) {
+				return elf_error_set(e, sname, &soffset);
+			}
+			elf.shdr64.sh_addr = obj->eh_frame_addr + obj->eh_frame_size +
+			    ((sizeof(uint32_t) - 1) & ~(sizeof(uint32_t) - 1));
+			/*
+			 * .eh_frame is right before .init_array, which is the first
+			 * section in the data segment.
+			 */
+			elf.shdr64.sh_offset = obj->eh_frame_offset + obj->eh_frame_size +
+			    ((sizeof(uint32_t) - 1) & ~(sizeof(uint32_t) - 1));
+			elf.shdr64.sh_size = obj->text_segment_filesz - elf.shdr64.sh_offset;
+			elf.shdr64.sh_name = soffset;
+			elf.shdr64.sh_link = 0;
+			elf.shdr64.sh_info = 0;
+			elf.shdr64.sh_entsize = sizeof(uintptr_t);
+			elf.shdr64.sh_type = SHT_PROGBITS;
+			add_section_entry(obj, &elf.shdr64);
+
+			obj->flags |= ELF_EH_FRAME_F;
+			break;
+		}
 	default:
 		break;
 	}

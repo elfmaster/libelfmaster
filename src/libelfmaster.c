@@ -1577,19 +1577,25 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 				obj->dynamic32 = (Elf32_Dyn *)&obj->mem[obj->phdr32[i].p_offset];
 				obj->dynamic_size = obj->phdr32[i].p_filesz;
 			} else if (obj->phdr32[i].p_type == PT_GNU_EH_FRAME) {
+				obj->eh_frame_addr = obj->phdr32[i].p_vaddr;
 				obj->eh_frame = &obj->mem[obj->phdr32[i].p_offset];
 				obj->eh_frame_size = obj->phdr32[i].p_filesz;
+				obj->eh_frame_offset = obj->phdr32[i].p_offset;
 			} else if (obj->phdr32[i].p_type == PT_LOAD && obj->phdr32[i].p_offset == 0) {
 				obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
 				text_found = true;
 				memcpy(&obj->pt_load[obj->load_count++].phdr32, &obj->phdr32[i],
 				    sizeof(Elf32_Phdr));
 			} else if (obj->phdr32[i].p_type == PT_LOAD && text_found == false) {
-				if ((obj->phdr32[i].p_flags & (PF_R|PF_X)) == (PF_R | PF_X)) {
+				/*
+				 * TODO: This will not catch text segments marked as RWX.
+				 */
+				if ((obj->phdr32[i].p_flags & (PF_R|PF_X)) == (PF_R|PF_X)) {
 					obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
 					text_found = true;
 					memcpy(&obj->pt_load[obj->load_count++].phdr32,
 					    &obj->phdr32[i], sizeof(Elf32_Phdr));
+					obj->text_segment_filesz = obj->phdr32[i].p_filesz;
 				}
 			} else if (obj->phdr32[i].p_type == PT_LOAD) {
 				if (data_found == true) {
@@ -1601,6 +1607,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 					data_found = true;
 					memcpy(&obj->pt_load[obj->load_count++].phdr32,
 					    &obj->phdr32[i], sizeof(Elf32_Phdr));
+					obj->data_segment_filesz = obj->phdr32[i].p_filesz;
 				}
 			}
 		}
@@ -1709,8 +1716,10 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 				obj->dynamic64 = (Elf64_Dyn *)&obj->mem[obj->phdr64[i].p_offset];
 				obj->dynamic_size = obj->phdr64[i].p_filesz;
 			} else if (obj->phdr64[i].p_type == PT_GNU_EH_FRAME) {
+				obj->eh_frame_addr = obj->phdr64[i].p_vaddr;
 				obj->eh_frame = &obj->mem[obj->phdr64[i].p_offset];
 				obj->eh_frame_size = obj->phdr64[i].p_filesz;
+				obj->eh_frame_offset = obj->phdr64[i].p_offset;
 			} else if (obj->phdr64[i].p_type == PT_LOAD && obj->phdr64[i].p_offset == 0) {
 				obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
 				text_found = true;
@@ -1722,6 +1731,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 					text_found = true;
 					memcpy(&obj->pt_load[obj->load_count++].phdr64,
 					    &obj->phdr64[i], sizeof(Elf64_Phdr));
+					obj->text_segment_filesz = obj->phdr64[i].p_filesz;
 				}
 			} else if (obj->phdr64[i].p_type == PT_LOAD) {
 				if (data_found == true) {
@@ -1733,6 +1743,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 					data_found = true;
 					memcpy(&obj->pt_load[obj->load_count++].phdr64,
 					    &obj->phdr64[i], sizeof(Elf64_Phdr));
+					obj->data_segment_filesz = obj->phdr64[i].p_filesz;
 				}
 			}
 		}

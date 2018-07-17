@@ -72,7 +72,8 @@ typedef enum elf_obj_flags {
 	ELF_DYNAMIC_F =			(1 << 9),
 	ELF_PLT_F =			(1 << 10),
 	ELF_PLTGOT_F =			(1 << 11),
-	ELF_DYNSTR_F =			(1 << 12)
+	ELF_DYNSTR_F =			(1 << 12),
+	ELF_EH_FRAME_F =		(1 << 13)
 } elf_obj_flags_t;
 
 /*
@@ -283,6 +284,8 @@ typedef struct elfobj {
 	size_t shdrindex; // used only when reconstructing sections
 	uint8_t *mem;
 	size_t size;
+	size_t text_segment_filesz;
+	size_t data_segment_filesz;
 	size_t section_count;
 	size_t segment_count;
 	size_t symtab_count;
@@ -290,6 +293,12 @@ typedef struct elfobj {
 	size_t note_size;
 	size_t dynamic_size;
 	size_t eh_frame_size;
+	size_t init_array_size;
+	size_t fini_array_size;
+	uint64_t eh_frame_addr;
+	uint64_t eh_frame_offset;
+	uint64_t init_array_vaddr;
+	uint64_t fini_array_vaddr;
 	uint64_t entry_point;
 	uint64_t text_address; /* text base address */
 	uint64_t text_offset;
