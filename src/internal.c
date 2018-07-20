@@ -718,6 +718,7 @@ insane_headers(elfobj_t *obj)
 /*
  * Returns string table offset, which can then be
  * set into sh_name for the given shdr entry.
+ * TODO: if (obj->strindex > INTERNAL_SHSTRTAB_SIZE) realloc
  */
 static bool
 add_shstrtab_entry(elfobj_t *obj, const char *name, uint32_t *out)
@@ -814,7 +815,7 @@ i386:
 }
 
 /* 
- * This is of course only called if there are no section headers
+ * This is of course only necessary if there are no section headers
  * so lets locate the beginning of the text segment and search
  * from there since we are looking for the _start glibc init code
  * and if we can't find it we create a section called .text_segment
@@ -1201,13 +1202,13 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 				return elf_error_set(e, sname, &soffset);
 			}
 			elf.shdr64.sh_addr = obj->eh_frame_addr + obj->eh_frame_size +
-			    ((sizeof(uint32_t) - 1) & ~(sizeof(uint32_t) - 1));
+			    ((sizeof(uint32_t)) & ~(sizeof(uint32_t) - 1));
 			/*
 			 * .eh_frame is right before .init_array, which is the first
 			 * section in the data segment.
 			 */
 			elf.shdr64.sh_offset = obj->eh_frame_offset + obj->eh_frame_size +
-			    ((sizeof(uint32_t) - 1) & ~(sizeof(uint32_t) - 1));
+			    ((sizeof(uint32_t)) & ~(sizeof(uint32_t) - 1));
 			elf.shdr64.sh_size = obj->text_segment_filesz - elf.shdr64.sh_offset;
 			elf.shdr64.sh_name = soffset;
 			elf.shdr64.sh_link = 0;
