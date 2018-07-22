@@ -255,7 +255,6 @@ typedef struct elfobj {
 		struct {
 			uint64_t addr;
 		} dynsym;
-
 		struct {
 			uint64_t addr;
 			uint64_t size;

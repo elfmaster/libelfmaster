@@ -1381,7 +1381,7 @@ elf_section_iterator_next(struct elf_section_iterator *iter,
 		section->entsize = obj->shdr64[iter->index].sh_entsize;
 		section->offset = obj->shdr64[iter->index].sh_offset;
 		section->address = obj->shdr64[iter->index].sh_addr;
-		section->size = obj->shdr64[iter->index].sh_offset;
+		section->size = obj->shdr64[iter->index].sh_size;
 		break;
 	default:
 		return ELF_ITER_ERROR;

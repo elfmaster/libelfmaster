@@ -718,7 +718,6 @@ insane_headers(elfobj_t *obj)
 /*
  * Returns string table offset, which can then be
  * set into sh_name for the given shdr entry.
- * TODO: if (obj->strindex > INTERNAL_SHSTRTAB_SIZE) realloc
  */
 static bool
 add_shstrtab_entry(elfobj_t *obj, const char *name, uint32_t *out)
@@ -893,12 +892,27 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 	switch(obj->e_class) {
 	case elfclass32:
 		obj->ehdr32->e_shnum = 0; /* initialize incase it was corrupted */
-		if (obj->dynseg.exists == false)
+		if (obj->dynseg.exists == false) /* XXX fix this, we still want to reconstruct some sections on static binaries */
 			break;
 		obj->shdr32 =
 		    malloc(sizeof(Elf32_Shdr) * obj->internal_section_count);
 		if (obj->shdr32 == NULL)
 			return elf_error_set(e, "malloc");
+
+		if (add_shstrtab_entry(obj, ".gnu_hash", &soffset) == false) {
+			return elf_error_set(e, "add_shstrtab_entry");
+		}
+		elf.shdr32.sh_addr = obj->dynseg.hash.addr;
+		elf.shdr32.sh_size = (obj->dynseg.dynsym.addr - elf_text_base(obj)) -
+		    (obj->dynseg.hash.addr - elf_text_base(obj));
+		elf.shdr32.sh_offset = (obj->dynseg.hash.addr - elf_text_base(obj));
+		elf.shdr32.sh_addralign = 4;
+		elf.shdr32.sh_info = 0;
+		elf.shdr32.sh_flags = SHF_ALLOC;
+		elf.shdr32.sh_name = soffset;
+		elf.shdr32.sh_entsize = sizeof(Elf32_Sym);
+		elf.shdr32.sh_type = SHT_GNU_HASH;
+		add_section_entry(obj, &elf.shdr32);
 		/*
 		 * Create internal representation of .dynsym section
 		 */
@@ -1044,14 +1058,14 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 				return elf_error_set(e, sname, &soffset);
 			}
 			elf.shdr32.sh_addr = obj->eh_frame_addr + obj->eh_frame_size +
-			    ((sizeof(uint32_t) - 1) & ~(sizeof(uint32_t) - 1));
+			    ((sizeof(uint32_t)) & ~(sizeof(uint32_t) - 1));
 			/*
 			 * .eh_frame is right before .init_array, which is the first
 			 * section in the data segment.
 			 */
 			elf.shdr32.sh_offset = obj->eh_frame_offset + obj->eh_frame_size +
-			    ((sizeof(uint32_t) - 1) & ~(sizeof(uint32_t) - 1));
-			elf.shdr32.sh_size = obj->text_segment_filesz - elf.shdr32.sh_offset;
+			    ((sizeof(uint32_t)) & ~(sizeof(uint32_t) - 1));
+			elf.shdr32.sh_size = elf.shdr32.sh_offset - obj->text_segment_filesz;
 			elf.shdr32.sh_name = soffset;
 			elf.shdr32.sh_link = 0;
 			elf.shdr32.sh_info = 0;
@@ -1071,6 +1085,23 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		    malloc(sizeof(Elf64_Shdr) * obj->internal_section_count);
 		if (obj->shdr64 == NULL)
 			return elf_error_set(e, "malloc");
+
+		if (add_shstrtab_entry(obj, ".gnu.hash", &soffset) == false) {
+			return elf_error_set(e, "add_shstrtab_entry failed");
+		}
+
+		elf.shdr64.sh_addr = obj->dynseg.hash.addr;
+		elf.shdr64.sh_size = (obj->dynseg.dynsym.addr - elf_text_base(obj)) -
+		    (obj->dynseg.hash.addr - elf_text_base(obj));
+                elf.shdr64.sh_offset = (obj->dynseg.hash.addr - elf_text_base(obj));
+                elf.shdr64.sh_addralign = 4;
+                elf.shdr64.sh_info = 0;
+                elf.shdr64.sh_flags = SHF_ALLOC;
+                elf.shdr64.sh_name = soffset;
+                elf.shdr64.sh_entsize = sizeof(Elf64_Sym);
+                elf.shdr64.sh_type = SHT_GNU_HASH;
+                add_section_entry(obj, &elf.shdr64);
+
 
 		if (add_shstrtab_entry(obj, ".dynsym", &soffset) == false) {
 			return elf_error_set(e, "add_shstrtab_entry failed");
@@ -1209,7 +1240,7 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 			 */
 			elf.shdr64.sh_offset = obj->eh_frame_offset + obj->eh_frame_size +
 			    ((sizeof(uint32_t)) & ~(sizeof(uint32_t) - 1));
-			elf.shdr64.sh_size = obj->text_segment_filesz - elf.shdr64.sh_offset;
+			elf.shdr64.sh_size = elf.shdr64.sh_offset - obj->text_segment_filesz;
 			elf.shdr64.sh_name = soffset;
 			elf.shdr64.sh_link = 0;
 			elf.shdr64.sh_info = 0;
