@@ -1,6 +1,8 @@
 #ifndef _LIBELFMASTER_INTERNAL_H_
 #define _LIBELFMASTER_INTERNAL_H_
 
+#include "dwarf.h"
+
 #ifdef DEBUG
 #define DEBUG_LOG(...) do { fprintf(stderr, __VA_ARGS__); } while(0)
 #else
@@ -80,6 +82,13 @@ struct elf_rel_helper_node {
 /*
  * This should only be used internally.
  */
+struct elf_eh_frame_node {
+        unsigned long long pc_begin;
+        unsigned long long pc_end;
+        size_t len;
+        LIST_ENTRY(elf_eh_frame_node) _linkage;
+};
+
 struct elf_symbol_node {
 	const char *name;
 	uint64_t value;
@@ -122,6 +131,13 @@ typedef struct elf_malloc_node {
 	void *ptr;
 	LIST_ENTRY(elf_malloc_node) _linkage;
 } elf_malloc_node_t;
+
+typedef struct elf_fde_node {
+	unsigned long pc_start;
+	unsigned long pc_end;
+	size_t len;
+	LIST_ENTRY(elf_fde_node) _linkage;
+} elf_fde_node;
 
 bool elf_error_set(elf_error_t *, const char *, ...);
 
@@ -166,4 +182,9 @@ bool sort_elf_sections(elfobj_t *obj, elf_error_t *);
  * simple tricks.
  */
 uint64_t resolve_plt_addr(elfobj_t *obj);
+
+/*
+ * Get the address range of every function found in .eh_frame
+ */
+ssize_t dw_get_eh_frame_ranges(elfobj_t *);
 #endif // _LIBELFMASTER_INTERNAL_H_

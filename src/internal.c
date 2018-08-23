@@ -13,6 +13,7 @@
 
 #include "libelfmaster.h"
 #include "internal.h"
+#include "dwarf.h"
 #include "misc.h"
 
 
@@ -1035,7 +1036,7 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		add_section_entry(obj, &elf.shdr32);
 		obj->flags |= ELF_PLT_RELOCS_F;
 
-		if (obj->eh_frame_addr != 0) {
+		if (obj->eh_frame_hdr_addr != 0) {
 			/*
 			 * .eh_frame (Necessary for stack unwinding)
 			 */
@@ -1043,9 +1044,9 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 			    &soffset) == false) {
 				return elf_error_set(e, sname, &soffset);
 			}
-			elf.shdr32.sh_addr = obj->eh_frame_addr;
-			elf.shdr32.sh_size = obj->eh_frame_size;
-			elf.shdr32.sh_offset = obj->eh_frame_offset;
+			elf.shdr32.sh_addr = obj->eh_frame_hdr_addr;
+			elf.shdr32.sh_size = obj->eh_frame_hdr_size;
+			elf.shdr32.sh_offset = obj->eh_frame_hdr_offset;
 			elf.shdr32.sh_link = 0;
 			elf.shdr32.sh_info = 0;
 			elf.shdr32.sh_entsize = sizeof(uint32_t);
@@ -1057,13 +1058,15 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 			    &soffset) == false) {
 				return elf_error_set(e, sname, &soffset);
 			}
-			elf.shdr32.sh_addr = obj->eh_frame_addr + obj->eh_frame_size +
+			elf.shdr32.sh_addr =
+			    obj->eh_frame_hdr_addr + obj->eh_frame_hdr_size +
 			    ((sizeof(uint32_t)) & ~(sizeof(uint32_t) - 1));
 			/*
 			 * .eh_frame is right before .init_array, which is the first
 			 * section in the data segment.
 			 */
-			elf.shdr32.sh_offset = obj->eh_frame_offset + obj->eh_frame_size +
+			elf.shdr32.sh_offset =
+			    obj->eh_frame_hdr_offset + obj->eh_frame_hdr_size +
 			    ((sizeof(uint32_t)) & ~(sizeof(uint32_t) - 1));
 			elf.shdr32.sh_size = elf.shdr32.sh_offset - obj->text_segment_filesz;
 			elf.shdr32.sh_name = soffset;
@@ -1212,15 +1215,15 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		/*
 		 * .eh_frame/.eh_frame_hdr (Necessary for stack unwinding)
 		 */
-		if (obj->eh_frame_addr != 0) {
+		if (obj->eh_frame_hdr_addr != 0) {
 
 			if (add_shstrtab_entry(obj, ".eh_frame_hdr",
 			    &soffset) == false) {
 				return elf_error_set(e, sname, &soffset);
 			}
-			elf.shdr64.sh_addr = obj->eh_frame_addr;
-			elf.shdr64.sh_size = obj->eh_frame_size;
-			elf.shdr64.sh_offset = obj->eh_frame_offset;
+			elf.shdr64.sh_addr = obj->eh_frame_hdr_addr;
+			elf.shdr64.sh_size = obj->eh_frame_hdr_size;
+			elf.shdr64.sh_offset = obj->eh_frame_hdr_offset;
 			elf.shdr64.sh_link = 0;
 			elf.shdr64.sh_info = 0;
 			elf.shdr64.sh_entsize = sizeof(uint32_t);
@@ -1232,13 +1235,15 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 			    &soffset) == false) {
 				return elf_error_set(e, sname, &soffset);
 			}
-			elf.shdr64.sh_addr = obj->eh_frame_addr + obj->eh_frame_size +
+			elf.shdr64.sh_addr =
+			    obj->eh_frame_hdr_addr + obj->eh_frame_hdr_size +
 			    ((sizeof(uint32_t)) & ~(sizeof(uint32_t) - 1));
 			/*
 			 * .eh_frame is right before .init_array, which is the first
 			 * section in the data segment.
 			 */
-			elf.shdr64.sh_offset = obj->eh_frame_offset + obj->eh_frame_size +
+			elf.shdr64.sh_offset =
+			    obj->eh_frame_hdr_offset + obj->eh_frame_hdr_size +
 			    ((sizeof(uint32_t)) & ~(sizeof(uint32_t) - 1));
 			elf.shdr64.sh_size = elf.shdr64.sh_offset - obj->text_segment_filesz;
 			elf.shdr64.sh_name = soffset;
@@ -1311,5 +1316,260 @@ sort_elf_sections(elfobj_t *obj, elf_error_t *error)
          */
 	qsort(obj->sections, section_count,
 	    sizeof(struct elf_section *), section_name_cmp);
+	return true;
+}
+
+static uint64_t
+dw_read_uleb128(uint8_t *ptr, size_t len)
+{
+	uint32_t shift = 0;
+	uint64_t retval = 0;
+
+	while (ptr != NULL && len > 0) {
+		uint8_t b = *ptr;
+
+		retval |= (uint64_t)(b & 0x7f) << shift;
+		if ((b & 0x80) == 0)
+			break;
+		shift += 7;
+		ptr++, len--;
+	}
+	return retval;
+}
+
+static int64_t
+dw_read_sleb128(uint8_t *ptr, size_t len)
+{
+	uint32_t shift = 0;
+	uint64_t retval = 0, srv = 0;
+	uint8_t sign = 0;
+
+	while(ptr != NULL && len > 0) {
+		uint8_t b = *ptr;
+
+		retval |= (uint64_t)(b & 0x7f) << shift;
+		shift += 7;
+		sign = (b & 0x40);
+		if ((b & 0x80) == 0)
+			break;
+	}
+	srv = (int64_t)retval;
+	if ((shift < 64) && sign == 1) {
+		uint64_t shift_bit = (1 << shift);
+		srv |= ~(shift_bit - 1);
+	}
+	return srv;
+}
+/*
+ * Any info we are reading will always be coming from the code segment
+ * for our purposes, since that's where .eh_frame will always live
+ */
+static uint64_t
+dw_read_location(elfobj_t *obj, uint64_t vaddr, size_t len,
+    bool *res, struct eh_frame_vec *ev)
+{
+	uint8_t *ptr = NULL;
+
+	if (vaddr >= obj->text_address + obj->size) {
+		printf("dw_read_location: invalid address\n");
+		*res = false;
+		return 0;
+	}
+	if (vaddr >= obj->text_address + obj->text_segment_filesz) {
+		ptr = &obj->mem[vaddr - obj->data_address];
+	} else {
+		ptr = &obj->mem[vaddr - obj->text_address];
+	} 
+	*res = true;
+	if (ev != NULL) {
+		if (vaddr >= obj->text_address + obj->text_segment_filesz) {
+			ev->initial_loc = *(uint32_t *)&obj->mem[vaddr - obj->data_address];
+			ev->fde_entry_offset = *(uint32_t *)&obj->mem[vaddr - obj->data_address + 4];
+		} else {
+			ev->initial_loc = *(uint32_t *)&obj->mem[vaddr - obj->text_address];
+			ev->fde_entry_offset = *(uint32_t *)&obj->mem[vaddr - obj->text_address + 4];
+		}
+		return 0;
+	}
+	switch(len) {
+	case 1:
+		return *ptr;
+	case 2:
+		return *(uint16_t *)ptr;
+	case 4:
+		return *(uint32_t *)ptr;
+	case 8:
+		return *(uint64_t *)ptr;
+	default:
+		printf("dw_read_location: invalid read len: %u\n",
+		    (unsigned)len);
+		break;
+	}
+	*res = true;
+	return 0;
+}
+/*
+ * Takes the uint8_t encoded bytes, i.e. eh_frame_hdr->fde_count_enc;
+ */
+static inline void
+dw_byte_encoding(uint8_t encoded_byte, uint8_t *encoding, uint8_t *value)
+{
+
+	*encoding = encoded_byte & 0xf0;
+	*value = encoded_byte & 0x07;
+
+	return;
+}
+/*
+ * encoding_byte is the byte that contains the encoding value and encoding
+ * application. The encoded_value is the value that is encoded that we want
+ * to decode using whatever decoding scheme indicated by the encoding_byte.
+ * i.e. encoding_byte: eh_frame_hdr->fde_count_enc (Contains which type of encoding)
+ *      encoded_value: eh_frame_hdr->fde_count (Contains the value to be decoded)
+ */
+static bool
+dw_decode_pointer(elfobj_t *obj, uint8_t encoding_byte,
+    uint32_t encoded_value, uint64_t pc, uint64_t *outval, uint64_t *outval2 /* optional */)
+{
+	struct encoding {
+		uint8_t encoding;
+		uint8_t value;
+	} encoding;
+
+	int value_size;
+	bool res;
+	uint64_t text_section_vaddr;
+	struct elf_section shdr;
+
+	/*
+	 * get exception header encoding encoding/value
+	 */
+	dw_byte_encoding(encoding_byte, &encoding.encoding, &encoding.value);
+	if (encoding.value == DW_EH_PE_omit ||
+	    encoding.encoding == DW_EH_PE_omit)
+		return false;
+	switch(encoding.value) {
+	case DW_EH_PE_uleb128:
+		*outval = dw_read_uleb128((uint8_t *)&encoded_value, 4);
+		return true;
+	case DW_EH_PE_sleb128:
+		*outval = dw_read_sleb128((uint8_t *)&encoded_value, 4);
+		return true;
+	case DW_EH_PE_udata2:
+	case DW_EH_PE_sdata2:
+		value_size = 2;
+		break;
+	case DW_EH_PE_udata4:
+	case DW_EH_PE_sdata4:
+		value_size = 4;
+		break;
+	case DW_EH_PE_udata8:
+	case DW_EH_PE_sdata8:
+		value_size = 8;
+		break;
+	default:
+		fprintf(stderr, "Unknown dwarf tag: %x\n", encoding.value);
+		return false;
+	}
+
+	/*
+ 	 * get value based on exception header encoding application
+	 */
+	switch(encoding.encoding) {
+	case DW_EH_PE_pcrel:
+		*outval = dw_read_location(obj, pc + encoded_value,
+		    value_size, &res, NULL);
+		if (res == false) {
+			fprintf(stderr,
+			    "dw_read_location: invalid len\n");
+			return false;
+		}
+		return true;
+	case DW_EH_PE_absptr:
+		*outval = encoded_value;
+		return true;
+	case DW_EH_PE_textrel:
+		/*
+		 * even if there are no section headers, they will be
+		 * reconstructed by now if the forensics mode is being
+		 * used. Otherwise we will try to locate .text by using
+		 * glibc fingerprinting found in the original_ep()
+		 * function in this source file.
+		 */
+		if (elf_section_by_name(obj, ".text", &shdr) == false) {
+			text_section_vaddr = original_ep(obj);
+			if (text_section_vaddr == 0) {
+				fprintf(stderr, "Unable to locate .text section\n");
+				return false;
+			}
+		} else {
+			text_section_vaddr = shdr.address;
+		}
+		*outval = dw_read_location(obj,
+		    text_section_vaddr + encoded_value, value_size, &res, NULL);
+		return res;
+	case DW_EH_PE_datarel:
+		encoded_value > 0x7fffffff ? encoded_value -= 0x100000000 : encoded_value;
+		encoded_value += obj->eh_frame_hdr_addr;
+		*outval = encoded_value;
+		if (outval2 != NULL) {
+			*outval2 = dw_read_location(obj,
+		    	    obj->eh_frame_hdr_addr + 12 + pc, value_size, &res, NULL);
+		}
+		return res;
+	case DW_EH_PE_funcrel:
+	case DW_EH_PE_aligned:
+	default:
+		break;
+	}
+	return true;
+}
+
+ssize_t
+dw_get_eh_frame_ranges(struct elfobj *obj)
+{
+	struct encoding {
+		uint8_t encoding;
+		uint8_t value;
+	};
+	size_t i;
+	uint64_t pc = obj->eh_frame_hdr_addr + 8;
+	uint64_t fde_table_vaddr = obj->eh_frame_hdr_addr + 12;
+	bool res = false;
+	struct eh_frame_hdr *eh_hdr = (struct eh_frame_hdr *)obj->eh_frame_hdr;
+	struct eh_frame_vec *fde_vec = malloc(sizeof(*fde_vec));
+	uint64_t faddr, fsize, fde_count;
+
+	res = dw_decode_pointer(obj, eh_hdr->fde_count_enc,
+	    eh_hdr->fde_count, pc, &fde_count, NULL);
+	if (res == false) {
+		fprintf(stderr, "dw_decode_pointer failed\n");
+		return -1;
+	}
+	LIST_INIT(&obj->list.eh_frame_entries);
+	for (i = 0; i < fde_count; i++) {
+		struct elf_eh_frame_node *eh_node;
+
+		eh_node = malloc(sizeof(*eh_node));
+		if (eh_node == NULL) {
+			perror("malloc");
+			return -1;
+		}
+		/*
+		 * Read in the initial_loc, and the fde_entry_offset
+		 */
+		dw_read_location(obj, fde_table_vaddr + 8 * i, 8, &res, fde_vec);
+		if (res == false) {
+			fprintf(stderr, "dw_read_location: %#lx failed\n",
+		    	    fde_table_vaddr + 8 * i);
+			return -1;
+		}
+		res = dw_decode_pointer(obj, eh_hdr->table_enc, fde_vec->initial_loc,
+		    fde_vec->fde_entry_offset, &faddr, &fsize);
+		eh_node->pc_begin = faddr;
+		eh_node->pc_end = faddr + fsize;
+		eh_node->len = eh_node->pc_end - eh_node->pc_begin;
+		LIST_INSERT_HEAD(&obj->list.eh_frame_entries, eh_node, _linkage);
+	}
 	return true;
 }

@@ -137,6 +137,12 @@ typedef struct elf_shared_object {
 	char *path;
 } elf_shared_object_t;
 
+typedef struct elf_eh_frame {
+	unsigned long long pc_begin;
+	unsigned long long pc_end;
+	size_t len;
+} elf_eh_frame_t;
+
 typedef struct elf_plt {
 	char *symname;
 	uint64_t addr;
@@ -191,6 +197,7 @@ typedef struct elfobj {
 		Elf32_Nhdr *note32;
 		Elf64_Nhdr *note64;
 	};
+	void *eh_frame_hdr;
 	void *eh_frame;
 	/*
 	 * Sorted sections
@@ -228,6 +235,7 @@ typedef struct elfobj {
 		LIST_HEAD(elf_plt_list, elf_plt_node) plt;
 		LIST_HEAD(elf_shared_object_list, elf_shared_object_node) shared_objects;
 		LIST_HEAD(elf_section_list, elf_section_node) sections;
+		LIST_HEAD(elf_eh_frame_list, elf_eh_frame_node) eh_frame_entries;
 	} list;
 	/*
 	 * dynamic segment values
@@ -291,11 +299,11 @@ typedef struct elfobj {
 	size_t dynsym_count;
 	size_t note_size;
 	size_t dynamic_size;
-	size_t eh_frame_size;
+	size_t eh_frame_hdr_size;
 	size_t init_array_size;
 	size_t fini_array_size;
-	uint64_t eh_frame_addr;
-	uint64_t eh_frame_offset;
+	uint64_t eh_frame_hdr_addr;
+	uint64_t eh_frame_hdr_offset;
 	uint64_t init_array_vaddr;
 	uint64_t fini_array_vaddr;
 	uint64_t entry_point;
@@ -350,6 +358,10 @@ typedef struct elf_symtab_iterator {
 typedef struct elf_dynsym_iterator {
 	struct elf_symbol_node *current;
 } elf_dynsym_iterator_t;
+
+typedef struct elf_eh_frame_iterator {
+	struct elf_eh_frame_node *current;
+} elf_eh_frame_iterator_t;
 
 typedef struct elf_plt_iterator {
 	struct elf_plt_node *current;
@@ -578,6 +590,12 @@ void * elf_address_pointer(elfobj_t *, uint64_t);
 
 void elf_pltgot_iterator_init(elfobj_t *, elf_pltgot_iterator_t *);
 elf_iterator_res_t elf_pltgot_iterator_next(elf_pltgot_iterator_t *, elf_pltgot_entry_t *);
+
+/*
+ * Iterates all function addresses and sizes associated with each eh_frame entry
+ */
+void elf_eh_frame_iterator_init(elfobj_t *, elf_eh_frame_iterator_t *);
+elf_iterator_res_t elf_eh_frame_iterator_next(elf_eh_frame_iterator_t *, elf_eh_frame_t *);
 
 /*
  * Get string describing the GOT entry based on elf_pltgot_entry.flags

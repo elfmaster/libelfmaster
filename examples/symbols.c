@@ -26,13 +26,6 @@ int main(int argc, char **argv)
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
-
-        if (obj.flags & ELF_SHDRS_F)
-                printf("*** Section Headers:\n");
-        /*
-         * The iterator simply won't print anything if there are no sections
-         * so we don't have to nest this block of code
-         */
         elf_dynsym_iterator_init(&obj, &s_iter);
         while (elf_dynsym_iterator_next(&s_iter, &symbol) == ELF_ITER_OK) {
 		printf("%s: %#lx-%#lx\n",symbol.name, symbol.value,

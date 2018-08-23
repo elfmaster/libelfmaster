@@ -367,6 +367,11 @@ elf_symtab_string(struct elfobj *obj, uint64_t offset)
 	return &obj->strtab[offset];
 }
 
+/*
+ * Ultimately we should store sections in a cache too, no
+ * point in adding the complexity of a binary search 'logN'
+ * when we can have 'O(1)'
+ */
 bool
 elf_section_by_name(struct elfobj *obj, const char *name,
     struct elf_section *out)
@@ -1052,6 +1057,26 @@ elf_symtab_iterator_next(struct elf_symtab_iterator *iter,
 }
 
 void
+elf_eh_frame_iterator_init(struct elfobj *obj, struct elf_eh_frame_iterator *iter)
+{
+
+	iter->current = LIST_FIRST(&obj->list.eh_frame_entries);
+	return;
+}
+
+elf_iterator_res_t
+elf_eh_frame_iterator_next(struct elf_eh_frame_iterator *iter,
+    struct elf_eh_frame *fde)
+{
+
+	if (iter->current == NULL)
+		return ELF_ITER_DONE;
+	memcpy(fde, iter->current, sizeof(*fde));
+	iter->current = LIST_NEXT(iter->current, _linkage);
+	return ELF_ITER_OK;
+}
+
+void
 elf_dynsym_iterator_init(struct elfobj *obj, struct elf_dynsym_iterator *iter)
 {
 
@@ -1577,15 +1602,17 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 				obj->dynamic32 = (Elf32_Dyn *)&obj->mem[obj->phdr32[i].p_offset];
 				obj->dynamic_size = obj->phdr32[i].p_filesz;
 			} else if (obj->phdr32[i].p_type == PT_GNU_EH_FRAME) {
-				obj->eh_frame_addr = obj->phdr32[i].p_vaddr;
-				obj->eh_frame = &obj->mem[obj->phdr32[i].p_offset];
-				obj->eh_frame_size = obj->phdr32[i].p_filesz;
-				obj->eh_frame_offset = obj->phdr32[i].p_offset;
+				obj->eh_frame_hdr_addr = obj->phdr32[i].p_vaddr;
+				obj->eh_frame_hdr = &obj->mem[obj->phdr32[i].p_offset];
+				obj->eh_frame_hdr_size = obj->phdr32[i].p_filesz;
+				obj->eh_frame_hdr_offset = obj->phdr32[i].p_offset;
 			} else if (obj->phdr32[i].p_type == PT_LOAD && obj->phdr32[i].p_offset == 0) {
 				obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
 				text_found = true;
 				memcpy(&obj->pt_load[obj->load_count++].phdr32, &obj->phdr32[i],
 				    sizeof(Elf32_Phdr));
+				obj->text_address = obj->phdr32[i].p_vaddr;
+				obj->text_segment_filesz = obj->phdr32[i].p_filesz;
 			} else if (obj->phdr32[i].p_type == PT_LOAD && text_found == false) {
 				/*
 				 * TODO: This will not catch text segments marked as RWX.
@@ -1596,6 +1623,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 					memcpy(&obj->pt_load[obj->load_count++].phdr32,
 					    &obj->phdr32[i], sizeof(Elf32_Phdr));
 					obj->text_segment_filesz = obj->phdr32[i].p_filesz;
+					obj->text_address = obj->phdr32[i].p_vaddr;
 				}
 			} else if (obj->phdr32[i].p_type == PT_LOAD) {
 				if (data_found == true) {
@@ -1716,15 +1744,17 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 				obj->dynamic64 = (Elf64_Dyn *)&obj->mem[obj->phdr64[i].p_offset];
 				obj->dynamic_size = obj->phdr64[i].p_filesz;
 			} else if (obj->phdr64[i].p_type == PT_GNU_EH_FRAME) {
-				obj->eh_frame_addr = obj->phdr64[i].p_vaddr;
-				obj->eh_frame = &obj->mem[obj->phdr64[i].p_offset];
-				obj->eh_frame_size = obj->phdr64[i].p_filesz;
-				obj->eh_frame_offset = obj->phdr64[i].p_offset;
+				obj->eh_frame_hdr_addr = obj->phdr64[i].p_vaddr;
+				obj->eh_frame_hdr = &obj->mem[obj->phdr64[i].p_offset];
+				obj->eh_frame_hdr_size = obj->phdr64[i].p_filesz;
+				obj->eh_frame_hdr_offset = obj->phdr64[i].p_offset;
 			} else if (obj->phdr64[i].p_type == PT_LOAD && obj->phdr64[i].p_offset == 0) {
 				obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
 				text_found = true;
 				memcpy(&obj->pt_load[obj->load_count++].phdr64, &obj->phdr64[i],
 				    sizeof(Elf64_Phdr));
+				obj->text_address = obj->phdr64[i].p_vaddr;
+				obj->text_segment_filesz = obj->phdr64[i].p_filesz;
 			} else if (obj->phdr64[i].p_type == PT_LOAD && text_found == false) {
 				if ((obj->phdr64[i].p_flags & (PF_R|PF_X)) == (PF_R | PF_X)) {
 					obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
@@ -1732,6 +1762,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 					memcpy(&obj->pt_load[obj->load_count++].phdr64,
 					    &obj->phdr64[i], sizeof(Elf64_Phdr));
 					obj->text_segment_filesz = obj->phdr64[i].p_filesz;
+					obj->text_address = obj->phdr64[i].p_vaddr;
 				}
 			} else if (obj->phdr64[i].p_type == PT_LOAD) {
 				if (data_found == true) {
@@ -1892,6 +1923,11 @@ finalize:
 		obj->flags |= ELF_SYMTAB_F;
 
 	obj->flags |= obj->type == ET_DYN ? ELF_PIE_F : 0;
+
+	if (dw_get_eh_frame_ranges(obj) < 0) {
+		printf("eh_frame ranges failed\n");
+		goto err;
+	}
 
 	return true;
 err:
