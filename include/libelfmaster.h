@@ -11,6 +11,8 @@
 #include <sys/queue.h>
 #include <sys/stat.h>
 
+#include "arch/freebsd/amd64/elfmaster_md.h"
+
 #define MAX_ERROR_STR_LEN 128
 
 /*

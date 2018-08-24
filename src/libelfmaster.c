@@ -112,8 +112,6 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 			return "R_386_GOTOFF";
 		case R_386_GOTPC:
 			return "R_386_GOTPC";
-		case R_386_32PLT:
-			return "R_386_32PLT";
 		case R_386_TLS_TPOFF:
 			return "R_386_TLS_TPOFF";
 		case R_386_TLS_LE:
@@ -941,7 +939,7 @@ begin:
 		 */
 		struct elf_rel_helper_node *next;
 
-		LIST_FOREACH_SAFE(current, &iter->list, _linkage, next);
+		LIST_FOREACH_SAFE(current, &iter->list, _linkage, next)
 			free(current);
 		return ELF_ITER_DONE;
 	}

@@ -1,0 +1,8 @@
+SHLIB=		elfmaster
+SHLIB_MAJOR=	0
+SRCS=		internal.c libelfmaster.c
+MAN=
+
+CFLAGS+=	-I${.CURDIR}/../include
+
+.include <bsd.lib.mk>
