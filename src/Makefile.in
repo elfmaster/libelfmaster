@@ -1,0 +1,29 @@
+.PHONY: clean distribution
+
+include @BUILD_DIR@/build/libelfmaster.build
+
+TARGET_DIR=$(BUILD_DIR)/src
+SDIR=$(SRC_DIR)/src
+INCLUDE_DIR=$(SRC_DIR)/include
+CFLAGS+=-ggdb -O2 -I$(INCLUDE_DIR)
+HEADERS=$(INCLUDE_DIR)/*.h
+
+OBJECTS=libelfmaster.o internal.o
+
+all: libelfmaster.a libelfmaster.so
+
+libelfmaster.a: $(OBJECTS)
+	rm -f $(TARGET_DIR)/libelfmaster.a
+	ar rcs $(TARGET_DIR)/libelfmaster.a $(OBJECTS)
+
+libelfmaster.so: $(OBJECTS)
+	$(CC) $(CFLAGS) $(OBJECTS) -shared -o $(TARGET_DIR)/libelfmaster.so
+
+libelfmaster.o: $(SDIR)/libelfmaster.c $(HEADERS)
+	$(CC) $(CFLAGS) -c -o $(TARGET_DIR)/libelfmaster.o $(SDIR)/libelfmaster.c
+
+internal.o: $(SDIR)/internal.c $(HEADERS)
+	$(CC) $(CFLAGS) -c -o $(TARGET_DIR)/internal.o $(SDIR)/internal.c
+clean:
+	rm -rf $(TARGET_DIR)/*.dSYM $(TARGET_DIR)/*~ $(TARGET_DIR)/*.o		\
+		$(OBJECTS) $(TARGET_DIR)/libelfmaster.a $(TARGET_DIR)/libelfmaster.so

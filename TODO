@@ -1,0 +1,33 @@
+## 9/17/2018
+
+Make sure that we take into account dynamic segments that exist in
+gcc -nostdlib linked binaries. The dynamic segment exists but only
+partially. We must account for this in various spots. Otherwise it
+can lead to assuming we found DT_PLTREL* etc. which has led to FPE
+bugs.
+
+## TODO 5/24/2017
+
+* If there are no section headers then make sure to use dynamic segment to setup
+* symtab and other items (.i.e plt/got)
+-- status: complete
+
+* We should be able to load any file that the kernel can load, and reconstruct
+* finer-grained meta data such as sections
+based on techniques we used in ECFS, etc.
+-- status: complete
+
+## FINISHED - * elf_plt_by_name()
+
+## FINISHED - * Write a tool for printing the PLT entries for every JUMP_SLOT
+symbol
+
+## FINISHED - * elf_plt_iterator_next prints "PLT-0" as its final (extra)
+iteration.
+
+* userland execve based debugging (userland ptrace) with breakpoint, peek, poke,
+* continue, attach, etc. (20% complete).
+
+* Display forensically reconstructed sections in ascending order by sh_addr
+rather than the order they were reconstructed in.
+
