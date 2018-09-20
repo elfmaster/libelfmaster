@@ -14,44 +14,38 @@ techniques, such as PT_GNU_EH_FRAME reconstruction for .symtab functions.
 This library is also capable of seamlessly loading both 32bit and 64bit
 ELF objects, vs. having to compile  two seperate libs for each
 architecture. The downfall obviously being that this won't compile on
-32bit machines.
+32bit machines. I am now a guide on this project, as I put it into
+the hands of the security and reverse engineering community. I am
+currently using it to build https://github.com/elfmaster/elf.arcana
+which is advancing the state of Linux/UNIX binary forensics and HIDS.
+As I build Arcana, more edge cases come up.
+
+
+## Future Goals
+
+1. Userland debugging (non-ptrace) API similar to eresi e2dbg
+2. ELF patching, and injection. i.e. relocatable code injection + function hijacking etc.
+3. Dwarf VM bytecode injection similar to Sergey Bratus and James Oakley's Katana project
+4. Continuous advancement of forensically reconstructing all edge cases of broken binaries
+5. Explicit support for FreeBSD
+6. Explicit support for sparc, mips, arm, etc. Currently it implicitly supports many of the features
+7. A regression test suite
+8. Better Support for core-files, i.e. forensics reconstruction
+9. API Documentation
 
 ## Current status
 
-Work in progress. Not fully fuzzed or tested.
+Work in progress. Not fully fuzzed or tested. Needs adept ELF hackers
+and reverse engineers with a strong C skills.
+
+## Rules of development
+
+NetBSD coding style, submit a PR for review.
 
 ## API Documentation
 
 The best documentation is to read the code in libelfmaster/examples.
 elfparse.c is a simple version of readelf, but does not utilize every
-API function so make sure to look at all examples.
-
-```
-bool elf_open_object(const char *path, elfobj_t *obj,
-    elf_error_t *error);
-```
-
-Open an ELF object, and fill in the `elfobj_t` descriptor which is
-then passed to all subsequent API functions.
-
-`const char *path` is the path to the ELF object
-
-`elfobj_t *obj` is a pointer to the ELF descriptor that will be filled in upon successful
-return.
-
-`elf_error_t *error` is filled in with the proper error code and message string upon failure.
-
-*RETURN*
-
-Function returns true on success, and false on failure. `elf_error_t *error` points to the error
-information that is filled in upon failure.
-
-*EXAMPLE:*
-
-```
-if (elf_open_object("/bin/ls", &obj, false, &err) == false) {
-	fprintf(stderr, "failed: %s\n", elf_error_msg(&err));
-	return -1;
-}
-```
+API function so make sure to look at all examples. This API needs someone
+to document it. 
 
