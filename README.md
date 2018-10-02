@@ -36,7 +36,12 @@ As I build Arcana, more edge cases come up.
 ## Current status
 
 Work in progress. Not fully fuzzed or tested. Needs adept ELF hackers
-and reverse engineers with a strong C skills.
+and reverse engineers with a strong C skills. Has undergone several iterations
+of fuzzing done with AFL. Currently I am fixing and patching the code and a new
+alpha release tag will be committed pushed soon (By mid October 2018)
+Thank you to all who have contributed their fuzzing efforts. I will create a
+proper area to name those who should be listed as contributors (Perhaps an Authors file).
+
 
 ## Rules of development
 
