@@ -1835,17 +1835,18 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 							    " and/or p_filesz: %lu/%lu\n",
 							obj->phdr32[i].p_offset,
 							obj->phdr32[i].p_filesz);
+							goto err;
+						} else {
+							obj->flags &= ~ELF_DYNAMIC_F;
+							obj->dynamic32 = NULL;
 						}
 					} else {
-						obj->flags &= ~ELF_DYNAMIC_F;
-						obj->dynamic32 = NULL;
+						obj->dynamic32 =
+						    (Elf32_Dyn *)&obj->mem[obj->phdr32[i].p_offset];
+						obj->dynamic_size = obj->phdr32[i].p_filesz;
+						obj->dynamic_offset = obj->phdr32[i].p_offset;
+						obj->dynamic_addr = obj->phdr32[i].p_vaddr;
 					}
-				} else {
-					obj->dynamic32 =
-					    (Elf32_Dyn *)&obj->mem[obj->phdr32[i].p_offset];
-					obj->dynamic_size = obj->phdr32[i].p_filesz;
-					obj->dynamic_offset = obj->phdr32[i].p_offset;
-					obj->dynamic_addr = obj->phdr32[i].p_vaddr;
 				}
 			} else if (obj->phdr32[i].p_type == PT_GNU_EH_FRAME) {
 				if (elf_flags(obj, ELF_EH_FRAME_F) == false) {
