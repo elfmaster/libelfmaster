@@ -203,6 +203,7 @@ bool reconstruct_elf_sections(elfobj_t *, elf_error_t *);
 
 bool sort_elf_sections(elfobj_t *obj, elf_error_t *);
 
+bool sanity_check(uint64_t, uint64_t);
 /*
  * Resolve PLT address since it is not directly in the dynamic segment
  * and we need to locate it for stripped executables. We use a few
@@ -210,6 +211,7 @@ bool sort_elf_sections(elfobj_t *obj, elf_error_t *);
  */
 uint64_t resolve_plt_addr(elfobj_t *obj);
 
+bool phdr_sanity(elfobj_t *, void *);
 /*
  * Get the address range of every function found in .eh_frame
  */

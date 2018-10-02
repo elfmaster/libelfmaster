@@ -50,7 +50,8 @@
 #define ELFNOTE_DESC(_n_) (ELFNOTE_NAME(_n_) + ELFNOTE_ALIGN((_n_)->n_namesz))
 #define ELFNOTE32_NEXT(_n_) ((Elf32_Nhdr *)(ELFNOTE_DESC(_n_) + ELFNOTE_ALIGN((_n_)->n_descsz)))
 #define ELFNOTE64_NEXT(_n_) ((Elf64_Nhdr *)(ELFNOTE_DESC(_n_) + ELFNOTE_ALIGN((_n_)->n_descsz)))
-
+#define ELFNOTE_DESCSZ(_n_) ELFNOTE_ALIGN((_n_)->n_descsz)
+#define ELFNOTE_NAMESZ(_n_) ELFNOTE_ALIGN((_n_)->n_namesz)
 #ifndef PT_PAX_FLAGS
 #define PT_PAX_FLAGS  0x65041580
 #endif
@@ -181,15 +182,26 @@ typedef struct elf_plt {
 } elf_plt_t;
 
 /*
- * Flags for uint64_t anomalies
+ * Used by elfobj
+ */
+struct pt_load {
+	union {
+		Elf64_Phdr phdr64;
+		Elf32_Phdr phdr32;
+	};
+	uint32_t flag;
+};
+
+/*
+ * Flags for anomalies on section headers
  */
 #define INVALID_F_SHOFF		(1ULL << 0)
 #define INVALID_F_SHSTRNDX	(1ULL << 1)
-#define INVALID_F_SHOFFSET	(1ULL << 2)
+#define INVALID_F_SHOFFSET	(1ULL << 2) /* e_shoff + e_shnum * e_shentsize are invalid */
 #define INVALID_F_SHNUM		(1ULL << 3)
 #define INVALID_F_SHENTSIZE	(1ULL << 4)
 #define INVALID_F_SH_HEADERS	(1ULL << 5)
-
+#define INVALID_F_SHSTRTAB	(1ULL << 6)
 /*
  * This struct is not meant to access directly. It is an opaque
  * type. It is only accessed directly from within the API code
@@ -240,17 +252,11 @@ typedef struct elfobj {
 	/*
 	 * Loadable segments (i.e. text, data)
 	 */
-#define MAX_PT_LOAD 6 /* Should likely never be over 2 or 3 */
+#define MAX_PT_LOAD 65535
 #define ELF_PT_LOAD_TEXT_F (1 << 0)
 #define ELF_PT_LOAD_DATA_F (1 << 1)
 #define ELF_PT_LOAD_MISC_F (1 << 2)
-	struct {
-		union {
-			Elf64_Phdr phdr64;
-			Elf32_Phdr phdr32;
-		};
-		uint32_t flag;
-	} pt_load[MAX_PT_LOAD];
+	struct pt_load *pt_load;
 	size_t load_count;
 	/*
 	 * caches
@@ -362,6 +368,7 @@ typedef struct elfobj {
 	uint64_t text_offset;
 	uint64_t data_address; /* data segment address */
 	uint64_t data_offset;
+	uint64_t note_offset; /* Offset of first note section found */
 } elfobj_t;
 
 /*
@@ -537,7 +544,8 @@ void elf_segment_iterator_init(elfobj_t *, elf_segment_iterator_t *);
 elf_iterator_res_t elf_segment_iterator_next(elf_segment_iterator_t *, struct elf_segment *);
 
 bool elf_note_iterator_init(elfobj_t *, elf_note_iterator_t *);
-elf_iterator_res_t elf_note_iterator_next(elf_note_iterator_t *, elf_note_entry_t *);
+elf_iterator_res_t elf_note_iterator_next(elf_note_iterator_t *, elf_note_entry_t *,
+    elf_error_t *);
 
 void elf_dynamic_iterator_init(elfobj_t *, elf_dynamic_iterator_t *);
 elf_iterator_res_t elf_dynamic_iterator_next(elf_dynamic_iterator_t *, elf_dynamic_entry_t *);

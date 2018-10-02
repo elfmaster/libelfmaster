@@ -1000,6 +1000,12 @@ original_ep(elfobj_t *obj)
 	}
 	return 0;
 }
+
+/*
+ * Reconstruct static executables as best we can with
+ * limited data; there is no PT_GNU_EH_FRAME segment,
+ * .text_segment .text, .note, .data_segment, .data, .bss, .tls, .relro.
+ */
 /*
  * This reconstructs the section header tables internally if the
  * FORENSICS flag is passed to elf_object_open(), which is very
@@ -1028,6 +1034,7 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 	const char *sname = NULL;
 	size_t total_sh_offset_len = 0;
 
+	printf("FORENSICALLY RECONSTRUCTING\n");
 	obj->internal_section_count = INTERNAL_SECTION_COUNT;
 	obj->internal_shstrtab_size = INTERNAL_SHSTRTAB_SIZE;
 	/*
@@ -2017,11 +2024,52 @@ dw_get_eh_frame_ranges(struct elfobj *obj)
 		}
 		res = dw_decode_pointer(obj, eh_hdr->table_enc, fde_vec.initial_loc,
 		    fde_vec.fde_entry_offset, &faddr, &fsize);
+		if (res == false) {
+			fprintf(stderr, "failed to reconstruct data from .eh_frame\n");
+			return -1;
+		}
 		eh_node->pc_begin = faddr;
 		eh_node->pc_end = faddr + fsize;
 		eh_node->len = eh_node->pc_end - eh_node->pc_begin;
 		LIST_INSERT_HEAD(&obj->list.eh_frame_entries, eh_node, _linkage);
 	}
 	obj->fde_count = fde_count;
+	return true;
+}
+
+bool
+sanity_check(uint64_t offset, uint64_t limit)
+{
+	if (offset > limit)
+		return false;
+	return true;
+}
+
+bool
+phdr_sanity(elfobj_t *obj, void *phdr)
+{
+	Elf32_Phdr *phdr32;
+	Elf64_Phdr *phdr64;
+
+	switch(elf_class(obj)) {
+	case elfclass32:
+		phdr32 = (void *)phdr;
+		if ((int32_t)phdr32->p_filesz < 0)
+			return false;
+		if (phdr32->p_filesz >= obj->size)
+			return false;
+		if (phdr32->p_offset + phdr32->p_filesz > obj->size - 1)
+			return false;
+		return true;
+	case elfclass64:
+		phdr64 = (void *)phdr;
+		if ((int64_t)phdr64->p_filesz < 0)
+			return false;
+		if (phdr64->p_filesz >= obj->size)
+			return false;
+		if (phdr64->p_offset + phdr64->p_filesz > obj->size - 1)
+			return false;
+		return true;
+	}
 	return true;
 }

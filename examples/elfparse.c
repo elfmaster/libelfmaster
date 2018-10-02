@@ -34,7 +34,8 @@ int main(int argc, char **argv)
 	struct timeval tv, tv2;
 	unsigned int count = 0;
 
-	if (elf_open_object(argv[1], &obj, ELF_LOAD_F_SMART|ELF_LOAD_F_FORENSICS, &error) == false) {
+	if (elf_open_object(argv[1], &obj, ELF_LOAD_F_FORENSICS,
+	    &error) == false) {
 		printf("%s\n", elf_error_msg(&error));
 		return -1;
 	}
@@ -86,7 +87,7 @@ int main(int argc, char **argv)
 	if (obj.flags & ELF_NOTE_F)
 		printf("\n*** NOTE Entries\n");
 	elf_note_iterator_init(&obj, &n_iter);
-	while (elf_note_iterator_next(&n_iter, &note_entry) == ELF_ITER_OK) {
+	while (elf_note_iterator_next(&n_iter, &note_entry, &error) == ELF_ITER_OK) {
 		printf("ELF Note type: %d size: %lu\n", note_entry.type, note_entry.size);
 	}
 

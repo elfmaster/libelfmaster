@@ -1353,17 +1353,25 @@ elf_note_iterator_init(struct elfobj *obj, struct elf_note_iterator *iter)
 
 elf_iterator_res_t
 elf_note_iterator_next(struct elf_note_iterator *iter,
-    struct elf_note_entry *entry)
+    struct elf_note_entry *entry, elf_error_t *e)
 {
-	size_t entry_len;
+	size_t entry_len, entry_size;
+	size_t max_note_offset;
 
 	if (iter->index >= iter->obj->note_size)
 		return ELF_ITER_DONE;
-
+	entry->mem = NULL;
 	switch(iter->obj->e_class) {
 	case elfclass32:
 		if (iter->note32 == NULL)
 			return ELF_ITER_DONE;
+		entry_size = ELFNOTE_DESCSZ(iter->note32) + ELFNOTE_ALIGN(sizeof(Elf32_Nhdr)) +
+		    ELFNOTE_NAMESZ(iter->note32);
+		max_note_offset = iter->obj->note_offset + iter->obj->note_size;
+		if (entry_size >= max_note_offset) {
+			elf_error_set(e, "Invalid note entry size\n");
+			return ELF_ITER_ERROR;
+		}
 		entry->mem = ELFNOTE_DESC(iter->note32);
 		entry->size = iter->note32->n_descsz;
 		entry->type = iter->note32->n_type;
@@ -1374,6 +1382,13 @@ elf_note_iterator_next(struct elf_note_iterator *iter,
 	case elfclass64:
 		if (iter->note64 == NULL)
 			return ELF_ITER_DONE;
+		entry_size = ELFNOTE_DESCSZ(iter->note64) + ELFNOTE_ALIGN(sizeof(Elf64_Nhdr)) +
+		    ELFNOTE_NAMESZ(iter->note64);
+		max_note_offset = iter->obj->note_offset + iter->obj->note_size;
+		if (entry_size >= max_note_offset) {
+			elf_error_set(e, "Invalid PT_NOTE entry size\n");
+			return ELF_ITER_ERROR;
+		}
 		entry->mem = ELFNOTE_DESC(iter->note64);
 		entry->size = iter->note64->n_descsz;
 		entry->type = iter->note64->n_type;
@@ -1579,6 +1594,8 @@ elf_section_iterator_next(struct elf_section_iterator *iter,
 	return ELF_ITER_OK;
 }
 
+#define INITIAL_LOAD_COUNT 16
+
 /*
  * Secure ELF loader.
  */
@@ -1587,7 +1604,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
     elf_error_t *error)
 {
 	int fd;
-	uint32_t i;
+	uint32_t i, phdr_count = 0;
 	unsigned int open_flags = O_RDONLY;
 	unsigned int mmap_perms = PROT_READ|PROT_WRITE;
 	unsigned int mmap_flags = MAP_PRIVATE;
@@ -1595,7 +1612,8 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 	uint8_t e_class;
 	uint16_t e_machine;
 	struct stat st;
-	size_t section_count;
+	size_t section_count = 0;
+	size_t offset_len;
 	bool text_found = false, data_found = false;
 	bool __strict = false;
 
@@ -1666,35 +1684,41 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 	case ELFCLASS32:
 		obj->e_class = elfclass32;
 		obj->ehdr32 = (Elf32_Ehdr *)mem;
+
 		if (obj->ehdr32->e_shnum > 0)
 			obj->flags |= ELF_SHDRS_F;
 		if (obj->ehdr32->e_phnum > 0)
 			obj->flags |= ELF_PHDRS_F;
-		if (obj->ehdr32->e_shnum > MAX_VALID_SHNUM)
-			obj->anomalies |= INVALID_F_SHNUM;
 
-		if (obj->ehdr32->e_phoff > obj->size - sizeof(Elf32_Phdr) - 1) {
-				elf_error_set(error, "invalid e_phoff: %lx", obj->ehdr32->e_phoff);
+		if (elf_flags(obj, ELF_PHDRS_F) == true &&
+		    elf_type(obj) != ET_REL) {
+			offset_len = obj->ehdr32->e_phoff +
+			    obj->ehdr32->e_phnum * obj->ehdr32->e_phentsize;
+			if (offset_len > obj->size) {
+				elf_error_set(error, "unsafe phdr value(s)");
 				goto err;
+			}
 		}
-		if (obj->ehdr32->e_shoff > obj->size - (sizeof(Elf32_Shdr) - 1)) {
+		offset_len = obj->ehdr32->e_shoff +
+		    obj->ehdr32->e_shnum * obj->ehdr32->e_shentsize;
+		if (offset_len > obj->size) {
 			if (__strict) {
-				elf_error_set(error, "invalid e_shoff: %lx", obj->ehdr32->e_shoff);
+				elf_error_set(error, "unsafe shdr value(s)");
 				goto err;
 			}
 			obj->anomalies |= INVALID_F_SHOFF;
 		}
 		/*
 		 * We can trust e_phoff cuz its necessary for loading and we
-		 * would have exited by now.
+		 * would have exited by now due to sanity check.
 		 */
 		obj->phdr32 = (Elf32_Phdr *)&mem[obj->ehdr32->e_phoff];
 		/*
 		 * Any headers not necessary for loaded should only be loaded if
 		 * they have valid headers. We can reconstruct what they had in them
-		 * later on using the program headers.
+		 * later on using the program headers, etc.
 		 */
-		if ((obj->anomalies & INVALID_F_SHOFF) == 0)
+		if ((obj->anomalies & INVALID_F_SH_HEADERS) == 0)
 			obj->shdr32 = (Elf32_Shdr *)&mem[obj->ehdr32->e_shoff];
 
 		obj->entry_point = obj->ehdr32->e_entry;
@@ -1710,37 +1734,33 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 			}
 			obj->anomalies |= INVALID_F_SHSTRNDX;
 		}
-		if (obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset >
-		    obj->size - sizeof(Elf32_Shdr) - 1) {
-			if (__strict) {
-				elf_error_set(error,
-				    "invalid section header string table offset: %lx",
-				    obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset);
-				goto err;
-			}
-			obj->anomalies |= INVALID_F_SHOFFSET;
-		}
-
-		obj->shstrtab =
-		    (char *)&mem[obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset];
-
-		obj->section_count = section_count = obj->ehdr32->e_shnum;
-
-		if (obj->ehdr32->e_type != ET_REL) {
-			if ((obj->ehdr32->e_phoff +
-			     (obj->ehdr32->e_phnum * sizeof(Elf32_Phdr))) > obj->size) {
-				elf_error_set(error, "unsafe phdr values");
-				goto err;
+		if ((obj->anomalies & INVALID_F_SH_HEADERS) == 0 &&
+		    (obj->anomalies & INVALID_F_SHSTRNDX) == 0) {
+			offset_len = obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset +
+			    obj->shdr32[obj->ehdr32->e_shstrndx].sh_size;
+			if (offset_len > obj->size) {
+				if (__strict) {
+					elf_error_set(error,
+					    "invalid section header string table offset: %lx",
+					    obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset);
+					goto err;
+				}
+				obj->anomalies |= INVALID_F_SHSTRTAB;
 			}
 		}
-		if ((obj->ehdr32->e_shoff +
-		    (obj->ehdr32->e_shnum * sizeof(Elf32_Shdr))) > obj->size) {
-			if (__strict) {
-				elf_error_set(error, "unsafe shdr value");
-				goto err;
-			}
-			obj->anomalies |= INVALID_F_SH_HEADERS;
+		if ((obj->anomalies & INVALID_F_SHSTRTAB) == 0 &&
+		    (obj->anomalies & INVALID_F_SH_HEADERS) == 0 &&
+		    (obj->anomalies & INVALID_F_SHSTRNDX) == 0) {
+			obj->shstrtab =
+			     (char *)&mem[obj->shdr32[obj->ehdr32->e_shstrndx].sh_offset];
 		}
+		/*
+		 * We only check for invalid section headers. We can still handle section
+		 * headers if there is a corrupted string table or string table index.
+		 */
+		if ((obj->anomalies & INVALID_F_SH_HEADERS) == 0)
+			obj->section_count = section_count = obj->ehdr32->e_shnum;
+
 		if (obj->ehdr32->e_shentsize != sizeof(Elf32_Shdr)) {
 			if (__strict) {
 				elf_error_set(error, "invalid shentsize: %u",
@@ -1758,23 +1778,95 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 		}
 		if (obj->ehdr32->e_type == ET_REL)
 			break;
+		/*
+		 * If this is not a relocatable object then we move on to
+		 * parsing any program headers. In the anomalous event of more
+		 * than two program header types of the same kind (With the exception
+		 * of PT_LOAD) we must pick only one. i.e. if there are two PT_NOTE
+		 * segment's we pick the first one and use that. If there are two
+		 * PT_GNU_EH_FRAME segment's we pick the first one. We also must perform
+		 * rigirous sanity checks since we will be internally referencing several
+		 * of these program header types for a variety of reasons.
+		 */
+		obj->pt_load = calloc(INITIAL_LOAD_COUNT, sizeof(struct pt_load));
+		if (obj->pt_load == NULL) {
+			elf_error_set(error, "calloc: %s", strerror(errno));
+			goto err;
+		}
+		phdr_count = INITIAL_LOAD_COUNT;
 		for (i = 0; i < obj->ehdr32->e_phnum; i++) {
+			if (obj->load_count >= phdr_count) {
+				phdr_count <<= 2;
+				if (phdr_count >= MAX_PT_LOAD)
+					break;
+				obj->pt_load = realloc(obj->pt_load, phdr_count * sizeof(struct pt_load));
+				if (obj->pt_load == NULL) {
+					elf_error_set(error, "calloc: %s", strerror(errno));
+					goto err;
+				}
+			}
 			if (obj->phdr32[i].p_type == PT_NOTE) {
-				obj->flags |= ELF_NOTE_F;
-				obj->note32 = (Elf32_Nhdr *)&obj->mem[obj->phdr32[i].p_offset];
-				obj->note_size = obj->phdr32[i].p_filesz;
+				if (elf_flags(obj, ELF_NOTE_F) == false) {
+					obj->flags |= ELF_NOTE_F;
+					if (phdr_sanity(obj, &obj->phdr32[i]) == false) {
+						if (__strict) {
+							elf_error_set(error,
+							     "invalid PT_NOTE p_offset: %lu\n",
+							    obj->phdr32[i].p_offset);
+							goto err;
+						} else {
+							obj->flags &= ~ELF_NOTE_F;
+							obj->note32 = NULL;
+						}
+					} else {
+						obj->note32 =
+						    (Elf32_Nhdr *)&obj->mem[obj->phdr32[i].p_offset];
+						obj->note_size = obj->phdr32[i].p_filesz;
+						obj->note_offset = obj->phdr32[i].p_offset;
+					}
+				}
 			} else if (obj->phdr32[i].p_type == PT_DYNAMIC) {
-				obj->flags |= ELF_DYNAMIC_F;
-				obj->dynamic32 = (Elf32_Dyn *)&obj->mem[obj->phdr32[i].p_offset];
-				obj->dynamic_size = obj->phdr32[i].p_filesz;
-				obj->dynamic_offset = obj->phdr32[i].p_offset;
-				obj->dynamic_addr = obj->phdr32[i].p_vaddr;
+				if (elf_flags(obj, ELF_DYNAMIC_F) == false) {
+					obj->flags |= ELF_DYNAMIC_F;
+					if (phdr_sanity(obj, &obj->phdr32[i]) == false) {
+						if (__strict) {
+							elf_error_set(error,
+							    "invalid PT_DYNAMIC p_offset"
+							    " and/or p_filesz: %lu/%lu\n",
+							obj->phdr32[i].p_offset,
+							obj->phdr32[i].p_filesz);
+						}
+					} else {
+						obj->flags &= ~ELF_DYNAMIC_F;
+						obj->dynamic32 = NULL;
+					}
+				} else {
+					obj->dynamic32 =
+					    (Elf32_Dyn *)&obj->mem[obj->phdr32[i].p_offset];
+					obj->dynamic_size = obj->phdr32[i].p_filesz;
+					obj->dynamic_offset = obj->phdr32[i].p_offset;
+					obj->dynamic_addr = obj->phdr32[i].p_vaddr;
+				}
 			} else if (obj->phdr32[i].p_type == PT_GNU_EH_FRAME) {
-				obj->eh_frame_hdr_addr = obj->phdr32[i].p_vaddr;
-				obj->eh_frame_hdr = &obj->mem[obj->phdr32[i].p_offset];
-				obj->eh_frame_hdr_size = obj->phdr32[i].p_filesz;
-				obj->eh_frame_hdr_offset = obj->phdr32[i].p_offset;
-				obj->flags |= ELF_EH_FRAME_F;
+				if (elf_flags(obj, ELF_EH_FRAME_F) == false) {
+					obj->flags |= ELF_EH_FRAME_F;
+					if (phdr_sanity(obj, &obj->phdr32[i]) == false) {
+						if (__strict) {
+							elf_error_set(error,
+							    "invalid PT_GNU_EH_FRAME p_offset and/or p_filesz:"
+							    "%lu/%lu\n", obj->phdr32[i].p_offset, obj->phdr32[i].p_filesz);
+							goto err;
+						} else {
+							obj->flags &= ~ELF_EH_FRAME_F;
+							obj->eh_frame_hdr = NULL;
+						}
+					} else {
+						obj->eh_frame_hdr_addr = obj->phdr32[i].p_vaddr;
+						obj->eh_frame_hdr = &obj->mem[obj->phdr32[i].p_offset];
+						obj->eh_frame_hdr_size = obj->phdr32[i].p_filesz;
+						obj->eh_frame_hdr_offset = obj->phdr32[i].p_offset;
+					}
+				}
 			} else if (obj->phdr32[i].p_type == PT_LOAD && obj->phdr32[i].p_offset == 0) {
 				obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
 				text_found = true;
@@ -1815,21 +1907,29 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 
 		if (obj->ehdr64->e_shnum > 0)
 			obj->flags |= ELF_SHDRS_F;
-		if (obj->ehdr64->e_phnum > 0)
+		if (obj->ehdr64->e_phnum > 0 && obj->ehdr64->e_phoff > 0)
 			obj->flags |= ELF_PHDRS_F;
-
-		if (obj->ehdr64->e_phoff > obj->size - sizeof(Elf64_Phdr) - 1) {
-			elf_error_set(error, "invalid e_phoff: %lx",
-			    obj->ehdr64->e_phoff);
-			goto err;
-		}
-		if (obj->ehdr64->e_shoff > obj->size - (sizeof(Elf64_Shdr) - 1)) {
-			if (__strict) {
-				elf_error_set(error,
-				    "invalid e_shoff: %lx", obj->ehdr64->e_shoff);
+		/*
+		 * In the future use e_shentsize instead of sizeof(Elf64_Hdr)
+		 */
+		if (elf_flags(obj, ELF_PHDRS_F) == true &&
+		    elf_type(obj) != ET_REL) {
+			offset_len = obj->ehdr64->e_phoff +
+			    obj->ehdr64->e_phnum * sizeof(Elf64_Phdr);
+			if (offset_len > obj->size) {
+				elf_error_set(error, "unsafe phdr table value(s)");
 				goto err;
 			}
-			obj->anomalies |= INVALID_F_SHOFF;
+		}
+		offset_len = obj->ehdr64->e_shoff +
+		    obj->ehdr64->e_shnum * sizeof(Elf64_Shdr);
+		if (offset_len > obj->size) {
+			if (__strict) {
+				elf_error_set(error,
+				    "unsafe shdr table value(s)");
+				goto err;
+			}
+			obj->anomalies |= INVALID_F_SH_HEADERS;
 		}
 		/*
 		 * We can trust e_phoff cuz its necessary for loading and
@@ -1840,9 +1940,9 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 		 * Again: any headers not necessary for loading are only
 		 * loaded if they are valid.
 		 */
-		if ((obj->anomalies & INVALID_F_SHOFF) == 0)
+		if ((obj->anomalies & INVALID_F_SH_HEADERS) == 0) {
 			obj->shdr64 = (Elf64_Shdr *)&mem[obj->ehdr64->e_shoff];
-
+		}
 		obj->entry_point = obj->ehdr64->e_entry;
 		obj->type = obj->ehdr64->e_type;
 		obj->segment_count = obj->ehdr64->e_phnum;
@@ -1856,36 +1956,29 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 			}
 			obj->anomalies |= INVALID_F_SHSTRNDX;
 		}
-		if (obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset >
-		    obj->size - sizeof(Elf64_Shdr) - 1) {
-			if (__strict ) {
-				elf_error_set(error, "invalid section header string table offset: %lx",
-				    obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset);
-				goto err;
-			}
-			obj->anomalies |= INVALID_F_SHOFFSET;
-		}
-
-		obj->shstrtab =
-		    (char *)&mem[obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset];
-
-		obj->section_count = section_count = obj->ehdr64->e_shnum;
-
-		if (obj->ehdr64->e_type != ET_REL) {
-			if ((obj->ehdr64->e_phoff +
-			    (obj->ehdr64->e_phnum * sizeof(Elf64_Phdr))) > obj->size) {
-				elf_error_set(error, "unsafe phdr values");
-				goto err;
+		if ((obj->anomalies & INVALID_F_SH_HEADERS) == 0 &&
+		    (obj->anomalies & INVALID_F_SHSTRNDX) == 0) {
+			offset_len = obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset +
+			    obj->shdr64[obj->ehdr64->e_shstrndx].sh_size;
+			if (offset_len > obj->size) {
+				if (__strict ) {
+					elf_error_set(error,
+					    "invalid section header string table offset: %lx",
+					    obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset);
+					goto err;
+				}
+				obj->anomalies |= INVALID_F_SHSTRTAB;
 			}
 		}
-		if ((obj->ehdr64->e_shoff +
-		    (obj->ehdr64->e_shnum * sizeof(Elf64_Shdr))) > obj->size) {
-			if (__strict) {
-				elf_error_set(error, "unsafe shdr values");
-				goto err;
-			}
-			obj->anomalies |= INVALID_F_SH_HEADERS;
+		if ((obj->anomalies & INVALID_F_SHSTRTAB) == 0 &&
+		    (obj->anomalies & INVALID_F_SH_HEADERS) == 0 &&
+		    (obj->anomalies & INVALID_F_SHSTRNDX) == 0) {
+			obj->shstrtab =
+			    (char *)&mem[obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset];
 		}
+		if ((obj->anomalies & INVALID_F_SH_HEADERS) == 0)
+			obj->section_count = section_count = obj->ehdr64->e_shnum;
+
 		if (obj->ehdr64->e_shentsize != sizeof(Elf64_Shdr)) {
 			if (__strict) {
 				elf_error_set(error, "invalid_e_shentsize: %u",
@@ -1903,23 +1996,83 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 		}
 		if (obj->ehdr64->e_type == ET_REL)
 			break;
+		obj->pt_load = calloc(INITIAL_LOAD_COUNT, sizeof(struct pt_load));
+		if (obj->pt_load == NULL) {
+			elf_error_set(error, "calloc: %s", strerror(errno));
+			goto err;
+		}
+		phdr_count = INITIAL_LOAD_COUNT;
 		for (i = 0; i < obj->ehdr64->e_phnum; i++) {
+			if (obj->load_count >= phdr_count) {
+				phdr_count <<= 2;
+				if (phdr_count >= MAX_PT_LOAD)
+					break;
+				obj->pt_load = realloc(obj->pt_load, phdr_count * sizeof(struct pt_load));
+				if (obj->pt_load == NULL) {
+					elf_error_set(error, "calloc: %s", strerror(errno));
+					goto err;
+				}
+			}
 			if (obj->phdr64[i].p_type == PT_NOTE) {
-				obj->flags |= ELF_NOTE_F;
-				obj->note64 = (Elf64_Nhdr *)&obj->mem[obj->phdr64[i].p_offset];
-				obj->note_size = obj->phdr64[i].p_filesz;
+				if (elf_flags(obj, ELF_NOTE_F) == false) {
+					obj->flags |= ELF_NOTE_F;
+					if (phdr_sanity(obj, &obj->phdr64[i]) == false ) {
+						if (__strict) {
+							elf_error_set(error,
+							    "invalid PT_NOTE p_offset: %lu\n",
+							    obj->phdr64[i].p_offset);
+							goto err;
+						} else {
+							obj->flags &= ~ELF_NOTE_F;
+							obj->note64 = NULL;
+						}
+					} else {
+						obj->note64 =
+						    (Elf64_Nhdr *)&obj->mem[obj->phdr64[i].p_offset];
+						obj->note_size = obj->phdr64[i].p_filesz;
+						obj->note_offset = obj->phdr64[i].p_offset;
+					}
+				}
 			} else if (obj->phdr64[i].p_type == PT_DYNAMIC) {
-				obj->flags |= ELF_DYNAMIC_F;
-				obj->dynamic64 = (Elf64_Dyn *)&obj->mem[obj->phdr64[i].p_offset];
-				obj->dynamic_size = obj->phdr64[i].p_filesz;
-				obj->dynamic_offset = obj->phdr64[i].p_offset;
-				obj->dynamic_addr = obj->phdr64[i].p_vaddr;
+				if (elf_flags(obj, ELF_DYNAMIC_F) == false) {
+					obj->flags |= ELF_DYNAMIC_F;
+					if (phdr_sanity(obj, &obj->phdr64[i]) == false) {
+						if (__strict) {
+							elf_error_set(error,
+							     "invalid PT_DYNAMIC p_offset and/or p_filesz: %lu/%lu\n",
+							     obj->phdr64[i].p_offset, obj->phdr64[i].p_filesz);
+							goto err;
+						} else {
+							obj->flags &= ~ELF_DYNAMIC_F;
+							obj->dynamic64 = NULL;
+						}
+					} else {
+						obj->dynamic64 = (Elf64_Dyn *)&obj->mem[obj->phdr64[i].p_offset];
+						obj->dynamic_size = obj->phdr64[i].p_filesz;
+						obj->dynamic_offset = obj->phdr64[i].p_offset;
+						obj->dynamic_addr = obj->phdr64[i].p_vaddr;
+					}
+				}
 			} else if (obj->phdr64[i].p_type == PT_GNU_EH_FRAME) {
-				obj->eh_frame_hdr_addr = obj->phdr64[i].p_vaddr;
-				obj->eh_frame_hdr = &obj->mem[obj->phdr64[i].p_offset];
-				obj->eh_frame_hdr_size = obj->phdr64[i].p_filesz;
-				obj->eh_frame_hdr_offset = obj->phdr64[i].p_offset;
-				obj->flags |= ELF_EH_FRAME_F;
+				if (elf_flags(obj, ELF_EH_FRAME_F) == false) {
+					obj->flags |= ELF_EH_FRAME_F;
+					if (phdr_sanity(obj, &obj->phdr64[i]) == false) {
+						if (__strict) {
+							elf_error_set(error,
+							    "invalid PT_GNU_EH_FRAME p_offset and/or p_filesz:"
+							    "%lu/%lu\n", obj->phdr64[i].p_offset, obj->phdr64[i].p_filesz);
+							goto err;
+						} else {
+							obj->flags &= ~ELF_EH_FRAME_F;
+							obj->eh_frame_hdr = NULL;
+						}
+					} else {
+						obj->eh_frame_hdr_addr = obj->phdr64[i].p_vaddr;
+						obj->eh_frame_hdr = &obj->mem[obj->phdr64[i].p_offset];
+						obj->eh_frame_hdr_size = obj->phdr64[i].p_filesz;
+						obj->eh_frame_hdr_offset = obj->phdr64[i].p_offset;
+					}
+				}
 			} else if (obj->phdr64[i].p_type == PT_LOAD && obj->phdr64[i].p_offset == 0) {
 				obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
 				text_found = true;

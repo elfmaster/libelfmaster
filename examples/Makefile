@@ -1,5 +1,5 @@
 all:
-	gcc -O2 -g -O2 -fPIC -pie elfparse.c ../src/libelfmaster.a -o elfparse
+	gcc -O2 -g -fPIC -pie elfparse.c ../src/libelfmaster.a -o elfparse
 	gcc -O3 -g ldd.c ../src/libelfmaster.a -o ldd
 	gcc -O2 -g read_mem.c ../src/libelfmaster.a -o read_mem
 	gcc -O2 -g plt_dump.c ../src/libelfmaster.a -o plt_dump
