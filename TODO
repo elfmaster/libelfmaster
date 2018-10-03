@@ -1,3 +1,9 @@
+## TOP PRIORITY
+
+Fix all parsing bugs in crashes. I have some more fixing and testing to go before I update
+the release tag of this alpha version, so this last commit is not a complete update to
+the code base, but resolves quite a number of the existing issues.
+
 ## 9/17/2018
 
 Make sure that we take into account dynamic segments that exist in

@@ -1026,15 +1026,13 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		Elf64_Shdr shdr64;
 	} elf;
 	uint32_t soffset, dynstr_index; /* string table offset */
-	size_t dynsym_count;
-	size_t relaplt_count, relaplt_size;
+	size_t dynsym_count = 0, relaplt_count = 0, relaplt_size = 0;
 	size_t word_size = obj->arch == i386 ? 4 : 8;
 	int dynsym_index = 0;
 	int gotplt_index = 0;
 	const char *sname = NULL;
 	size_t total_sh_offset_len = 0;
 
-	printf("FORENSICALLY RECONSTRUCTING\n");
 	obj->internal_section_count = INTERNAL_SECTION_COUNT;
 	obj->internal_shstrtab_size = INTERNAL_SHSTRTAB_SIZE;
 	/*
@@ -1108,7 +1106,8 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		 * can be run properly. We also will need the dynstr section properly
 		 * setup to retrieve the symbol names.
 		 */
-		dynsym_count = obj->dynsym_count = (elf.shdr32.sh_size / elf.shdr32.sh_entsize);
+		if (elf.shdr32.sh_size != 0 && elf.shdr32.sh_entsize != 0)
+			dynsym_count = obj->dynsym_count = (elf.shdr32.sh_size / elf.shdr32.sh_entsize);
 		obj->dynsym32 = (Elf32_Sym *)((uint8_t *)&obj->mem[elf.shdr32.sh_offset]);
 		add_section_entry(obj, &elf.shdr32);
 		obj->flags |= ELF_DYNSYM_F;
@@ -1173,7 +1172,12 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 			return elf_error_set(e, "add_shstrtab_entry failed");
 		}
 		elf.shdr32.sh_addr = resolve_plt_addr(obj);
-		relaplt_count = obj->dynseg.pltrel.size / obj->dynseg.relent.size;
+		/*
+		 * Prevent floating point exception if a malformed binary has
+		 * d_tag values that are set to 0.
+		 */
+		if (obj->dynseg.pltrel.size != 0 && obj->dynseg.relent.size != 0)
+			relaplt_count = obj->dynseg.pltrel.size / obj->dynseg.relent.size;
 		relaplt_size = relaplt_count * 16;
 		elf.shdr32.sh_size = relaplt_size;
 		elf.shdr32.sh_size += 16;
@@ -1432,7 +1436,8 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		elf.shdr64.sh_flags = SHF_ALLOC;
 		elf.shdr64.sh_name = soffset;
 		elf.shdr64.sh_entsize = sizeof(Elf64_Sym);
-		obj->dynsym_count = (elf.shdr64.sh_size / elf.shdr64.sh_entsize);
+		if (elf.shdr64.sh_size != 0 && elf.shdr64.sh_entsize != 0)
+			obj->dynsym_count = (elf.shdr64.sh_size / elf.shdr64.sh_entsize);
 		obj->dynsym64 = (Elf64_Sym *)((uint8_t *)&obj->mem[elf.shdr64.sh_offset]);
 		add_section_entry(obj, &elf.shdr64);
 		total_sh_offset_len += elf.shdr64.sh_size;
@@ -1495,7 +1500,8 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 			return elf_error_set(e, ".plt", &soffset);
 		}
 		elf.shdr64.sh_addr = resolve_plt_addr(obj);
-		relaplt_count = obj->dynseg.pltrel.size / obj->dynseg.relent.size;
+		if (obj->dynseg.pltrel.size != 0 && obj->dynseg.relent.size != 0)
+			relaplt_count = obj->dynseg.pltrel.size / obj->dynseg.relent.size;
 		relaplt_size = relaplt_count * 16;
 		elf.shdr64.sh_size = relaplt_size;
 		elf.shdr64.sh_size += 16;
