@@ -1369,7 +1369,7 @@ elf_note_iterator_next(struct elf_note_iterator *iter,
 		    ELFNOTE_NAMESZ(iter->note32);
 		max_note_offset = iter->obj->note_offset + iter->obj->note_size;
 		if (entry_size >= max_note_offset) {
-			elf_error_set(e, "Invalid note entry size\n");
+			elf_error_set(e, "Invalid PT_NOTE entry size\n");
 			return ELF_ITER_ERROR;
 		}
 		entry->mem = ELFNOTE_DESC(iter->note32);

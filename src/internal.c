@@ -753,6 +753,7 @@ load_dynamic_segment_data(struct elfobj *obj)
 		break;
 		case DT_RPATH:
 		case DT_RUNPATH:
+			break;
 		case DT_DEBUG:
 			if (dt_debug++ > 0)
 				break;
@@ -973,6 +974,11 @@ i386:
  * so lets locate the beginning of the text segment and search
  * from there since we are looking for the _start glibc init code
  * and if we can't find it we create a section called .text_segment
+ * We return 0 on failure, since 0 will never be a valid entry point
+ * address due to the fact that there must always be an ELF file header
+ * first. Even in a heavily modified binary (i.e. a virus infected file)
+ * the smallest entry address would be 0x41, assuming the program header
+ * table was shifted forward, such as in a reverse text infection.
  */
 #define GLIBC_START_CODE_64	"\x55\x48\x89\xe5\x48" /* enough to identify _start */
 #define GLIBC_START_CODE_64_v2	"\x31\xed\x49\x89\xd1" /* enough to identify _start */
@@ -985,6 +991,8 @@ original_ep(elfobj_t *obj)
 	size_t i;
 
 	for (i = 0, marker = inst = ptr; inst; inst++, i++) {
+		if (i >= (elf_text_offset(obj) + elf_text_filesz(obj) - 1))
+			return 0;
 		if (obj->arch == x64) {
 			if (memcmp(&inst[i], GLIBC_START_CODE_64,
 			    sizeof(GLIBC_START_CODE_64) - 1) == 0)
