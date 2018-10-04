@@ -1977,9 +1977,6 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 			obj->shstrtab =
 			    (char *)&mem[obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset];
 		}
-		if ((obj->anomalies & INVALID_F_SH_HEADERS) == 0)
-			obj->section_count = section_count = obj->ehdr64->e_shnum;
-
 		if (obj->ehdr64->e_shentsize != sizeof(Elf64_Shdr)) {
 			if (__strict) {
 				elf_error_set(error, "invalid_e_shentsize: %u",
@@ -1988,6 +1985,20 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 			}
 			obj->anomalies |= INVALID_F_SHENTSIZE;
 		}
+		/*
+		 * NOTE:
+		 * It is the position of libelfmaster to not parse existing section
+		 * headers under the following conditions:
+		 * 1. If the section header table is malformed, i.e. offset of the table
+		 * points somewhere out of the file range.
+		 * 2. If e_shentsize != sizeof(ElfW(Shdr)) -- and this decision should be
+		 * re-addressed in the future so that we can parse custom section headers
+		 * that crafty hackers don't want us to parse
+		 */
+		if ((obj->anomalies & INVALID_F_SH_HEADERS) == 0 &&
+		    (obj->anomalies & INVALID_F_SHENTSIZE) == 0)
+			obj->section_count = section_count = obj->ehdr64->e_shnum;
+
 		if (obj->ehdr64->e_type != ET_REL) {
 			if (obj->ehdr64->e_phentsize != sizeof(Elf64_Phdr)) {
 				elf_error_set(error, "invalid e_phentsize: %u",
@@ -2292,6 +2303,7 @@ elf_close_object(elfobj_t *obj)
 	free_caches(obj);
 	free_arrays(obj);
 	free_misc(obj);
+	free(obj->pt_load);
 	/*
 	 * Unmap memory
 	 */

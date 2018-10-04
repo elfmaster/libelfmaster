@@ -255,8 +255,18 @@ build_symtab_data(struct elfobj *obj)
 
 		switch(obj->e_class) {
 		case elfclass32:
+			/*
+			 * NOTE:
+			 * libelfmaster takes the position of assigning symbol names
+			 * to symbols with out of bounds st_name, that will denote that
+			 * there is an issue with the symbol->st_name string table index.
+			 */
 			symtab32 = obj->symtab32;
-			symbol->name = &obj->strtab[symtab32[i].st_name];
+			if (symtab32[i].st_name < elf_data_offset(obj) + elf_data_filesz(obj)) {
+				symbol->name = &obj->strtab[symtab32[i].st_name];
+			} else {
+				symbol->name = "invalid_name_index";
+			}
 			symbol->value = symtab32[i].st_value;
 			symbol->shndx = symtab32[i].st_shndx;
 			symbol->size = symtab32[i].st_size;
@@ -266,7 +276,11 @@ build_symtab_data(struct elfobj *obj)
 			break;
 		case elfclass64:
 			symtab64 = obj->symtab64;
-			symbol->name = &obj->strtab[symtab64[i].st_name];
+			if (symtab64[i].st_name < elf_data_offset(obj) + elf_data_filesz(obj)) {
+				symbol->name = &obj->strtab[symtab64[i].st_name];
+			} else {
+				symbol->name = "invalid_name_index";
+			}
 			symbol->value = symtab64[i].st_value;
 			symbol->shndx = symtab64[i].st_shndx;
 			symbol->size = symtab64[i].st_size;
