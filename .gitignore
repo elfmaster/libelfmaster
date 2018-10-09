@@ -1,5 +1,11 @@
+# No VIM swap files
+*.sw*
+
+# No objects, shared/static libraries
+*.o
+*.so
+*.a
 Makefile
-src/libelfmaster.o
-src/libelfmaster.a
-src/libelfmaster.so
-build/libelfmaster.build
+
+# No .build files
+*.build
