@@ -40,6 +40,13 @@
 #define MAX_ERROR_STR_LEN 128
 
 /*
+ * DT_PLTREL tag has two valid
+ * values, 0x7 and 0x11
+ */
+#define ELF_DT_PLTREL_RELA	0x7
+#define ELF_DT_PLTREL_REL	0x11
+
+/*
  * In reality will never exceed 2,3, or 4 at the highest.
  */
 #define MAX_LOADABLE_MAPPINGS 8
@@ -193,6 +200,10 @@ struct pt_load {
 };
 
 /*
+ * TODO
+ * Move the anomaly values to internal.h.
+ */
+/*
  * Flags for anomalies on section headers
  */
 #define INVALID_F_SHOFF		(1ULL << 0)
@@ -202,6 +213,12 @@ struct pt_load {
 #define INVALID_F_SHENTSIZE	(1ULL << 4)
 #define INVALID_F_SH_HEADERS	(1ULL << 5)
 #define INVALID_F_SHSTRTAB	(1ULL << 6)
+
+/*
+ * Flags for anomalies on dynamic segment
+ */
+#define INVALID_F_VITAL_DTAG_VALUE	(1ULL << 7)
+
 /*
  * This struct is not meant to access directly. It is an opaque
  * type. It is only accessed directly from within the API code
@@ -295,6 +312,9 @@ typedef struct elfobj {
 		struct {
 			uint64_t size;
 		} relent;
+		struct {
+			uint64_t size;
+		} relaent;
 		struct {
 			uint64_t addr;
 			uint64_t size;

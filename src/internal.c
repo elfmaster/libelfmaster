@@ -597,15 +597,18 @@ load_dynamic_segment_data(struct elfobj *obj)
 	uint32_t dt_pltgot = 0, dt_pltrelsz = 0, dt_symtab = 0,
 	    dt_strtab = 0, dt_strsz = 0, dt_hash = 0, dt_pltrel = 0,
 	    dt_jmprel = 0, dt_rela = 0, dt_relasz = 0, dt_rel = 0, dt_relsz = 0,
-	    dt_fini = 0, dt_init = 0, dt_relent = 0, dt_init_array = 0, dt_init_arraysz = 0,
+	    dt_fini = 0, dt_init = 0, dt_relent = 0, dt_relaent = 0,
+	    dt_init_array = 0, dt_init_arraysz = 0,
 	    dt_fini_array = 0, dt_fini_arraysz = 0, dt_debug = 0;
+	uint32_t ptr_width = elf_class(obj) == elfclass32 ? 4 : 8;
 
 	/*
 	 * If the ELF object has no section headers, then .dynstr won't be set
 	 * yet, and elf_dynamic_string() will fail. So before we use the
 	 * dynamic iterator to set all dynamic segment values, we must first
 	 * manually find the location of dynstr and set it. Its somewhat
-	 * redundant, but its a quick and simple fix.
+	 * redundant, but its a quick and simple fix. After that we can
+	 * call elf_dynamic_string() as necessary.
 	 */
 	elf_dynamic_iterator_init(obj, &iter);
 	for (;;) {
@@ -658,73 +661,173 @@ load_dynamic_segment_data(struct elfobj *obj)
 		case DT_PLTGOT:
 			if (dt_pltgot++ > 0)
 				break;
+			if (obj->dynseg.pltgot.addr < elf_data_base(obj) ||
+			    obj->dynseg.pltgot.addr > elf_data_base(obj) +
+			    elf_data_filesz(obj) - ptr_width - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.pltgot.addr = entry.value;
 			break;
 		case DT_PLTRELSZ:
 			if (dt_pltrelsz++ > 0)
 				break;
+			if (entry.value > obj->size - 1)
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
 			obj->dynseg.pltrel.size = entry.value;
 			break;
 		case DT_SYMTAB:
 			if (dt_symtab++ > 0)
 				break;
+			if (entry.value < elf_text_base(obj) ||
+			    entry.value > elf_text_base(obj) +
+			    elf_text_filesz(obj) - ptr_width - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.dynsym.addr = entry.value;
 			break;
 		case DT_STRTAB:
 			if (dt_strtab++ > 0)
 				break;
+			if (entry.value < elf_text_base(obj) ||
+			    entry.value > elf_text_base(obj) +
+			    elf_text_filesz(obj) - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.dynstr.addr = entry.value;
 			break;
 		case DT_STRSZ:
 			if (dt_strsz++ > 0)
 				break;
+			if (entry.value >= obj->size)
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
 			obj->dynseg.dynstr.size = entry.value;
 			break;
 		case DT_HASH:
 		case DT_GNU_HASH:
 			if (dt_hash++ > 0)
 				break;
+			if (entry.value < elf_text_base(obj) ||
+			    entry.value > elf_text_base(obj) +
+			    elf_text_filesz(obj) - ptr_width - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.hash.addr = entry.value;
 			break;
 		case DT_PLTREL:
 			if (dt_pltrel++ > 0)
 				break;
+			if (entry.value != ELF_DT_PLTREL_RELA &&
+			    entry.value != ELF_DT_PLTREL_RELA) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->flags |= ELF_PLT_RELOCS_F;
 			obj->dynseg.pltrel.type = entry.value;
 			break;
 		case DT_JMPREL:
 			if (dt_jmprel++ > 0)
 				break;
+			if (entry.value < elf_text_base(obj) ||
+			    entry.value > elf_text_base(obj) +
+			    elf_text_filesz(obj) - ptr_width - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.pltrel.addr = entry.value;
 			break;
 		case DT_RELA:
 			if (dt_rela++ > 0)
 				break;
+			if (entry.value < elf_text_base(obj) ||
+			    entry.value > elf_text_base(obj) +
+			    elf_text_filesz(obj) - ptr_width - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.rela.addr = entry.value;
 			break;
 		case DT_RELASZ:
 			if (dt_relasz++ > 0)
 				break;
+			/*
+			 * If we haven't hit DT_RELA yet, then we
+			 * cannot properly calculate an invalid size
+			 * since we won't have the exact location
+			 * of the relocation section yet. In that
+			 * case we do an approximation
+			 */
+			if (obj->dynseg.rela.addr == 0) {
+				/*
+				 * Approximate check
+				 */
+				if (entry.value > elf_text_offset(obj) +
+				    elf_text_filesz(obj) - 1) {
+					obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+				}
+			} else {
+				if (obj->dynseg.rela.addr + entry.value >
+				    elf_text_base(obj) + elf_text_filesz(obj) - 1) {
+					obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+				}
+			}
 			obj->dynseg.rela.size = entry.value;
 			break;
 		case DT_REL:
 			if (dt_rel++ > 0)
 				break;
+			if (entry.value < elf_text_base(obj) ||
+			    entry.value > elf_text_base(obj) +
+			    elf_text_filesz(obj) - ptr_width - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.rel.addr = entry.value;
 			break;
 		case DT_RELSZ:
 			if (dt_relsz++ > 0)
 				break;
+			/*
+			 * Same logic as how we handle DT_RELASZ, read
+			 * comments in case DT_RELASZ
+			 */
+			if (obj->dynseg.rela.addr == 0) {
+				/*
+				 * Approximate check
+				 */
+				if (entry.value > elf_text_offset(obj) +
+				    elf_text_filesz(obj) - 1) {
+					obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+				}
+			} else {
+				if (obj->dynseg.rel.addr + entry.value >
+				    elf_text_base(obj) + elf_text_filesz(obj) - 1) {
+					obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+				}
+			}
 			obj->dynseg.rel.size = entry.value;
 			break;
 		case DT_INIT:
 			if (dt_init++ > 0)
 				break;
+			/*
+			 * Approximate guess since we don't yet know the
+			 * size of .init
+			 */
+			if (entry.value < elf_text_base(obj) ||
+			    entry.value > elf_text_base(obj) +
+			    elf_text_filesz(obj) - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.init.addr = entry.value;
 			break;
 		case DT_FINI:
 			if (dt_fini++ > 0)
 				break;
+			/*
+			 * Approximate guess since we don't yet know the
+			 * size of .fini
+			 */
+			if (entry.value < elf_text_base(obj) ||
+			    entry.value > elf_text_base(obj) +
+			    elf_text_filesz(obj) - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.fini.addr = entry.value;
 			break;
 		case DT_NEEDED:
@@ -740,19 +843,36 @@ load_dynamic_segment_data(struct elfobj *obj)
 			    _linkage);
 			break;
 		case DT_RELAENT:
+			if (dt_relaent++ > 0)
+				break;
+			if (entry.value != ELF_DT_PLTREL_RELA)
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			obj->dynseg.relaent.size = entry.value;
+			break;
 		case DT_RELENT:
 			if (dt_relent++ > 0)
 				break;
+			if (entry.value != ELF_DT_PLTREL_REL)
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
 			obj->dynseg.relent.size = entry.value;
 			break;
 		case DT_INIT_ARRAY:
 			if (dt_init_array++ > 0)
 				break;
+			if (entry.value < elf_data_base(obj) ||
+			    entry.value > elf_data_base(obj) +
+			    elf_data_filesz(obj) - ptr_width - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.init_array.addr = entry.value;
 			break;
 		case DT_FINI_ARRAY:
 			if (dt_fini_array++ > 0)
 				break;
+			/*
+			 * note to self: approximate guess here as well
+			 * since usually DT_FINI_ARRAY comes before DT_INIT_ARRAY
+			 */
 			obj->dynseg.fini_array.addr = entry.value;
 			break;
 		case DT_INIT_ARRAYSZ:
@@ -764,7 +884,7 @@ load_dynamic_segment_data(struct elfobj *obj)
 			if (dt_fini_arraysz++ > 0)
 				break;
 			obj->dynseg.fini_array.size = entry.value;
-		break;
+			break;
 		case DT_RPATH:
 		case DT_RUNPATH:
 			break;
@@ -948,19 +1068,18 @@ resolve_plt_addr(elfobj_t *obj)
 	 * for the indirect GOT jump won't be using IP relative addressing.
 	 */
 	for (marker = inst = &obj->mem[init_offset]; inst; inst++, i++) {
-		if (*inst != 0x48 && *(inst + 1) != 0x83)
-			continue;
 		if (inst - marker > INIT_SIZE_THRESHOLD)
 			return 0;
+		if (*inst != 0x48 && *(inst + 1) != 0x83)
+			continue;
 		for (;; inst++) {
 			if (*inst == 0xc3) {
 				for (;; inst++) {
+					if (inst - marker > INIT_SIZE_THRESHOLD)
+						return 0;
 					if (*inst == 0xff && *(inst + 1) == 0x35) {
 						return (uint64_t)((uint8_t *)inst -
 						    (uint8_t *)marker) + obj->dynseg.init.addr;
-					}
-					if (inst - marker > INIT_SIZE_THRESHOLD) {
-						return 0;
 					}
 				}
 			}
@@ -971,14 +1090,14 @@ resolve_plt_addr(elfobj_t *obj)
 	return 0;
 i386:
 	for (marker = inst = &obj->mem[init_offset + start]; inst; inst++, i++) {
+		if (inst - marker > INIT_SIZE_THRESHOLD)
+			return 0;
 		if (*inst != 0x5b) /* pop %ebx */
 			continue;
 		if (*(inst + 1) == 0xc3) { /* ret */
 			return (uint64_t)((uint8_t *)inst -
 			    (uint8_t *)marker) + obj->dynseg.init.addr;
 		}
-		if (inst - marker > INIT_SIZE_THRESHOLD)
-			return 0;
 	}
 	return 0;
 }
@@ -1005,7 +1124,7 @@ original_ep(elfobj_t *obj)
 	size_t i;
 
 	for (i = 0, marker = inst = ptr; inst; inst++, i++) {
-		if (i >= (elf_text_offset(obj) + elf_text_filesz(obj) - 1))
+		if (i >= (elf_text_offset(obj) + elf_text_filesz(obj) - 6))
 			return 0;
 		if (obj->arch == x64) {
 			if (memcmp(&inst[i], GLIBC_START_CODE_64,
@@ -1522,8 +1641,8 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 			return elf_error_set(e, ".plt", &soffset);
 		}
 		elf.shdr64.sh_addr = resolve_plt_addr(obj);
-		if (obj->dynseg.pltrel.size != 0 && obj->dynseg.relent.size != 0)
-			relaplt_count = obj->dynseg.pltrel.size / obj->dynseg.relent.size;
+		if (obj->dynseg.pltrel.size != 0 && obj->dynseg.relaent.size != 0)
+			relaplt_count = obj->dynseg.pltrel.size / obj->dynseg.relaent.size;
 		relaplt_size = relaplt_count * 16;
 		elf.shdr64.sh_size = relaplt_size;
 		elf.shdr64.sh_size += 16;
@@ -1541,7 +1660,7 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		/*
 		 * .rel[a].plt (Necessary for plt iterators)
 		 */
-		sname = obj->dynseg.relent.size == RELA_ENT_SIZE ? ".rela.plt" :
+		sname = obj->dynseg.relaent.size == RELA_ENT_SIZE ? ".rela.plt" :
 		    "rel.plt";
 		if (add_shstrtab_entry(obj, sname, &soffset) == false) {
 			return elf_error_set(e, "add_shstrtab_entry failed");
@@ -1551,9 +1670,9 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		elf.shdr64.sh_link = dynsym_index;
 		elf.shdr64.sh_offset = obj->dynseg.pltrel.addr - elf_text_base(obj);
 		elf.shdr64.sh_info = gotplt_index;
-		elf.shdr64.sh_entsize = obj->dynseg.relent.size;
+		elf.shdr64.sh_entsize = obj->dynseg.relaent.size;
 		elf.shdr64.sh_name = soffset;
-		elf.shdr64.sh_type = obj->dynseg.relent.size == RELA_ENT_SIZE
+		elf.shdr64.sh_type = obj->dynseg.relaent.size == RELA_ENT_SIZE
 		    ? SHT_RELA : SHT_REL;
 		total_sh_offset_len += elf.shdr64.sh_size;
 

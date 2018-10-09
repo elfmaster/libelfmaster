@@ -1786,7 +1786,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 		 * segment's we pick the first one and use that. If there are two
 		 * PT_GNU_EH_FRAME segment's we pick the first one. We also must perform
 		 * rigirous sanity checks since we will be internally referencing several
-		 * of these program header types for a variety of reasons.
+		 * of these program header types for a variety of reasons
 		 */
 		obj->pt_load = calloc(INITIAL_LOAD_COUNT, sizeof(struct pt_load));
 		if (obj->pt_load == NULL) {
@@ -2013,6 +2013,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 			elf_error_set(error, "calloc: %s", strerror(errno));
 			goto err;
 		}
+
 		phdr_count = INITIAL_LOAD_COUNT;
 		for (i = 0; i < obj->ehdr64->e_phnum; i++) {
 			if (obj->load_count >= phdr_count) {
