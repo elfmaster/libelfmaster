@@ -1972,28 +1972,15 @@ dw_read_location(elfobj_t *obj, uint64_t vaddr, size_t len,
 {
 	uint8_t *ptr = NULL;
 
-	if (vaddr >= obj->text_address + obj->size) {
+	ptr = elf_address_pointer(obj, vaddr);
+	if (ptr == NULL) {
 		*res = false;
 		return 0;
 	}
-	if (vaddr >= obj->text_address + obj->text_segment_filesz) {
-		ptr = &obj->mem[vaddr - obj->data_address];
-	} else {
-		ptr = &obj->mem[vaddr - obj->text_address];
-	} 
 	*res = true;
 	if (ev != NULL) {
-		if (vaddr >= obj->text_address + obj->text_segment_filesz) {
-			ev->initial_loc =
-			    *(uint32_t *)&obj->mem[vaddr - obj->data_address];
-			ev->fde_entry_offset =
-			    *(uint32_t *)&obj->mem[vaddr - obj->data_address + 4];
-		} else {
-			ev->initial_loc =
-			    *(uint32_t *)&obj->mem[vaddr - obj->text_address];
-			ev->fde_entry_offset =
-			    *(uint32_t *)&obj->mem[vaddr - obj->text_address + 4];
-		}
+		ev->initial_loc = *(uint32_t *)ptr;
+		ev->fde_entry_offset = *(uint32_t *)&ptr[4];
 		return 0;
 	}
 	switch(len) {

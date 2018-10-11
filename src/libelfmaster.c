@@ -492,9 +492,21 @@ elf_data_offset(struct elfobj *obj)
 void *
 elf_address_pointer(struct elfobj *obj, uint64_t address)
 {
-	uint64_t offset = elf_data_offset(obj) + address - elf_data_base(obj);
+	elf_segment_iterator_t iter;
+	struct elf_segment segment;
+	long long offset = -1;
 
-	if (offset > obj->size - 1)
+	elf_segment_iterator_init(obj, &iter);
+	while (elf_segment_iterator_next(&iter, &segment) == ELF_ITER_OK) {
+		if (address < segment.vaddr ||
+		    address >= segment.vaddr + segment.filesz)
+			continue;
+		offset = segment.offset + (address - segment.vaddr);
+		break;
+	}
+	if (offset == -1)
+		return NULL;
+	if ((size_t)offset > obj->size - 1)
 		return NULL;
 	return (void *)((uint8_t *)&obj->mem[offset]);
 }
