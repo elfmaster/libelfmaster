@@ -231,6 +231,7 @@ typedef struct elfobj {
 	unsigned int type;
 	unsigned long long int anomalies;
 	uint64_t load_flags;
+	int fd;
 	const char *path;
 	union {
 		Elf32_Ehdr *ehdr32;
@@ -744,4 +745,5 @@ typedef enum typewidth {
 
 bool elf_read_address(elfobj_t *, uint64_t, uint64_t *, typewidth_t);
 bool elf_read_offset(elfobj_t *, uint64_t, uint64_t *, typewidth_t);
+
 #endif

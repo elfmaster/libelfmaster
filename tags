@@ -1,0 +1,640 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+ALIGN_CACHE	src/libelfmaster.c	53;"	d	file:
+BUILD_DIR	Makefile	/^BUILD_DIR=\/home\/ulexec\/Documents\/ELF-REsearch\/PrivateProjects\/libelfmaster$/;"	m
+CACHEMAGIC	include/internal.h	46;"	d
+CACHEMAGIC_NEW	include/internal.h	59;"	d
+CACHEMAGIC_VERSION_NEW	src/libelfmaster.c	51;"	d	file:
+CACHE_FILE	src/libelfmaster.c	49;"	d	file:
+CACHE_VERSION	include/internal.h	60;"	d
+CFLAGS	Makefile	/^CFLAGS=-D_DEFAULT_SOURCE -D_GNU_SOURCE -D_BSD_SOURCE -std=gnu99 -Wall -W -Wundef -Wendif-labels -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Wstrict-prototypes -Wmissing-prototypes -Wnested-externs -Winline -Wdisabled-optimization -fstrict-aliasing -O2 -pipe -Wno-parentheses -g -rdynamic -fno-omit-frame-pointer -I\/home\/ulexec\/Documents\/ELF-REsearch\/PrivateProjects\/libelfmaster\/include -I\/home\/ulexec\/Documents\/ELF-REsearch\/PrivateProjects\/libelfmaster\/include -I\/opt\/elfmaster\/include  -D__x86_64__ -D_GNU_SOURCE -I\/opt\/elfmaster\/include  -m64 -fPIC$/;"	m
+CFLAGS	regressions/Makefile	/^CFLAGS := -L$(LIB_DIR) $(CFLAGS)$/;"	m
+DEBUG_LOG	include/internal.h	32;"	d
+DEBUG_LOG	include/internal.h	34;"	d
+DW_EH_PE_APPL_MASK	include/dwarf.h	5;"	d
+DW_EH_PE_FORMAT_MASK	include/dwarf.h	35;"	d
+DW_EH_PE_FORMAT_MASK	include/dwarf.h	4;"	d
+DW_EH_PE_absptr	include/dwarf.h	7;"	d
+DW_EH_PE_aligned	include/dwarf.h	23;"	d
+DW_EH_PE_datarel	include/dwarf.h	21;"	d
+DW_EH_PE_funcrel	include/dwarf.h	22;"	d
+DW_EH_PE_indirect	include/dwarf.h	19;"	d
+DW_EH_PE_omit	include/dwarf.h	8;"	d
+DW_EH_PE_pcrel	include/dwarf.h	18;"	d
+DW_EH_PE_sdata2	include/dwarf.h	14;"	d
+DW_EH_PE_sdata4	include/dwarf.h	15;"	d
+DW_EH_PE_sdata8	include/dwarf.h	16;"	d
+DW_EH_PE_signed	include/dwarf.h	17;"	d
+DW_EH_PE_sleb128	include/dwarf.h	13;"	d
+DW_EH_PE_textrel	include/dwarf.h	20;"	d
+DW_EH_PE_udata2	include/dwarf.h	10;"	d
+DW_EH_PE_udata4	include/dwarf.h	11;"	d
+DW_EH_PE_udata8	include/dwarf.h	12;"	d
+DW_EH_PE_uleb128	include/dwarf.h	9;"	d
+ELFNOTE32_NEXT	include/libelfmaster.h	58;"	d
+ELFNOTE64_NEXT	include/libelfmaster.h	59;"	d
+ELFNOTE_ALIGN	include/libelfmaster.h	55;"	d
+ELFNOTE_DESC	include/libelfmaster.h	57;"	d
+ELFNOTE_DESCSZ	include/libelfmaster.h	60;"	d
+ELFNOTE_NAME	include/libelfmaster.h	54;"	d
+ELFNOTE_NAME	include/libelfmaster.h	56;"	d
+ELFNOTE_NAMESZ	include/libelfmaster.h	61;"	d
+ELF_BYTE	include/libelfmaster.h	/^	ELF_BYTE$/;"	e	enum:typewidth
+ELF_DT_DEBUG_F	include/libelfmaster.h	/^	ELF_DT_DEBUG_F =		(1 << 17)$/;"	e	enum:elf_obj_flags
+ELF_DT_PLTREL_REL	include/libelfmaster.h	47;"	d
+ELF_DT_PLTREL_RELA	include/libelfmaster.h	46;"	d
+ELF_DWORD	include/libelfmaster.h	/^	ELF_DWORD,$/;"	e	enum:typewidth
+ELF_DYNAMIC_F	include/libelfmaster.h	/^	ELF_DYNAMIC_F =			(1 << 9),$/;"	e	enum:elf_obj_flags
+ELF_DYNSTR_F	include/libelfmaster.h	/^	ELF_DYNSTR_F =			(1 << 12),$/;"	e	enum:elf_obj_flags
+ELF_DYNSYM_F	include/libelfmaster.h	/^	ELF_DYNSYM_F =			(1 << 1),$/;"	e	enum:elf_obj_flags
+ELF_DYN_RELOCS_F	include/libelfmaster.h	/^	ELF_DYN_RELOCS_F =		(1 << 6),$/;"	e	enum:elf_obj_flags
+ELF_EH_FRAME_F	include/libelfmaster.h	/^	ELF_EH_FRAME_F =		(1 << 13),$/;"	e	enum:elf_obj_flags
+ELF_FORENSICS_F	include/libelfmaster.h	/^	ELF_FORENSICS_F =		(1 << 16),  \/* elf sections at the least are reconstructed *\/$/;"	e	enum:elf_obj_flags
+ELF_FULL_PIE_F	include/libelfmaster.h	/^	ELF_FULL_PIE_F =		(1 << 14), \/* fully relocatable ET_DYN *\/$/;"	e	enum:elf_obj_flags
+ELF_ITER_DONE	include/libelfmaster.h	/^	ELF_ITER_DONE,$/;"	e	enum:elf_iterator_res
+ELF_ITER_ERROR	include/libelfmaster.h	/^	ELF_ITER_ERROR,$/;"	e	enum:elf_iterator_res
+ELF_ITER_NOTFOUND	include/libelfmaster.h	/^	ELF_ITER_NOTFOUND$/;"	e	enum:elf_iterator_res
+ELF_ITER_OK	include/libelfmaster.h	/^	ELF_ITER_OK,$/;"	e	enum:elf_iterator_res
+ELF_LDSO_CACHE_NEW	include/internal.h	63;"	d
+ELF_LDSO_CACHE_OLD	include/internal.h	62;"	d
+ELF_LINKING_DYNAMIC	include/libelfmaster.h	/^	ELF_LINKING_DYNAMIC,$/;"	e	enum:elf_linking_type
+ELF_LINKING_STATIC	include/libelfmaster.h	/^	ELF_LINKING_STATIC,$/;"	e	enum:elf_linking_type
+ELF_LINKING_UNDEF	include/libelfmaster.h	/^	ELF_LINKING_UNDEF \/* Means its neither, such as an ET_REL or ET_CORE *\/$/;"	e	enum:elf_linking_type
+ELF_LOAD_F_FORENSICS	include/libelfmaster.h	517;"	d
+ELF_LOAD_F_MODIFY	include/libelfmaster.h	519;"	d
+ELF_LOAD_F_SMART	include/libelfmaster.h	515;"	d
+ELF_LOAD_F_STRICT	include/libelfmaster.h	514;"	d
+ELF_LOAD_F_ULEXEC	include/libelfmaster.h	520;"	d
+ELF_NOTE_F	include/libelfmaster.h	/^	ELF_NOTE_F =			(1 << 4),$/;"	e	enum:elf_obj_flags
+ELF_PHDRS_F	include/libelfmaster.h	/^	ELF_PHDRS_F =			(1 << 2),$/;"	e	enum:elf_obj_flags
+ELF_PIE_F	include/libelfmaster.h	/^	ELF_PIE_F =			(1 << 8), \/* ET_DYN not necessarily fully relocatable though *\/$/;"	e	enum:elf_obj_flags
+ELF_PLTGOT_F	include/libelfmaster.h	/^	ELF_PLTGOT_F =			(1 << 11),$/;"	e	enum:elf_obj_flags
+ELF_PLTGOT_PLT_STUB_F	include/libelfmaster.h	459;"	d
+ELF_PLTGOT_RESERVED_DL_RESOLVE_F	include/libelfmaster.h	458;"	d
+ELF_PLTGOT_RESERVED_DYNAMIC_F	include/libelfmaster.h	456;"	d
+ELF_PLTGOT_RESERVED_LINKMAP_F	include/libelfmaster.h	457;"	d
+ELF_PLTGOT_RESOLVED_F	include/libelfmaster.h	460;"	d
+ELF_PLT_F	include/libelfmaster.h	/^	ELF_PLT_F =			(1 << 10),$/;"	e	enum:elf_obj_flags
+ELF_PLT_RELOCS_F	include/libelfmaster.h	/^	ELF_PLT_RELOCS_F =		(1 << 5),$/;"	e	enum:elf_obj_flags
+ELF_PT_LOAD_DATA_F	include/libelfmaster.h	274;"	d
+ELF_PT_LOAD_MISC_F	include/libelfmaster.h	275;"	d
+ELF_PT_LOAD_TEXT_F	include/libelfmaster.h	273;"	d
+ELF_QWORD	include/libelfmaster.h	/^	ELF_QWORD,$/;"	e	enum:typewidth
+ELF_RELOC_JUMP_SLOT	src/internal.c	73;"	d	file:
+ELF_SHDRS_F	include/libelfmaster.h	/^	ELF_SHDRS_F =			(1 << 3),$/;"	e	enum:elf_obj_flags
+ELF_SO_RESOLVE_ALL_F	include/libelfmaster.h	489;"	d
+ELF_SO_RESOLVE_F	include/libelfmaster.h	485;"	d
+ELF_SYMTAB_F	include/libelfmaster.h	/^	ELF_SYMTAB_F =			(1 << 0),$/;"	e	enum:elf_obj_flags
+ELF_SYMTAB_RECONSTRUCTION_F	include/libelfmaster.h	/^	ELF_SYMTAB_RECONSTRUCTION_F =	(1 << 15), \/* .symtab is being reconstructed *\/$/;"	e	enum:elf_obj_flags
+ELF_TEXT_RELOCS_F	include/libelfmaster.h	/^	ELF_TEXT_RELOCS_F =		(1 << 7),$/;"	e	enum:elf_obj_flags
+ELF_WORD	include/libelfmaster.h	/^	ELF_WORD,$/;"	e	enum:typewidth
+GLIBC_START_CODE_32	src/internal.c	1118;"	d	file:
+GLIBC_START_CODE_64	src/internal.c	1116;"	d	file:
+GLIBC_START_CODE_64_v2	src/internal.c	1117;"	d	file:
+HEADERS	Makefile	/^HEADERS=\/opt\/elfmaster\/include$/;"	m
+HEADERS	src/Makefile	/^HEADERS=$(INCLUDE_DIR)\/*.h$/;"	m
+INCLUDE_DIR	regressions/Makefile	/^INCLUDE_DIR=$(BUILD_DIR)\/include $(BUILD_DIR)\/regressions$/;"	m
+INCLUDE_DIR	src/Makefile	/^INCLUDE_DIR=$(SRC_DIR)\/include$/;"	m
+INITIAL_LOAD_COUNT	src/libelfmaster.c	1609;"	d	file:
+INIT_SIZE_THRESHOLD	src/internal.c	1051;"	d	file:
+INTERNAL_SECTION_COUNT	include/internal.h	106;"	d
+INTERNAL_SHSTRTAB_SIZE	include/internal.h	105;"	d
+INVALID_F_SHENTSIZE	include/libelfmaster.h	213;"	d
+INVALID_F_SHNUM	include/libelfmaster.h	212;"	d
+INVALID_F_SHOFF	include/libelfmaster.h	209;"	d
+INVALID_F_SHOFFSET	include/libelfmaster.h	211;"	d
+INVALID_F_SHSTRNDX	include/libelfmaster.h	210;"	d
+INVALID_F_SHSTRTAB	include/libelfmaster.h	215;"	d
+INVALID_F_SH_HEADERS	include/libelfmaster.h	214;"	d
+INVALID_F_VITAL_DTAG_VALUE	include/libelfmaster.h	220;"	d
+LDFLAGS	regressions/Makefile	/^LDFLAGS=-Wl,-rpath,\/opt\/elfmaster\/lib -Wl,-rpath-link,\/opt\/elfmaster\/lib  -fPIC $(LIB_DIR)\/libelfmaster.a  \/usr\/lib\/x86_64-linux-gnu\/libdl.so$/;"	m
+LDNAME	Makefile	/^LDNAME=@LDNAME@$/;"	m
+LDNAME_MAJOR	Makefile	/^LDNAME_MAJOR=@LDNAME_MAJOR@$/;"	m
+LDNAME_VERSION	Makefile	/^LDNAME_VERSION=@LDNAME_VERSION@$/;"	m
+LIBRARY	Makefile	/^LIBRARY=\/opt\/elfmaster\/lib$/;"	m
+LIB_DIR	regressions/Makefile	/^LIB_DIR=$(BUILD_DIR)\/src$/;"	m
+LIST_FOREACH_SAFE	include/misc.h	5;"	d
+MAX_ERROR_STR_LEN	include/libelfmaster.h	40;"	d
+MAX_LOADABLE_MAPPINGS	include/libelfmaster.h	52;"	d
+MAX_PT_LOAD	include/libelfmaster.h	272;"	d
+MAX_SO_COUNT	src/libelfmaster.c	791;"	d	file:
+MAX_VALID_SHNUM	include/libelfmaster.h	78;"	d
+OBJECTS	regressions/Makefile	/^OBJECTS=                \\$/;"	m
+OBJECTS	src/Makefile	/^OBJECTS=libelfmaster.o internal.o$/;"	m
+PF_EMUTRAMP	examples/checksec.c	17;"	d	file:
+PF_MPROTECT	examples/checksec.c	15;"	d	file:
+PF_PAGEEXEC	examples/checksec.c	13;"	d	file:
+PF_RANDEXEC	examples/checksec.c	16;"	d	file:
+PF_RANDMMAP	examples/checksec.c	18;"	d	file:
+PF_SEGMEXEC	examples/checksec.c	14;"	d	file:
+PKGCONFIG_DATA	Makefile	/^PKGCONFIG_DATA=\/opt\/elfmaster\/lib\/pkgconfig$/;"	m
+PREFIX	Makefile	/^PREFIX=\/opt\/elfmaster$/;"	m
+PT_GNU_EH_FRAME	include/libelfmaster.h	67;"	d
+PT_GNU_RELRO	include/libelfmaster.h	75;"	d
+PT_GNU_STACK	include/libelfmaster.h	71;"	d
+PT_PAX_FLAGS	examples/checksec.c	20;"	d	file:
+PT_PAX_FLAGS	include/libelfmaster.h	63;"	d
+RELA_ENT_SIZE	src/internal.c	1159;"	d	file:
+REL_ENT_SIZE	src/internal.c	1160;"	d	file:
+ROUNDUP	src/libelfmaster.c	43;"	d	file:
+SDIR	regressions/Makefile	/^SDIR=$(SRC_DIR)\/regressions$/;"	m
+SDIR	src/Makefile	/^SDIR=$(SRC_DIR)\/src$/;"	m
+SRC_DIR	Makefile	/^SRC_DIR=\/home\/ulexec\/Documents\/ELF-REsearch\/PrivateProjects\/libelfmaster$/;"	m
+SYMTAB_RECONSTRUCT_COUNT	include/libelfmaster.h	80;"	d
+TARGET_DIR	regressions/Makefile	/^TARGET_DIR=$(BUILD_DIR)\/regressions$/;"	m
+TARGET_DIR	src/Makefile	/^TARGET_DIR=$(BUILD_DIR)\/src$/;"	m
+VERSION	Makefile	/^VERSION=0.1.0$/;"	m
+VERSION_MAJOR	Makefile	/^VERSION_MAJOR=0$/;"	m
+_GNU_SOURCE	examples/checksec.c	1;"	d	file:
+_GNU_SOURCE	examples/eh_frame.c	4;"	d	file:
+_GNU_SOURCE	examples/elfparse.c	1;"	d	file:
+_GNU_SOURCE	examples/ldd.c	1;"	d	file:
+_GNU_SOURCE	examples/plt_dump.c	6;"	d	file:
+_GNU_SOURCE	examples/plt_dump2.c	7;"	d	file:
+_GNU_SOURCE	examples/pltgot.c	6;"	d	file:
+_GNU_SOURCE	examples/read_mem.c	7;"	d	file:
+_GNU_SOURCE	examples/sections.c	4;"	d	file:
+_GNU_SOURCE	examples/symbols.c	4;"	d	file:
+_LIBELFMASTER_H_	include/libelfmaster.h	28;"	d
+_LIBELFMASTER_INTERNAL_H_	include/internal.h	27;"	d
+_MISC_H_	include/misc.h	2;"	d
+__LIBELFMASTER_DWARF__	include/dwarf.h	2;"	d
+_errno	include/libelfmaster.h	/^        int _errno;$/;"	m	struct:elf_error
+_linkage	include/internal.h	/^	LIST_ENTRY(elf_fde_node) _linkage;$/;"	m	struct:elf_fde_node
+_linkage	include/internal.h	/^	LIST_ENTRY(elf_malloc_node) _linkage;$/;"	m	struct:elf_malloc_node
+_linkage	include/internal.h	/^	LIST_ENTRY(elf_plt_node) _linkage;$/;"	m	struct:elf_plt_node
+_linkage	include/internal.h	/^	LIST_ENTRY(elf_rel_helper_node) _linkage;$/;"	m	struct:elf_rel_helper_node
+_linkage	include/internal.h	/^	LIST_ENTRY(elf_section_node) _linkage;$/;"	m	struct:elf_section_node
+_linkage	include/internal.h	/^	LIST_ENTRY(elf_shared_object_node) _linkage;$/;"	m	struct:elf_shared_object_node
+_linkage	include/internal.h	/^	LIST_ENTRY(elf_symbol_node) _linkage;$/;"	m	struct:elf_symbol_node
+_linkage	include/internal.h	/^        LIST_ENTRY(elf_eh_frame_node) _linkage;$/;"	m	struct:elf_eh_frame_node
+_start	examples/test2.c	/^int _start() {$/;"	f
+add_section_entry	src/internal.c	/^add_section_entry(elfobj_t *obj, void *ptr)$/;"	f	file:
+add_shstrtab_entry	src/internal.c	/^add_shstrtab_entry(elfobj_t *obj, const char *name, uint32_t *out)$/;"	f	file:
+addend	include/internal.h	/^	bool addend;$/;"	m	struct:elf_rel_helper_node
+addend	include/libelfmaster.h	/^	int64_t addend;$/;"	m	struct:elf_relocation
+addr	include/internal.h	/^	uint64_t addr;$/;"	m	struct:elf_plt_node
+addr	include/libelfmaster.h	/^			uint64_t addr;$/;"	m	struct:elfobj::__anon11::__anon12
+addr	include/libelfmaster.h	/^			uint64_t addr;$/;"	m	struct:elfobj::__anon11::__anon13
+addr	include/libelfmaster.h	/^			uint64_t addr;$/;"	m	struct:elfobj::__anon11::__anon14
+addr	include/libelfmaster.h	/^			uint64_t addr;$/;"	m	struct:elfobj::__anon11::__anon17
+addr	include/libelfmaster.h	/^			uint64_t addr;$/;"	m	struct:elfobj::__anon11::__anon18
+addr	include/libelfmaster.h	/^			uint64_t addr;$/;"	m	struct:elfobj::__anon11::__anon19
+addr	include/libelfmaster.h	/^			uint64_t addr;$/;"	m	struct:elfobj::__anon11::__anon20
+addr	include/libelfmaster.h	/^			uint64_t addr;$/;"	m	struct:elfobj::__anon11::__anon21
+addr	include/libelfmaster.h	/^			uint64_t addr;$/;"	m	struct:elfobj::__anon11::__anon22
+addr	include/libelfmaster.h	/^			uint64_t addr;$/;"	m	struct:elfobj::__anon11::__anon23
+addr	include/libelfmaster.h	/^			uint64_t addr;$/;"	m	struct:elfobj::__anon11::__anon24
+addr	include/libelfmaster.h	/^	uint64_t addr;$/;"	m	struct:elf_plt
+address	include/internal.h	/^	uint64_t address;$/;"	m	struct:elf_section_node
+address	include/libelfmaster.h	/^	uint64_t address;$/;"	m	struct:elf_section
+align	include/internal.h	/^	uint64_t align;$/;"	m	struct:elf_section_node
+align	include/libelfmaster.h	/^	uint64_t align;$/;"	m	struct:elf_section
+align	include/libelfmaster.h	/^	uint64_t align;$/;"	m	struct:elf_segment
+anomalies	include/libelfmaster.h	/^	unsigned long long int anomalies;$/;"	m	struct:elfobj
+arch	include/libelfmaster.h	/^	elf_arch_t arch;$/;"	m	struct:elfobj
+assert	configure	/^assert()$/;"	f
+basename	include/internal.h	/^	const char *basename;$/;"	m	struct:elf_shared_object_node
+basename	include/libelfmaster.h	/^	const char *basename;$/;"	m	struct:elf_shared_object
+bind	include/internal.h	/^	uint8_t bind;$/;"	m	struct:elf_symbol_node
+bind	include/libelfmaster.h	/^	uint8_t bind;$/;"	m	struct:elf_symbol
+build_dynsym_data	src/internal.c	/^build_dynsym_data(struct elfobj *obj)$/;"	f
+build_plt_data	src/internal.c	/^build_plt_data(struct elfobj *obj)$/;"	f
+build_symtab_data	src/internal.c	/^build_symtab_data(struct elfobj *obj)$/;"	f
+cache	include/libelfmaster.h	/^	struct cache_file *cache;$/;"	m	struct:elf_shared_object_iterator	typeref:struct:elf_shared_object_iterator::cache_file
+cache	include/libelfmaster.h	/^	} cache;$/;"	m	struct:elfobj	typeref:struct:elfobj::__anon9
+cache_data	include/libelfmaster.h	/^	char *cache_data;$/;"	m	struct:elf_shared_object_iterator
+cache_file	include/internal.h	/^struct cache_file {$/;"	s
+cache_file_new	include/internal.h	/^struct cache_file_new {$/;"	s
+cache_flags	include/libelfmaster.h	/^	uint32_t cache_flags;$/;"	m	struct:elf_shared_object_iterator
+cache_new	include/libelfmaster.h	/^	struct cache_file_new *cache_new;$/;"	m	struct:elf_shared_object_iterator	typeref:struct:elf_shared_object_iterator::cache_file_new
+cache_size	include/libelfmaster.h	/^	size_t cache_size;$/;"	m	struct:elf_shared_object_iterator
+check_lib	configure	/^check_lib()$/;"	f
+current	include/libelfmaster.h	/^	struct elf_eh_frame_node *current;$/;"	m	struct:elf_eh_frame_iterator	typeref:struct:elf_eh_frame_iterator::elf_eh_frame_node
+current	include/libelfmaster.h	/^	struct elf_plt_node *current;$/;"	m	struct:elf_plt_iterator	typeref:struct:elf_plt_iterator::elf_plt_node
+current	include/libelfmaster.h	/^	struct elf_rel_helper_node *current, *head;$/;"	m	struct:elf_relocation_iterator	typeref:struct:elf_relocation_iterator::elf_rel_helper_node
+current	include/libelfmaster.h	/^	struct elf_shared_object_node *current;$/;"	m	struct:elf_shared_object_iterator	typeref:struct:elf_shared_object_iterator::elf_shared_object_node
+current	include/libelfmaster.h	/^	struct elf_symbol_node *current;$/;"	m	struct:elf_dynsym_iterator	typeref:struct:elf_dynsym_iterator::elf_symbol_node
+current	include/libelfmaster.h	/^	struct elf_symbol_node *current;$/;"	m	struct:elf_symtab_iterator	typeref:struct:elf_symtab_iterator::elf_symbol_node
+data_address	include/libelfmaster.h	/^	uint64_t data_address; \/* data segment address *\/$/;"	m	struct:elfobj
+data_offset	include/libelfmaster.h	/^	uint64_t data_offset;$/;"	m	struct:elfobj
+data_segment_filesz	include/libelfmaster.h	/^	size_t data_segment_filesz;$/;"	m	struct:elfobj
+debug	include/libelfmaster.h	/^		} debug;$/;"	m	struct:elfobj::__anon11	typeref:struct:elfobj::__anon11::__anon26
+dw_byte_encoding	src/internal.c	/^dw_byte_encoding(uint8_t encoded_byte, uint8_t *encoding, uint8_t *value)$/;"	f	file:
+dw_decode_pointer	src/internal.c	/^dw_decode_pointer(elfobj_t *obj, uint8_t encoding_byte,$/;"	f	file:
+dw_get_eh_frame_ranges	src/internal.c	/^dw_get_eh_frame_ranges(struct elfobj *obj)$/;"	f
+dw_read	include/dwarf.h	25;"	d
+dw_read_location	src/internal.c	/^dw_read_location(elfobj_t *obj, uint64_t vaddr, size_t len,$/;"	f	file:
+dw_read_sleb128	src/internal.c	/^dw_read_sleb128(uint8_t *ptr, size_t len)$/;"	f	file:
+dw_read_uleb128	src/internal.c	/^dw_read_uleb128(uint8_t *ptr, size_t len)$/;"	f	file:
+dynamic32	include/libelfmaster.h	/^		Elf32_Dyn *dynamic32;$/;"	m	union:elfobj::__anon7
+dynamic64	include/libelfmaster.h	/^		Elf64_Dyn *dynamic64;$/;"	m	union:elfobj::__anon7
+dynamic_addr	include/libelfmaster.h	/^	uint64_t dynamic_addr;$/;"	m	struct:elfobj
+dynamic_offset	include/libelfmaster.h	/^	uint64_t dynamic_offset;$/;"	m	struct:elfobj
+dynamic_size	include/libelfmaster.h	/^	size_t dynamic_size;$/;"	m	struct:elfobj
+dynseg	include/libelfmaster.h	/^	} dynseg;$/;"	m	struct:elfobj	typeref:struct:elfobj::__anon11
+dynstr	include/libelfmaster.h	/^		} dynstr;$/;"	m	struct:elfobj::__anon11	typeref:struct:elfobj::__anon11::__anon21
+dynstr	include/libelfmaster.h	/^	char *dynstr;$/;"	m	struct:elfobj
+dynsym	include/libelfmaster.h	/^		LIST_HEAD(elf_dynsym_list, elf_symbol_node) dynsym;$/;"	m	struct:elfobj::__anon10
+dynsym	include/libelfmaster.h	/^		struct hsearch_data dynsym;$/;"	m	struct:elfobj::__anon9	typeref:struct:elfobj::__anon9::hsearch_data
+dynsym	include/libelfmaster.h	/^		} dynsym;$/;"	m	struct:elfobj::__anon11	typeref:struct:elfobj::__anon11::__anon20
+dynsym32	include/libelfmaster.h	/^		Elf32_Sym *dynsym32;$/;"	m	union:elfobj::__anon6
+dynsym64	include/libelfmaster.h	/^		Elf64_Sym *dynsym64;$/;"	m	union:elfobj::__anon6
+dynsym_count	include/libelfmaster.h	/^	size_t dynsym_count;$/;"	m	struct:elfobj
+e_class	include/libelfmaster.h	/^	elf_class_t e_class;$/;"	m	struct:elfobj
+eh_frame	include/libelfmaster.h	/^	void *eh_frame;$/;"	m	struct:elfobj
+eh_frame_entries	include/libelfmaster.h	/^		LIST_HEAD(elf_eh_frame_list, elf_eh_frame_node) eh_frame_entries;$/;"	m	struct:elfobj::__anon10
+eh_frame_hdr	include/dwarf.h	/^typedef struct eh_frame_hdr {$/;"	s
+eh_frame_hdr	include/libelfmaster.h	/^	void *eh_frame_hdr;$/;"	m	struct:elfobj
+eh_frame_hdr_addr	include/libelfmaster.h	/^	uint64_t eh_frame_hdr_addr;$/;"	m	struct:elfobj
+eh_frame_hdr_offset	include/libelfmaster.h	/^	uint64_t eh_frame_hdr_offset;$/;"	m	struct:elfobj
+eh_frame_hdr_size	include/libelfmaster.h	/^	size_t eh_frame_hdr_size;$/;"	m	struct:elfobj
+eh_frame_hdr_t	include/dwarf.h	/^} __attribute__((packed)) eh_frame_hdr_t;$/;"	t	typeref:struct:eh_frame_hdr
+eh_frame_ptr	include/dwarf.h	/^	uint32_t eh_frame_ptr;$/;"	m	struct:eh_frame_hdr
+eh_frame_ptr_enc	include/dwarf.h	/^	uint8_t eh_frame_ptr_enc;$/;"	m	struct:eh_frame_hdr
+eh_frame_vec	include/dwarf.h	/^typedef struct eh_frame_vec {$/;"	s
+eh_frame_vec_t	include/dwarf.h	/^} eh_frame_vec_t;$/;"	t	typeref:struct:eh_frame_vec
+ehdr32	include/libelfmaster.h	/^		Elf32_Ehdr *ehdr32;$/;"	m	union:elfobj::__anon2
+ehdr64	include/libelfmaster.h	/^		Elf64_Ehdr *ehdr64;$/;"	m	union:elfobj::__anon2
+elf_address_pointer	src/libelfmaster.c	/^elf_address_pointer(struct elfobj *obj, uint64_t address)$/;"	f
+elf_arch	include/libelfmaster.h	/^typedef enum elf_arch {$/;"	g
+elf_arch_t	include/libelfmaster.h	/^} elf_arch_t;$/;"	t	typeref:enum:elf_arch
+elf_basename	src/libelfmaster.c	/^elf_basename(elfobj_t *obj)$/;"	f
+elf_class	include/libelfmaster.h	/^typedef enum elf_class {$/;"	g
+elf_class	src/libelfmaster.c	/^elf_class(elfobj_t *obj)$/;"	f
+elf_class_t	include/libelfmaster.h	/^} elf_class_t;$/;"	t	typeref:enum:elf_class
+elf_close_object	src/libelfmaster.c	/^elf_close_object(elfobj_t *obj)$/;"	f
+elf_data_base	src/libelfmaster.c	/^elf_data_base(struct elfobj *obj)$/;"	f
+elf_data_filesz	src/libelfmaster.c	/^elf_data_filesz(elfobj_t *obj)$/;"	f
+elf_data_offset	src/libelfmaster.c	/^elf_data_offset(struct elfobj *obj)$/;"	f
+elf_dynamic_entry	include/libelfmaster.h	/^typedef struct elf_dynamic_entry {$/;"	s
+elf_dynamic_entry_t	include/libelfmaster.h	/^} elf_dynamic_entry_t;$/;"	t	typeref:struct:elf_dynamic_entry
+elf_dynamic_iterator	include/libelfmaster.h	/^typedef struct elf_dynamic_iterator {$/;"	s
+elf_dynamic_iterator_init	src/libelfmaster.c	/^elf_dynamic_iterator_init(struct elfobj *obj, struct elf_dynamic_iterator *iter)$/;"	f
+elf_dynamic_iterator_next	src/libelfmaster.c	/^elf_dynamic_iterator_next(struct elf_dynamic_iterator *iter,$/;"	f
+elf_dynamic_iterator_t	include/libelfmaster.h	/^} elf_dynamic_iterator_t;$/;"	t	typeref:struct:elf_dynamic_iterator
+elf_dynamic_string	src/libelfmaster.c	/^elf_dynamic_string(struct elfobj *obj, uint64_t offset)$/;"	f
+elf_dynsym_iterator	include/libelfmaster.h	/^typedef struct elf_dynsym_iterator {$/;"	s
+elf_dynsym_iterator_init	src/libelfmaster.c	/^elf_dynsym_iterator_init(struct elfobj *obj, struct elf_dynsym_iterator *iter)$/;"	f
+elf_dynsym_iterator_next	src/libelfmaster.c	/^elf_dynsym_iterator_next(struct elf_dynsym_iterator *iter,$/;"	f
+elf_dynsym_iterator_t	include/libelfmaster.h	/^} elf_dynsym_iterator_t;$/;"	t	typeref:struct:elf_dynsym_iterator
+elf_eh_frame	include/libelfmaster.h	/^typedef struct elf_eh_frame {$/;"	s
+elf_eh_frame_iterator	include/libelfmaster.h	/^typedef struct elf_eh_frame_iterator {$/;"	s
+elf_eh_frame_iterator_init	src/libelfmaster.c	/^elf_eh_frame_iterator_init(struct elfobj *obj, struct elf_eh_frame_iterator *iter)$/;"	f
+elf_eh_frame_iterator_next	src/libelfmaster.c	/^elf_eh_frame_iterator_next(struct elf_eh_frame_iterator *iter,$/;"	f
+elf_eh_frame_iterator_t	include/libelfmaster.h	/^} elf_eh_frame_iterator_t;$/;"	t	typeref:struct:elf_eh_frame_iterator
+elf_eh_frame_node	include/internal.h	/^struct elf_eh_frame_node {$/;"	s
+elf_eh_frame_t	include/libelfmaster.h	/^} elf_eh_frame_t;$/;"	t	typeref:struct:elf_eh_frame
+elf_entry_point	src/libelfmaster.c	/^elf_entry_point(struct elfobj *obj)$/;"	f
+elf_error	include/libelfmaster.h	/^typedef struct elf_error {$/;"	s
+elf_error_msg	src/libelfmaster.c	/^elf_error_msg(elf_error_t *error)$/;"	f
+elf_error_set	src/internal.c	/^elf_error_set(elf_error_t *error, const char *fmt, ...)$/;"	f
+elf_error_t	include/libelfmaster.h	/^} elf_error_t;$/;"	t	typeref:struct:elf_error
+elf_fde_node	include/internal.h	/^typedef struct elf_fde_node {$/;"	s
+elf_fde_node	include/internal.h	/^} elf_fde_node;$/;"	t	typeref:struct:elf_fde_node
+elf_flags	src/libelfmaster.c	/^elf_flags(elfobj_t *obj, elf_obj_flags_t flag)$/;"	f
+elf_iterator_res	include/libelfmaster.h	/^typedef enum elf_iterator_res {$/;"	g
+elf_iterator_res_t	include/libelfmaster.h	/^} elf_iterator_res_t;$/;"	t	typeref:enum:elf_iterator_res
+elf_linking_type	include/libelfmaster.h	/^typedef enum elf_linking_type {$/;"	g
+elf_linking_type	src/libelfmaster.c	/^elf_linking_type(elfobj_t *obj)$/;"	f
+elf_linking_type_t	include/libelfmaster.h	/^} elf_linking_type_t;$/;"	t	typeref:enum:elf_linking_type
+elf_machine	src/libelfmaster.c	/^elf_machine(struct elfobj *obj)$/;"	f
+elf_malloc_node	include/internal.h	/^typedef struct elf_malloc_node {$/;"	s
+elf_malloc_node_t	include/internal.h	/^} elf_malloc_node_t;$/;"	t	typeref:struct:elf_malloc_node
+elf_map_loadable_segments	src/libelfmaster.c	/^elf_map_loadable_segments(struct elfobj *obj, struct elf_mapping *mapping,$/;"	f
+elf_mapping	include/libelfmaster.h	/^typedef struct elf_mapping {$/;"	s
+elf_mapping_t	include/libelfmaster.h	/^} elf_mapping_t;$/;"	t	typeref:struct:elf_mapping
+elf_note_entry	include/libelfmaster.h	/^typedef struct elf_note_entry {$/;"	s
+elf_note_entry_t	include/libelfmaster.h	/^} elf_note_entry_t;$/;"	t	typeref:struct:elf_note_entry
+elf_note_iterator	include/libelfmaster.h	/^typedef struct elf_note_iterator {$/;"	s
+elf_note_iterator_init	src/libelfmaster.c	/^elf_note_iterator_init(struct elfobj *obj, struct elf_note_iterator *iter)$/;"	f
+elf_note_iterator_next	src/libelfmaster.c	/^elf_note_iterator_next(struct elf_note_iterator *iter,$/;"	f
+elf_note_iterator_t	include/libelfmaster.h	/^} elf_note_iterator_t;$/;"	t	typeref:struct:elf_note_iterator
+elf_obj_flags	include/libelfmaster.h	/^typedef enum elf_obj_flags {$/;"	g
+elf_obj_flags_t	include/libelfmaster.h	/^} elf_obj_flags_t;$/;"	t	typeref:enum:elf_obj_flags
+elf_offset_pointer	src/libelfmaster.c	/^elf_offset_pointer(elfobj_t *obj, uint64_t off)$/;"	f
+elf_open_object	src/libelfmaster.c	/^elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,$/;"	f
+elf_pathname	src/libelfmaster.c	/^elf_pathname(elfobj_t *obj)$/;"	f
+elf_plt	include/libelfmaster.h	/^typedef struct elf_plt {$/;"	s
+elf_plt_by_name	src/libelfmaster.c	/^elf_plt_by_name(struct elfobj *obj, const char *name, struct elf_plt *entry)$/;"	f
+elf_plt_iterator	include/libelfmaster.h	/^typedef struct elf_plt_iterator {$/;"	s
+elf_plt_iterator_init	src/libelfmaster.c	/^elf_plt_iterator_init(struct elfobj *obj, struct elf_plt_iterator *iter)$/;"	f
+elf_plt_iterator_next	src/libelfmaster.c	/^elf_plt_iterator_next(struct elf_plt_iterator *iter, struct elf_plt *entry)$/;"	f
+elf_plt_iterator_t	include/libelfmaster.h	/^} elf_plt_iterator_t;$/;"	t	typeref:struct:elf_plt_iterator
+elf_plt_node	include/internal.h	/^typedef struct elf_plt_node {$/;"	s
+elf_plt_node_t	include/internal.h	/^} elf_plt_node_t;$/;"	t	typeref:struct:elf_plt_node
+elf_plt_t	include/libelfmaster.h	/^} elf_plt_t;$/;"	t	typeref:struct:elf_plt
+elf_pltgot_entry	include/libelfmaster.h	/^typedef struct elf_pltgot_entry {$/;"	s
+elf_pltgot_entry_t	include/libelfmaster.h	/^} elf_pltgot_entry_t;$/;"	t	typeref:struct:elf_pltgot_entry
+elf_pltgot_flag_string	src/libelfmaster.c	/^elf_pltgot_flag_string(uint32_t flags)$/;"	f
+elf_pltgot_iterator	include/libelfmaster.h	/^typedef struct elf_pltgot_iterator {$/;"	s
+elf_pltgot_iterator_init	src/libelfmaster.c	/^elf_pltgot_iterator_init(struct elfobj *obj, struct elf_pltgot_iterator *iter)$/;"	f
+elf_pltgot_iterator_next	src/libelfmaster.c	/^elf_pltgot_iterator_next(struct elf_pltgot_iterator *iter, struct elf_pltgot_entry *entry)$/;"	f
+elf_pltgot_iterator_t	include/libelfmaster.h	/^} elf_pltgot_iterator_t;$/;"	t	typeref:struct:elf_pltgot_iterator
+elf_read_address	src/libelfmaster.c	/^elf_read_address(elfobj_t *obj, uint64_t addr, uint64_t *out, typewidth_t width)$/;"	f
+elf_read_offset	src/libelfmaster.c	/^elf_read_offset(elfobj_t *obj, uint64_t offset, uint64_t *out, typewidth_t width)$/;"	f
+elf_rel_helper_node	include/internal.h	/^struct elf_rel_helper_node {$/;"	s
+elf_reloc_type_string	src/libelfmaster.c	/^elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)$/;"	f
+elf_relocation	include/libelfmaster.h	/^struct elf_relocation {$/;"	s
+elf_relocation_iterator	include/libelfmaster.h	/^typedef struct elf_relocation_iterator {$/;"	s
+elf_relocation_iterator_init	src/libelfmaster.c	/^elf_relocation_iterator_init(struct elfobj *obj,$/;"	f
+elf_relocation_iterator_next	src/libelfmaster.c	/^elf_relocation_iterator_next(struct elf_relocation_iterator *iter,$/;"	f
+elf_relocation_iterator_t	include/libelfmaster.h	/^} elf_relocation_iterator_t;$/;"	t	typeref:struct:elf_relocation_iterator
+elf_section	include/libelfmaster.h	/^struct elf_section {$/;"	s
+elf_section_by_index	src/libelfmaster.c	/^elf_section_by_index(struct elfobj *obj, uint32_t index,$/;"	f
+elf_section_by_name	src/libelfmaster.c	/^elf_section_by_name(struct elfobj *obj, const char *name,$/;"	f
+elf_section_iterator	include/libelfmaster.h	/^typedef struct elf_section_iterator {$/;"	s
+elf_section_iterator_init	src/libelfmaster.c	/^elf_section_iterator_init(struct elfobj *obj, struct elf_section_iterator *iter)$/;"	f
+elf_section_iterator_next	src/libelfmaster.c	/^elf_section_iterator_next(struct elf_section_iterator *iter,$/;"	f
+elf_section_iterator_t	include/libelfmaster.h	/^} elf_section_iterator_t;$/;"	t	typeref:struct:elf_section_iterator
+elf_section_name_by_index	src/libelfmaster.c	/^elf_section_name_by_index(struct elfobj *obj, uint32_t index)$/;"	f
+elf_section_node	include/internal.h	/^struct elf_section_node {$/;"	s
+elf_section_pointer	src/libelfmaster.c	/^elf_section_pointer(elfobj_t *obj, void *shdr)$/;"	f
+elf_section_string	src/libelfmaster.c	/^elf_section_string(struct elfobj *obj, uint64_t offset)$/;"	f
+elf_segment	include/libelfmaster.h	/^struct elf_segment {$/;"	s
+elf_segment_iterator	include/libelfmaster.h	/^typedef struct elf_segment_iterator {$/;"	s
+elf_segment_iterator_init	src/libelfmaster.c	/^elf_segment_iterator_init(struct elfobj *obj, struct elf_segment_iterator *iter)$/;"	f
+elf_segment_iterator_next	src/libelfmaster.c	/^elf_segment_iterator_next(struct elf_segment_iterator *iter,$/;"	f
+elf_segment_iterator_t	include/libelfmaster.h	/^} elf_segment_iterator_t;$/;"	t	typeref:struct:elf_segment_iterator
+elf_segment_type_string	src/libelfmaster.c	/^elf_segment_type_string(uint32_t type)$/;"	f
+elf_shared_object	include/libelfmaster.h	/^typedef struct elf_shared_object {$/;"	s
+elf_shared_object_iterator	include/libelfmaster.h	/^typedef struct elf_shared_object_iterator {$/;"	s
+elf_shared_object_iterator_init	src/libelfmaster.c	/^elf_shared_object_iterator_init(struct elfobj *obj,$/;"	f
+elf_shared_object_iterator_next	src/libelfmaster.c	/^elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,$/;"	f
+elf_shared_object_iterator_t	include/libelfmaster.h	/^} elf_shared_object_iterator_t;$/;"	t	typeref:struct:elf_shared_object_iterator
+elf_shared_object_node	include/internal.h	/^typedef struct elf_shared_object_node {$/;"	s
+elf_shared_object_node_t	include/internal.h	/^} elf_shared_object_node_t;$/;"	t	typeref:struct:elf_shared_object_node
+elf_shared_object_t	include/libelfmaster.h	/^} elf_shared_object_t;$/;"	t	typeref:struct:elf_shared_object
+elf_symbol	include/libelfmaster.h	/^struct elf_symbol {$/;"	s
+elf_symbol_by_index	src/libelfmaster.c	/^elf_symbol_by_index(struct elfobj *obj, unsigned int index,$/;"	f
+elf_symbol_by_name	src/libelfmaster.c	/^elf_symbol_by_name(struct elfobj *obj, const char *name,$/;"	f
+elf_symbol_node	include/internal.h	/^struct elf_symbol_node {$/;"	s
+elf_symtab_iterator	include/libelfmaster.h	/^typedef struct elf_symtab_iterator {$/;"	s
+elf_symtab_iterator_init	src/libelfmaster.c	/^elf_symtab_iterator_init(struct elfobj *obj, struct elf_symtab_iterator *iter)$/;"	f
+elf_symtab_iterator_next	src/libelfmaster.c	/^elf_symtab_iterator_next(struct elf_symtab_iterator *iter,$/;"	f
+elf_symtab_iterator_t	include/libelfmaster.h	/^} elf_symtab_iterator_t;$/;"	t	typeref:struct:elf_symtab_iterator
+elf_symtab_string	src/libelfmaster.c	/^elf_symtab_string(struct elfobj *obj, uint64_t offset)$/;"	f
+elf_text_base	src/libelfmaster.c	/^elf_text_base(struct elfobj *obj)$/;"	f
+elf_text_filesz	src/libelfmaster.c	/^elf_text_filesz(elfobj_t *obj)$/;"	f
+elf_text_offset	src/libelfmaster.c	/^elf_text_offset(struct elfobj *obj)$/;"	f
+elf_type	src/libelfmaster.c	/^elf_type(struct elfobj *obj)$/;"	f
+elfclass32	include/libelfmaster.h	/^	elfclass32$/;"	e	enum:elf_class
+elfclass64	include/libelfmaster.h	/^	elfclass64,$/;"	e	enum:elf_class
+elfobj	include/libelfmaster.h	/^typedef struct elfobj {$/;"	s
+elfobj_t	include/libelfmaster.h	/^} elfobj_t;$/;"	t	typeref:struct:elfobj
+entry_point	include/libelfmaster.h	/^	uint64_t entry_point;$/;"	m	struct:elfobj
+entsize	include/internal.h	/^	uint64_t entsize;$/;"	m	struct:elf_section_node
+entsize	include/libelfmaster.h	/^	uint64_t entsize;$/;"	m	struct:elf_section
+epilog	configure	/^epilog()$/;"	f
+exists	include/libelfmaster.h	/^		bool exists;$/;"	m	struct:elfobj::__anon11
+fd	include/libelfmaster.h	/^	int fd;$/;"	m	struct:elf_shared_object_iterator
+fde_count	include/dwarf.h	/^	uint32_t fde_count;$/;"	m	struct:eh_frame_hdr
+fde_count	include/libelfmaster.h	/^	size_t fde_count; \/* holds the number of fde's after they've been parsed *\/$/;"	m	struct:elfobj
+fde_count_enc	include/dwarf.h	/^	uint8_t fde_count_enc;$/;"	m	struct:eh_frame_hdr
+fde_entry_offset	include/dwarf.h	/^	uint64_t fde_entry_offset;$/;"	m	struct:eh_frame_vec
+file_entry	include/internal.h	/^struct file_entry {$/;"	s
+file_entry_new	include/internal.h	/^struct file_entry_new {$/;"	s
+filesz	include/libelfmaster.h	/^	uint64_t filesz;$/;"	m	struct:elf_segment
+fini	include/libelfmaster.h	/^		} fini;$/;"	m	struct:elfobj::__anon11	typeref:struct:elfobj::__anon11::__anon23
+fini_array	include/libelfmaster.h	/^		} fini_array;$/;"	m	struct:elfobj::__anon11	typeref:struct:elfobj::__anon11::__anon13
+fini_array_size	include/libelfmaster.h	/^	size_t fini_array_size;$/;"	m	struct:elfobj
+fini_array_vaddr	include/libelfmaster.h	/^	uint64_t fini_array_vaddr;$/;"	m	struct:elfobj
+flag	include/libelfmaster.h	/^	uint32_t flag;$/;"	m	struct:pt_load
+flags	include/internal.h	/^	int flags;$/;"	m	struct:file_entry
+flags	include/internal.h	/^	int32_t flags;$/;"	m	struct:file_entry_new
+flags	include/libelfmaster.h	/^	elf_obj_flags_t flags;$/;"	m	struct:elfobj
+flags	include/libelfmaster.h	/^	uint32_t flags; \/* can be set to ELF_PLTGOT_* flags *\/$/;"	m	struct:elf_pltgot_entry
+flags	include/libelfmaster.h	/^	uint32_t flags;$/;"	m	struct:elf_segment
+flags	include/libelfmaster.h	/^	uint32_t flags;$/;"	m	struct:elf_shared_object_iterator
+flags	include/libelfmaster.h	/^	uint64_t flags;$/;"	m	struct:elf_section
+flags	include/libelfmaster.h	/^	unsigned int flags;$/;"	m	struct:elf_mapping
+free_arrays	src/internal.c	/^free_arrays(elfobj_t *obj)$/;"	f
+free_caches	src/internal.c	/^free_caches(elfobj_t *obj)$/;"	f
+free_lists	src/internal.c	/^free_lists(elfobj_t *obj)$/;"	f
+free_misc	src/internal.c	/^void free_misc(elfobj_t *obj)$/;"	f
+generate	configure	/^generate()$/;"	f
+generate_stdout	configure	/^generate_stdout()$/;"	f
+gotsize	include/libelfmaster.h	/^	size_t gotsize;$/;"	m	struct:elf_pltgot_iterator
+hash	include/libelfmaster.h	/^		} hash;$/;"	m	struct:elfobj::__anon11	typeref:struct:elfobj::__anon11::__anon24
+head	include/libelfmaster.h	/^	struct elf_rel_helper_node *current, *head;$/;"	m	struct:elf_relocation_iterator	typeref:struct:elf_relocation_iterator::
+hwcap	include/internal.h	/^	uint64_t hwcap;$/;"	m	struct:file_entry_new
+i386	include/libelfmaster.h	/^	i386,$/;"	e	enum:elf_arch
+index	include/internal.h	/^	unsigned int index; \/\/ used by elf_shared_object iterator$/;"	m	struct:elf_shared_object_node
+index	include/libelfmaster.h	/^	unsigned int index;$/;"	m	struct:elf_dynamic_iterator
+index	include/libelfmaster.h	/^	unsigned int index;$/;"	m	struct:elf_mapping
+index	include/libelfmaster.h	/^	unsigned int index;$/;"	m	struct:elf_note_iterator
+index	include/libelfmaster.h	/^	unsigned int index;$/;"	m	struct:elf_pltgot_iterator
+index	include/libelfmaster.h	/^	unsigned int index;$/;"	m	struct:elf_relocation_iterator
+index	include/libelfmaster.h	/^	unsigned int index;$/;"	m	struct:elf_section_iterator
+index	include/libelfmaster.h	/^	unsigned int index;$/;"	m	struct:elf_segment
+index	include/libelfmaster.h	/^	unsigned int index;$/;"	m	struct:elf_segment_iterator
+index	include/libelfmaster.h	/^	unsigned int index;$/;"	m	struct:elf_shared_object_iterator
+info	include/internal.h	/^	uint32_t info;$/;"	m	struct:elf_section_node
+info	include/libelfmaster.h	/^	uint32_t info;$/;"	m	struct:elf_section
+init	include/libelfmaster.h	/^		} init;$/;"	m	struct:elfobj::__anon11	typeref:struct:elfobj::__anon11::__anon22
+init_array	include/libelfmaster.h	/^		} init_array;$/;"	m	struct:elfobj::__anon11	typeref:struct:elfobj::__anon11::__anon12
+init_array_size	include/libelfmaster.h	/^	size_t init_array_size;$/;"	m	struct:elfobj
+init_array_vaddr	include/libelfmaster.h	/^	uint64_t init_array_vaddr;$/;"	m	struct:elfobj
+initial_loc	include/dwarf.h	/^	uint64_t initial_loc;$/;"	m	struct:eh_frame_vec
+insane_headers	src/internal.c	/^insane_headers(elfobj_t *obj)$/;"	f
+internal_section_count	include/libelfmaster.h	/^	size_t internal_section_count;$/;"	m	struct:elfobj
+internal_shstrtab_size	include/libelfmaster.h	/^	size_t internal_shstrtab_size;$/;"	m	struct:elfobj
+key	include/internal.h	/^	uint32_t key;$/;"	m	struct:file_entry
+key	include/internal.h	/^	uint32_t key;$/;"	m	struct:file_entry_new
+ldso_cache_bsearch	src/internal.c	/^ldso_cache_bsearch(struct elf_shared_object_iterator *iter,$/;"	f
+ldso_cache_check_flags	src/internal.c	/^ldso_cache_check_flags(struct elf_shared_object_iterator *iter,$/;"	f	file:
+ldso_cache_cmp	src/internal.c	/^ldso_cache_cmp(const char *p1, const char *p2)$/;"	f	file:
+ldso_cache_verify_offset	src/internal.c	334;"	d	file:
+ldso_cleanup	src/internal.c	/^ldso_cleanup(struct elf_shared_object_iterator *iter)$/;"	f
+ldso_free_malloc_list	src/internal.c	/^ldso_free_malloc_list(struct elf_shared_object_iterator *iter)$/;"	f
+ldso_insert_yield_cache	src/internal.c	/^ldso_insert_yield_cache(struct elf_shared_object_iterator *iter,$/;"	f
+ldso_insert_yield_entry	src/internal.c	/^ldso_insert_yield_entry(struct elf_shared_object_iterator *iter,$/;"	f	file:
+ldso_malloc	src/internal.c	/^ldso_malloc(struct elf_shared_object_iterator *iter, size_t size)$/;"	f	file:
+ldso_recursive_cache_resolve	src/internal.c	/^ldso_recursive_cache_resolve(struct elf_shared_object_iterator *iter,$/;"	f
+ldso_strdup	src/internal.c	/^ldso_strdup(struct elf_shared_object_iterator *iter, const char *s)$/;"	f	file:
+len	include/internal.h	/^	size_t len;$/;"	m	struct:elf_fde_node
+len	include/internal.h	/^        size_t len;$/;"	m	struct:elf_eh_frame_node
+len	include/libelfmaster.h	/^	size_t len;$/;"	m	struct:elf_eh_frame
+len	include/libelfmaster.h	/^	size_t len;$/;"	m	struct:elf_mapping
+len_strings	include/internal.h	/^	uint32_t len_strings;	\/* size of string table *\/$/;"	m	struct:cache_file_new
+libs	include/internal.h	/^	struct file_entry libs[0];$/;"	m	struct:cache_file	typeref:struct:cache_file::file_entry
+libs	include/internal.h	/^	struct file_entry_new libs[0]; \/* Entries describing libraries *\/$/;"	m	struct:cache_file_new	typeref:struct:cache_file_new::file_entry_new
+likely	include/internal.h	38;"	d
+likely	include/internal.h	41;"	d
+link	include/internal.h	/^	uint32_t link;$/;"	m	struct:elf_section_node
+link	include/libelfmaster.h	/^	uint32_t link;$/;"	m	struct:elf_section
+list	include/libelfmaster.h	/^	LIST_HEAD(elf_rel_helper_list, elf_rel_helper_node) list;$/;"	m	struct:elf_relocation_iterator
+list	include/libelfmaster.h	/^	} list;$/;"	m	struct:elfobj	typeref:struct:elfobj::__anon10
+load_count	include/libelfmaster.h	/^	size_t load_count;$/;"	m	struct:elfobj
+load_dynamic_segment_data	src/internal.c	/^load_dynamic_segment_data(struct elfobj *obj)$/;"	f
+load_flags	include/libelfmaster.h	/^	uint64_t load_flags;$/;"	m	struct:elfobj
+magic	include/internal.h	/^	char magic[sizeof CACHEMAGIC - 1];$/;"	m	struct:cache_file
+magic	include/internal.h	/^	char magic[sizeof CACHEMAGIC_NEW - 1];$/;"	m	struct:cache_file_new
+main	examples/checksec.c	/^int main(int argc, char **argv)$/;"	f
+main	examples/eh_frame.c	/^int main(int argc, char **argv)$/;"	f
+main	examples/elfparse.c	/^int main(int argc, char **argv)$/;"	f
+main	examples/ldd.c	/^int main(int argc, char **argv)$/;"	f
+main	examples/plt_dump.c	/^int main(int argc, char **argv)$/;"	f
+main	examples/plt_dump2.c	/^int main(int argc, char **argv)$/;"	f
+main	examples/pltgot.c	/^int main(int argc, char **argv)$/;"	f
+main	examples/pointers.c	/^int main(void)$/;"	f
+main	examples/pointers.s	/^main:$/;"	l
+main	examples/read_mem.c	/^int main(int argc, char **argv)$/;"	f
+main	examples/sections.c	/^int main(int argc, char **argv)$/;"	f
+main	examples/symbols.c	/^int main(int argc, char **argv)$/;"	f
+main	examples/test.c	/^int main(void)$/;"	f
+main	utils/stripx.c	/^int main(int argc, char **argv)$/;"	f
+malloc_list	include/libelfmaster.h	/^	LIST_HEAD(ldso_malloc_list, elf_malloc_node) malloc_list;$/;"	m	struct:elf_shared_object_iterator
+mem	include/libelfmaster.h	/^	uint8_t *mem;$/;"	m	struct:elfobj
+mem	include/libelfmaster.h	/^	uint8_t *mem[MAX_LOADABLE_MAPPINGS];$/;"	m	struct:elf_mapping
+mem	include/libelfmaster.h	/^	void *mem;$/;"	m	struct:elf_note_entry
+mem	include/libelfmaster.h	/^	void *mem;$/;"	m	struct:elf_shared_object_iterator
+memsz	include/libelfmaster.h	/^	uint64_t memsz;$/;"	m	struct:elf_segment
+name	include/internal.h	/^	char *name;$/;"	m	struct:elf_section_node
+name	include/internal.h	/^	const char *name;$/;"	m	struct:elf_symbol_node
+name	include/libelfmaster.h	/^	char *name;$/;"	m	struct:elf_section
+name	include/libelfmaster.h	/^	const char *name;$/;"	m	struct:elf_symbol
+nlibs	include/internal.h	/^	uint32_t nlibs;		\/* number of entries *\/$/;"	m	struct:cache_file_new
+nlibs	include/internal.h	/^	uint32_t nlibs;$/;"	m	struct:cache_file
+note32	include/libelfmaster.h	/^		Elf32_Nhdr *note32;$/;"	m	union:elf_note_iterator::__anon27
+note32	include/libelfmaster.h	/^		Elf32_Nhdr *note32;$/;"	m	union:elfobj::__anon8
+note64	include/libelfmaster.h	/^		Elf64_Nhdr *note64;$/;"	m	union:elf_note_iterator::__anon27
+note64	include/libelfmaster.h	/^		Elf64_Nhdr *note64;$/;"	m	union:elfobj::__anon8
+note_offset	include/libelfmaster.h	/^	uint64_t note_offset; \/* Offset of first note section found *\/$/;"	m	struct:elfobj
+note_size	include/libelfmaster.h	/^	size_t note_size;$/;"	m	struct:elfobj
+obj	include/libelfmaster.h	/^	elfobj_t *obj;$/;"	m	struct:elf_dynamic_iterator
+obj	include/libelfmaster.h	/^	elfobj_t *obj;$/;"	m	struct:elf_note_iterator
+obj	include/libelfmaster.h	/^	elfobj_t *obj;$/;"	m	struct:elf_pltgot_iterator
+obj	include/libelfmaster.h	/^	elfobj_t *obj;$/;"	m	struct:elf_relocation_iterator
+obj	include/libelfmaster.h	/^	elfobj_t *obj;$/;"	m	struct:elf_section_iterator
+obj	include/libelfmaster.h	/^	elfobj_t *obj;$/;"	m	struct:elf_segment_iterator
+obj	include/libelfmaster.h	/^	elfobj_t *obj;$/;"	m	struct:elf_shared_object_iterator
+offset	include/internal.h	/^	uint64_t offset;$/;"	m	struct:elf_section_node
+offset	include/libelfmaster.h	/^			uint64_t offset;$/;"	m	struct:elfobj::__anon11::__anon25
+offset	include/libelfmaster.h	/^	uint64_t offset;$/;"	m	struct:elf_pltgot_entry
+offset	include/libelfmaster.h	/^	uint64_t offset;$/;"	m	struct:elf_relocation
+offset	include/libelfmaster.h	/^	uint64_t offset;$/;"	m	struct:elf_section
+offset	include/libelfmaster.h	/^	uint64_t offset;$/;"	m	struct:elf_segment
+original_ep	src/internal.c	/^original_ep(elfobj_t *obj)$/;"	f	file:
+osversion	include/internal.h	/^	uint32_t osversion;$/;"	m	struct:file_entry_new
+paddr	include/libelfmaster.h	/^	uint64_t paddr;$/;"	m	struct:elf_segment
+path	include/internal.h	/^	char *path;$/;"	m	struct:elf_shared_object_node
+path	include/libelfmaster.h	/^	char *path;$/;"	m	struct:elf_shared_object
+path	include/libelfmaster.h	/^	const char *path;$/;"	m	struct:elfobj
+pathsearch	configure	/^pathsearch()$/;"	f
+pc_begin	include/internal.h	/^        unsigned long long pc_begin;$/;"	m	struct:elf_eh_frame_node
+pc_begin	include/libelfmaster.h	/^	unsigned long long pc_begin;$/;"	m	struct:elf_eh_frame
+pc_end	include/internal.h	/^	unsigned long pc_end;$/;"	m	struct:elf_fde_node
+pc_end	include/internal.h	/^        unsigned long long pc_end;$/;"	m	struct:elf_eh_frame_node
+pc_end	include/libelfmaster.h	/^	unsigned long long pc_end;$/;"	m	struct:elf_eh_frame
+pc_start	include/internal.h	/^	unsigned long pc_start;$/;"	m	struct:elf_fde_node
+phdr32	include/libelfmaster.h	/^		Elf32_Phdr *phdr32;$/;"	m	union:elfobj::__anon3
+phdr32	include/libelfmaster.h	/^		Elf32_Phdr phdr32;$/;"	m	union:pt_load::__anon1
+phdr64	include/libelfmaster.h	/^		Elf64_Phdr *phdr64;$/;"	m	union:elfobj::__anon3
+phdr64	include/libelfmaster.h	/^		Elf64_Phdr phdr64;$/;"	m	union:pt_load::__anon1
+phdr_sanity	src/internal.c	/^phdr_sanity(elfobj_t *obj, void *phdr)$/;"	f
+plt	include/libelfmaster.h	/^		LIST_HEAD(elf_plt_list, elf_plt_node) plt;$/;"	m	struct:elfobj::__anon10
+plt	include/libelfmaster.h	/^		struct hsearch_data plt;$/;"	m	struct:elfobj::__anon9	typeref:struct:elfobj::__anon9::hsearch_data
+pltgot	include/libelfmaster.h	/^		} pltgot;$/;"	m	struct:elfobj::__anon11	typeref:struct:elfobj::__anon11::__anon14
+pltgot	include/libelfmaster.h	/^	void *pltgot;$/;"	m	struct:elf_pltgot_iterator
+pltrel	include/libelfmaster.h	/^		} pltrel;$/;"	m	struct:elfobj::__anon11	typeref:struct:elfobj::__anon11::__anon17
+pt_load	include/libelfmaster.h	/^	struct pt_load *pt_load;$/;"	m	struct:elfobj	typeref:struct:elfobj::pt_load
+pt_load	include/libelfmaster.h	/^struct pt_load {$/;"	s
+ptr	include/internal.h	/^	void *ptr;$/;"	m	struct:elf_malloc_node
+reconstruct_elf_sections	src/internal.c	/^reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)$/;"	f
+rel	include/libelfmaster.h	/^		} rel;$/;"	m	struct:elfobj::__anon11	typeref:struct:elfobj::__anon11::__anon19
+rel32	include/internal.h	/^		Elf32_Rel *rel32;$/;"	m	union:elf_rel_helper_node::__anon28
+rel64	include/internal.h	/^		Elf64_Rel *rel64;$/;"	m	union:elf_rel_helper_node::__anon28
+rela	include/libelfmaster.h	/^		} rela;$/;"	m	struct:elfobj::__anon11	typeref:struct:elfobj::__anon11::__anon18
+rela32	include/internal.h	/^		Elf32_Rela *rela32;$/;"	m	union:elf_rel_helper_node::__anon29
+rela64	include/internal.h	/^		Elf64_Rela *rela64;$/;"	m	union:elf_rel_helper_node::__anon29
+relaent	include/libelfmaster.h	/^		} relaent;$/;"	m	struct:elfobj::__anon11	typeref:struct:elfobj::__anon11::__anon16
+relent	include/libelfmaster.h	/^		} relent;$/;"	m	struct:elfobj::__anon11	typeref:struct:elfobj::__anon11::__anon15
+resolve	include/libelfmaster.h	/^	bool resolve;$/;"	m	struct:elf_shared_object_iterator
+resolve_plt_addr	src/internal.c	/^resolve_plt_addr(elfobj_t *obj)$/;"	f
+runpath	include/libelfmaster.h	/^		} runpath;$/;"	m	struct:elfobj::__anon11	typeref:struct:elfobj::__anon11::__anon25
+sanity_check	src/internal.c	/^sanity_check(uint64_t offset, uint64_t limit)$/;"	f
+section_count	include/libelfmaster.h	/^	size_t section_count;$/;"	m	struct:elfobj
+section_name	include/internal.h	/^	char *section_name;$/;"	m	struct:elf_rel_helper_node
+section_name_cmp	src/internal.c	/^section_name_cmp(const void *p0, const void *p1)$/;"	f
+sections	include/libelfmaster.h	/^		LIST_HEAD(elf_section_list, elf_section_node) sections;$/;"	m	struct:elfobj::__anon10
+sections	include/libelfmaster.h	/^	struct elf_section **sections;$/;"	m	struct:elfobj	typeref:struct:elfobj::elf_section
+segment_count	include/libelfmaster.h	/^	size_t segment_count;$/;"	m	struct:elfobj
+shared_objects	include/libelfmaster.h	/^		LIST_HEAD(elf_shared_object_list, elf_shared_object_node) shared_objects;$/;"	m	struct:elfobj::__anon10
+shdr32	include/libelfmaster.h	/^		Elf32_Shdr *shdr32;$/;"	m	union:elfobj::__anon4
+shdr64	include/libelfmaster.h	/^		Elf64_Shdr *shdr64;$/;"	m	union:elfobj::__anon4
+shdrindex	include/libelfmaster.h	/^	size_t shdrindex; \/\/ used only when reconstructing sections$/;"	m	struct:elfobj
+shdrname	include/libelfmaster.h	/^	char *shdrname;$/;"	m	struct:elf_relocation
+shndx	include/internal.h	/^	uint16_t shndx;$/;"	m	struct:elf_symbol_node
+shndx	include/libelfmaster.h	/^	uint16_t shndx;$/;"	m	struct:elf_symbol
+shstrtab	include/libelfmaster.h	/^	char *shstrtab;$/;"	m	struct:elfobj
+size	include/internal.h	/^	size_t size;$/;"	m	struct:elf_rel_helper_node
+size	include/internal.h	/^	size_t size;$/;"	m	struct:elf_section_node
+size	include/internal.h	/^	uint64_t size;$/;"	m	struct:elf_symbol_node
+size	include/libelfmaster.h	/^			uint64_t size;$/;"	m	struct:elfobj::__anon11::__anon12
+size	include/libelfmaster.h	/^			uint64_t size;$/;"	m	struct:elfobj::__anon11::__anon13
+size	include/libelfmaster.h	/^			uint64_t size;$/;"	m	struct:elfobj::__anon11::__anon15
+size	include/libelfmaster.h	/^			uint64_t size;$/;"	m	struct:elfobj::__anon11::__anon16
+size	include/libelfmaster.h	/^			uint64_t size;$/;"	m	struct:elfobj::__anon11::__anon17
+size	include/libelfmaster.h	/^			uint64_t size;$/;"	m	struct:elfobj::__anon11::__anon18
+size	include/libelfmaster.h	/^			uint64_t size;$/;"	m	struct:elfobj::__anon11::__anon19
+size	include/libelfmaster.h	/^			uint64_t size;$/;"	m	struct:elfobj::__anon11::__anon21
+size	include/libelfmaster.h	/^	size_t size;$/;"	m	struct:elf_note_entry
+size	include/libelfmaster.h	/^	size_t size;$/;"	m	struct:elf_section
+size	include/libelfmaster.h	/^	size_t size;$/;"	m	struct:elfobj
+size	include/libelfmaster.h	/^	uint64_t size;$/;"	m	struct:elf_symbol
+sort_elf_sections	src/internal.c	/^sort_elf_sections(elfobj_t *obj, elf_error_t *error)$/;"	f
+st	include/libelfmaster.h	/^	struct stat st;$/;"	m	struct:elf_shared_object_iterator	typeref:struct:elf_shared_object_iterator::stat
+strindex	include/libelfmaster.h	/^	size_t strindex; \/\/ used only when creating custom strtabs$/;"	m	struct:elfobj
+string	include/libelfmaster.h	/^        char string[MAX_ERROR_STR_LEN];$/;"	m	struct:elf_error
+strtab	include/libelfmaster.h	/^	char *strtab;$/;"	m	struct:elfobj
+symname	include/internal.h	/^	char *symname;$/;"	m	struct:elf_plt_node
+symname	include/libelfmaster.h	/^	char *symname;$/;"	m	struct:elf_plt
+symname	include/libelfmaster.h	/^	char *symname;$/;"	m	struct:elf_relocation
+symtab	include/libelfmaster.h	/^		LIST_HEAD(elf_symtab_list, elf_symbol_node) symtab;$/;"	m	struct:elfobj::__anon10
+symtab	include/libelfmaster.h	/^		struct hsearch_data symtab;$/;"	m	struct:elfobj::__anon9	typeref:struct:elfobj::__anon9::hsearch_data
+symtab32	include/libelfmaster.h	/^		Elf32_Sym *symtab32;$/;"	m	union:elfobj::__anon5
+symtab64	include/libelfmaster.h	/^		Elf64_Sym *symtab64;$/;"	m	union:elfobj::__anon5
+symtab_count	include/libelfmaster.h	/^	size_t symtab_count;$/;"	m	struct:elfobj
+table_enc	include/dwarf.h	/^	uint8_t table_enc;$/;"	m	struct:eh_frame_hdr
+tag	include/libelfmaster.h	/^	unsigned int tag;$/;"	m	struct:elf_dynamic_entry
+test_dummy	examples/test2.c	/^static int test_dummy = 5;$/;"	v	file:
+text_address	include/libelfmaster.h	/^	uint64_t text_address; \/* text base address *\/$/;"	m	struct:elfobj
+text_offset	include/libelfmaster.h	/^	uint64_t text_offset;$/;"	m	struct:elfobj
+text_segment_filesz	include/libelfmaster.h	/^	size_t text_segment_filesz;$/;"	m	struct:elfobj
+type	include/internal.h	/^	uint32_t type;$/;"	m	struct:elf_section_node
+type	include/internal.h	/^	uint8_t type;$/;"	m	struct:elf_symbol_node
+type	include/libelfmaster.h	/^			uint32_t type;$/;"	m	struct:elfobj::__anon11::__anon17
+type	include/libelfmaster.h	/^	uint32_t type;$/;"	m	struct:elf_section
+type	include/libelfmaster.h	/^	uint32_t type;$/;"	m	struct:elf_segment
+type	include/libelfmaster.h	/^	uint64_t type;$/;"	m	struct:elf_relocation
+type	include/libelfmaster.h	/^	uint8_t type;$/;"	m	struct:elf_symbol
+type	include/libelfmaster.h	/^	unsigned int type;$/;"	m	struct:elf_note_entry
+type	include/libelfmaster.h	/^	unsigned int type;$/;"	m	struct:elfobj
+typewidth	include/libelfmaster.h	/^typedef enum typewidth {$/;"	g
+typewidth_t	include/libelfmaster.h	/^} typewidth_t;$/;"	t	typeref:enum:typewidth
+unlikely	include/internal.h	39;"	d
+unlikely	include/internal.h	42;"	d
+unsupported	include/libelfmaster.h	/^	unsupported$/;"	e	enum:elf_arch
+unused	include/internal.h	/^	uint32_t unused[5];	\/* space for future extension *\/$/;"	m	struct:cache_file_new
+vaddr	include/libelfmaster.h	/^	uint64_t vaddr;$/;"	m	struct:elf_segment
+value	include/internal.h	/^	uint32_t value;$/;"	m	struct:file_entry
+value	include/internal.h	/^	uint32_t value;$/;"	m	struct:file_entry_new
+value	include/internal.h	/^	uint64_t value;$/;"	m	struct:elf_symbol_node
+value	include/libelfmaster.h	/^			uint64_t value;$/;"	m	struct:elfobj::__anon11::__anon26
+value	include/libelfmaster.h	/^	uint64_t value;$/;"	m	struct:elf_dynamic_entry
+value	include/libelfmaster.h	/^	uint64_t value;$/;"	m	struct:elf_pltgot_entry
+value	include/libelfmaster.h	/^	uint64_t value;$/;"	m	struct:elf_symbol
+version	include/dwarf.h	/^	uint8_t version;$/;"	m	struct:eh_frame_hdr
+version	include/internal.h	/^	char version[sizeof CACHE_VERSION - 1];$/;"	m	struct:cache_file_new
+visibility	include/internal.h	/^	uint8_t visibility;$/;"	m	struct:elf_symbol_node
+visibility	include/libelfmaster.h	/^	uint8_t visibility;$/;"	m	struct:elf_symbol
+wordsize	include/libelfmaster.h	/^	size_t wordsize;$/;"	m	struct:elf_pltgot_iterator
+x64	include/libelfmaster.h	/^	x64,$/;"	e	enum:elf_arch
+yield	include/libelfmaster.h	/^	struct elf_shared_object_node *yield;$/;"	m	struct:elf_shared_object_iterator	typeref:struct:elf_shared_object_iterator::elf_shared_object_node
+yield_cache	include/libelfmaster.h	/^	struct hsearch_data yield_cache;$/;"	m	struct:elf_shared_object_iterator	typeref:struct:elf_shared_object_iterator::hsearch_data
+yield_list	include/libelfmaster.h	/^	LIST_HEAD(ldso_cache_yield_list, elf_shared_object_node) yield_list;$/;"	m	struct:elf_shared_object_iterator

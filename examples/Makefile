@@ -18,5 +18,6 @@ all:
 	gcc ../utils/stripx.c -o stripx
 	./stripx test_stripped
 	./stripx test32_stripped
+	gcc -O2 -g code_injection.c ../src/libelfmaster.a -o code_injection
 clean:
-	rm elfparse ldd plt_dump plt_dump2 sections eh_frame test test2 test32bit_pie test_pie test_stripped test32bit stripx symbols checksec test32_stripped
+	rm elfparse ldd plt_dump plt_dump2 sections eh_frame test test2 test32bit_pie test_pie test_stripped test32bit stripx symbols checksec test32_stripped code_injection
