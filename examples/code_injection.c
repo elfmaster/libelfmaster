@@ -302,7 +302,6 @@ elf_init_stub(struct elfobj *obj, uint8_t *mem, int size, elf_error_t *error)
 	obj->type = ELF_ET_STUB;
 	obj->mem = mem;
 	obj->size = size;
-	printf("stub size: %d\n", obj->size);
 	return true;
 }
 
