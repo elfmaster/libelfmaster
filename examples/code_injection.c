@@ -30,6 +30,9 @@ bool elf_commit_object(struct elfobj *obj, size_t size, int offset, elf_error_t 
 // macros
 #define ELF_INJECT_DATA 		0
 #define ELF_INJECT_REVERSE_CODE		1
+#define PAGE_SIZE 0x1000
+#define PAGE_ALIGN(x) (x & ~(PAGE_SIZE - 1))
+#define PAGE_ALIGN_UP(x) (PAGE_ALIGN(x) + PAGE_SIZE)
 
 // -----------------------------------ulexec
 bool
@@ -92,11 +95,58 @@ elf_commit_object(struct elfobj *obj, size_t size, int offset, elf_error_t *erro
 	return true;
 }
 
-bool elf_inject_code(struct elfobj *host, struct elfobj *target, void *payload, uint64_t injection_flags, elf_error_t *error) 
+bool 
+elf_inject_code(struct elfobj *host, struct elfobj *target, void *payload, uint64_t injection_flags, elf_error_t *error) 
 {
 	return true;	
 }
 
+int 
+internal_address_to_rva(struct elfobj *obj, uint64_t address) 
+{
+	return address - obj->text_address;
+}
+
+int 
+internal_segment_offset_delta(struct elfobj *obj, struct elf_segment *segment) {
+	return segment->offset - internal_address_to_rva(obj, segment->vaddr);
+}
+
+bool
+internal_offset_to_address(struct elfobj *obj, uint64_t offset, uint64_t *address) 
+{
+	elf_segment_iterator_t p_iter;
+	struct elf_segment segment;
+
+	elf_segment_iterator_init(obj, &p_iter);
+	while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
+		if(segment.type == PT_LOAD) {
+			if(segment.offset <= offset && 
+					offset <= PAGE_ALIGN_UP(segment.offset + segment.filesz)) {
+				*address = (offset + (segment.vaddr - segment.offset));
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool 
+internal_address_to_offset(struct elfobj *obj, uint64_t address, uint64_t *offset) 
+{
+	elf_segment_iterator_t p_iter;
+	struct elf_segment segment;
+
+	elf_segment_iterator_init(obj, &p_iter);
+	while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
+		if (segment.type == PT_LOAD) {
+			*offset = (internal_address_to_rva(obj, address) +
+					internal_segment_offset_delta(obj, &segment));
+			return true;
+		}
+	}
+	return false;
+}
 
 int main (int argc, char **argv) 
 {
@@ -105,6 +155,9 @@ int main (int argc, char **argv)
 	struct elf_symbol sym;
 	uint64_t qw;
 	bool res;
+
+
+	uint64_t address, offset;
 
 	if (argc < 2) {
 		printf("Usage: %s <binary>, <output binary>\n", argv[0]);
@@ -124,6 +177,17 @@ int main (int argc, char **argv)
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
-	printf("File %s was created\n", argv[2]);
+	
+	if(internal_offset_to_address(&obj1, 0, &address) == false) {
+		fprintf(stderr, "internal_offset_to_address: error\n");
+	        return -1;	
+	}
+	printf("address: %lx\n", address);
 
+	if(internal_address_to_offset(&obj1, address, &offset) == false) {
+		fprintf(stderr, "internal_address_to_offset: error\n");
+	        return -1;	
+	}
+	printf("offset: %lx\n", offset);
+	return 0;
 }
