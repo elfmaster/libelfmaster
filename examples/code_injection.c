@@ -21,8 +21,8 @@
 #include "../include/libelfmaster.h"
 #include "../include/internal.h"
 
-#define ELF_INJECT_DATA 		0
-#define ELF_INJECT_REVERSE_CODE		1
+#define ELF_INJECT_F_DATA 		0
+#define ELF_INJECT_F_REVERSE_CODE		1
 #define ELF_ET_STUB  			-1
 #define PAGE_SIZE 0x1000
 #define PAGE_ALIGN(x) (x & ~(PAGE_SIZE - 1))
@@ -359,7 +359,7 @@ int main (int argc, char **argv)
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
-	if (elf_inject_code(&objdest, &obj2, &p_offset, ELF_INJECT_DATA, &error) == false) {
+	if (elf_inject_code(&objdest, &obj2, &p_offset, ELF_INJECT_F_DATA, &error) == false) {
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	} 
