@@ -195,7 +195,7 @@ internal_offset_to_address(struct elfobj *obj, uint64_t offset, uint64_t *addres
 	while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
 		if(segment.type == PT_LOAD) {
 			if(segment.offset <= offset && 
-					offset <= PAGE_ALIGN_UP(segment.offset + segment.filesz)) {
+					offset < segment.offset + segment.filesz) {
 				*address = (offset + (segment.vaddr - segment.offset));
 				return true;
 			}
@@ -216,9 +216,12 @@ internal_address_to_offset(struct elfobj *obj, uint64_t address, uint64_t *offse
 	elf_segment_iterator_init(obj, &p_iter);
 	while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
 		if (segment.type == PT_LOAD) {
-			*offset = (internal_address_to_rva(obj, address) +
+			if (segment.vaddr <= address &&
+					address < segment.vaddr + segment.memsz) {
+				*offset = (internal_address_to_rva(obj, address) +
 					internal_segment_offset_delta(obj, &segment));
-			return true;
+				return true;
+			}
 		}
 	}
 	return false;
