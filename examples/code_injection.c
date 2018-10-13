@@ -326,8 +326,8 @@ int main (int argc, char **argv)
 	}
 
 	/* 
-	 * In case the binary payload is residing in memory, we can use these functions to load
-	 * it, as if it was an elf or some binary blob.
+	 * In case the binary payload is residing in disk, we can use these functions to load
+	 * it, as if it was an ELF file or some binary blob.
 	 *
 	if (elf_has_header(argv[2], &res, &error) == false) {
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
