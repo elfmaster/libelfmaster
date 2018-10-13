@@ -21,13 +21,6 @@
 #include "../include/libelfmaster.h"
 #include "../include/internal.h"
 
-/* includes
-bool elf_create_object(const char *path, struct elfobj *obj, size_t size, uint64_t load_flags, elf_error_t *); 
-bool elf_inject_code(struct elfobj_t *host, struct elfobj_t *target, void *payload, uint64_t injection_flags, elf_error_t *error);
-bool elf_commit_object(struct elfobj *obj, size_t size, int offset, elf_error_t *error);
-*/
-
-// macros
 #define ELF_INJECT_DATA 		0
 #define ELF_INJECT_REVERSE_CODE		1
 #define ELF_ET_STUB  			-1
@@ -178,7 +171,8 @@ internal_address_to_rva(struct elfobj *obj, uint64_t address)
  * alignment properlly.
  */
 uint64_t
-internal_segment_offset_delta(struct elfobj *obj, struct elf_segment *segment) {
+internal_segment_offset_delta(struct elfobj *obj, struct elf_segment *segment) 
+{
 	return segment->offset - internal_address_to_rva(obj, segment->vaddr);
 }
 
@@ -316,8 +310,8 @@ int main (int argc, char **argv)
 	elfobj_t obj2;
         elfobj_t objdest;
 	elf_error_t error;
-	struct elf_symbol sym;
-	uint64_t p_address, p_offset;
+	uint64_t p_address;
+	uint64_t p_offset;
 	bool res;
 
 	if (argc != 3) {
