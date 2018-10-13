@@ -131,8 +131,8 @@ elf_inject_code(struct elfobj *host, struct elfobj *target, uint64_t *payload_of
 					if (host->e_class == ELFCLASS32) {
 						Elf32_Phdr *phdr = &host->phdr32[p_iter.index-1];
 						offset = phdr->p_offset + phdr->p_memsz;
-						phdr->p_memsz += PAGE_ALIGN(target->size);
-						phdr->p_filesz += PAGE_ALIGN(target->size);
+						phdr->p_memsz += PAGE_ALIGN_UP(target->size);
+						phdr->p_filesz += PAGE_ALIGN_UP(target->size);
 						phdr->p_flags |= PF_X;
 
 					} else {	
