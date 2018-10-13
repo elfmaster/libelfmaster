@@ -186,7 +186,7 @@ internal_segment_offset_delta(struct elfobj *obj, struct elf_segment *segment) {
  * Translates a given offset to its equivalent address for a given elfobj_t instance.
  */
 bool
-internal_offset_to_address(struct elfobj *obj, uint64_t offset, uint64_t *address) 
+internal_offset_to_address(struct elfobj *obj, uint64_t offset, uint64_t *address, elf_error_t *error) 
 {
 	elf_segment_iterator_t p_iter;
 	struct elf_segment segment;
@@ -201,6 +201,7 @@ internal_offset_to_address(struct elfobj *obj, uint64_t offset, uint64_t *addres
 			}
 		}
 	}
+	elf_error_set(error, "Offset not found in any segment for the provided elfobj_t instance");
 	return false;
 }
 
@@ -208,7 +209,7 @@ internal_offset_to_address(struct elfobj *obj, uint64_t offset, uint64_t *addres
  * Translates a given address to its equivalent offset for a given elfobj_t instance.
  */
 bool 
-internal_address_to_offset(struct elfobj *obj, uint64_t address, uint64_t *offset) 
+internal_address_to_offset(struct elfobj *obj, uint64_t address, uint64_t *offset, elf_error_t *error) 
 {
 	elf_segment_iterator_t p_iter;
 	struct elf_segment segment;
@@ -224,6 +225,7 @@ internal_address_to_offset(struct elfobj *obj, uint64_t address, uint64_t *offse
 			}
 		}
 	}
+	elf_error_set(error, "Address not found in any segment for the provided elfobj_t instance");
 	return false;
 }
 
@@ -366,7 +368,7 @@ int main (int argc, char **argv)
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	} 
-	if(internal_offset_to_address(&objdest, p_offset, &p_address) == false) {
+	if(internal_offset_to_address(&objdest, p_offset, &p_address, &error) == false) {
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
