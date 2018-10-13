@@ -101,13 +101,13 @@ elf_inject_code(struct elfobj *host, struct elfobj *target, void *payload, uint6
 	return true;	
 }
 
-int 
+uint64_t 
 internal_address_to_rva(struct elfobj *obj, uint64_t address) 
 {
 	return address - obj->text_address;
 }
 
-int 
+uint64_t
 internal_segment_offset_delta(struct elfobj *obj, struct elf_segment *segment) {
 	return segment->offset - internal_address_to_rva(obj, segment->vaddr);
 }
@@ -173,21 +173,12 @@ int main (int argc, char **argv)
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
+
+	/*
 	if (elf_commit_object(&obj2, obj2.size, 0, &error) == false) {
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
-	
-	if(internal_offset_to_address(&obj1, 0, &address) == false) {
-		fprintf(stderr, "internal_offset_to_address: error\n");
-	        return -1;	
-	}
-	printf("address: %lx\n", address);
-
-	if(internal_address_to_offset(&obj1, address, &offset) == false) {
-		fprintf(stderr, "internal_address_to_offset: error\n");
-	        return -1;	
-	}
-	printf("offset: %lx\n", offset);
+	*/
 	return 0;
 }
