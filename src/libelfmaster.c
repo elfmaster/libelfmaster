@@ -524,7 +524,7 @@ const char *
 elf_dynamic_string(struct elfobj *obj, uint64_t offset)
 {
 
-	if (offset >= obj->size)
+	if (offset >= obj->size - 1)
 		return NULL;
 	return &obj->dynstr[offset];
 }

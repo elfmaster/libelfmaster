@@ -646,16 +646,33 @@ load_dynamic_segment_data(struct elfobj *obj)
 		obj->dynseg.exists = true;
 		/*
 		 * SECURITY: Some of these tags are expected more
-		 * than once
+		 * than once:
 		 * like DT_NEEDED. But an attacker who wants to
 		 * circumvent our reconstruction could put two
 		 * DT_PLTGOT tags for instance and we would save
 		 * the second one as the PLT/GOT address, and it
 		 * could be bunk. So lets make sure there's only
-		 * one of each unless it expected otherwise.
+		 * one of each unless it expected otherwise (such as NEEDED)
 		 * Eventually lets make sure to do further validation
-		 * i.e. does the pltgot.addr even point to a valid
-		 * location? (i.e. is it in the data segment)
+		 *
+		 * SECURITY TODO: Currently we do boundary checks on each value
+		 * and make sure that certain vital values are sane. This
+		 * is imperative for forensics reconstruction. There is a
+		 * fundamental problem with our approach that needs to be
+		 * addressed later on. We are assuming that these tags point
+		 * to values either in the traditional text segment or the
+		 * traditional data segment. Consider a scenario where the
+		 * DT_PLTGOT is in a loadable segment that is not determined
+		 * to be the data segment, yet we are using elf_data_base(obj)
+		 * to calculate sanity checks. This is important since we
+		 * need to be able to reconstruct the data segment, however
+		 * we may advance our technique in the future to support
+		 * reconstruction, even if a given tag value points to a
+		 * non-traditional memory range, as long as that segment
+		 * permissions are in alignment with the dynamic tag value
+		 * then we could respect it. This enhancement will ultimately
+		 * be spec'd out and designed properly and documented based
+		 * on more analysis and samples.
 		 */
 		switch(entry.tag) {
 		case DT_PLTGOT:
@@ -751,7 +768,8 @@ load_dynamic_segment_data(struct elfobj *obj)
 			 * cannot properly calculate an invalid size
 			 * since we won't have the exact location
 			 * of the relocation section yet. In that
-			 * case we do an approximation
+			 * case we do an approximation of whether the
+			 * size is 'likely' or 'approximately' sane
 			 */
 			if (obj->dynseg.rela.addr == 0) {
 				/*
@@ -839,6 +857,11 @@ load_dynamic_segment_data(struct elfobj *obj)
 				return false;
 			so->index++;
 			so->basename = elf_dynamic_string(obj, entry.value);
+			if (so->basename == NULL) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+				free(so);
+				break;
+			}
 			LIST_INSERT_HEAD(&obj->list.shared_objects, so,
 			    _linkage);
 			break;
@@ -873,6 +896,11 @@ load_dynamic_segment_data(struct elfobj *obj)
 			 * note to self: approximate guess here as well
 			 * since usually DT_FINI_ARRAY comes before DT_INIT_ARRAY
 			 */
+			if (entry.value < elf_data_base(obj) ||
+			    entry.value > elf_data_base(obj) +
+			    elf_data_filesz(obj) - ptr_width - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.fini_array.addr = entry.value;
 			break;
 		case DT_INIT_ARRAYSZ:
@@ -886,12 +914,20 @@ load_dynamic_segment_data(struct elfobj *obj)
 			obj->dynseg.fini_array.size = entry.value;
 			break;
 		case DT_RPATH:
+			/*
+			 * TODO we must get the runpath for
+			 * supporting these types of .so path
+			 * lookups. Also $ORIGIN expansion support
+			 * is a must as it is actually used in
+			 * a number of important ELF applications
+			 * that I've seen.
+			 */
 		case DT_RUNPATH:
 			break;
 		case DT_DEBUG:
 			if (dt_debug++ > 0)
 				break;
-			obj->dynseg.debug.value = 0;
+			obj->dynseg.debug.value = entry.value;
 			obj->flags |= ELF_DT_DEBUG_F;
 			break;
 		default:
@@ -903,6 +939,7 @@ load_dynamic_segment_data(struct elfobj *obj)
 
 void free_misc(elfobj_t *obj)
 {
+
 	if (elf_flags(obj, ELF_FORENSICS_F) == true) {
 		free(obj->shstrtab);
 		switch(obj->e_class) {
