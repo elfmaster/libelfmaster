@@ -1,4 +1,5 @@
 # libelfmaster
+## Update as of 11/17/18 -- I have a local branch with many new fixes that will be finished and committed by the end of December, been very busy.
 
 ## Secure ELF parsing library
 
