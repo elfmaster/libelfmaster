@@ -197,7 +197,9 @@ void free_arrays(elfobj_t *);
 
 void free_misc(elfobj_t *);
 
-bool insane_headers(elfobj_t *);
+bool insane_section_headers(elfobj_t *);
+
+bool insane_dynamic_segment(elfobj_t *);
 
 bool reconstruct_elf_sections(elfobj_t *, elf_error_t *);
 

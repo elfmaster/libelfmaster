@@ -207,7 +207,7 @@ build_symtab_data(struct elfobj *obj)
 	 * that correspond to each FDE within .eh_frame.
 	 */
 	if ((obj->load_flags & ELF_LOAD_F_FORENSICS) &&
-	    insane_headers(obj) == true) {
+	    insane_section_headers(obj) == true) {
 		struct elf_symbol_node *symbol;
 		struct elf_eh_frame fde;
 		elf_eh_frame_iterator_t  eh_iter;
@@ -255,8 +255,18 @@ build_symtab_data(struct elfobj *obj)
 
 		switch(obj->e_class) {
 		case elfclass32:
+			/*
+			 * NOTE:
+			 * libelfmaster takes the position of assigning symbol names
+			 * to symbols with out of bounds st_name, that will denote that
+			 * there is an issue with the symbol->st_name string table index.
+			 */
 			symtab32 = obj->symtab32;
-			symbol->name = &obj->strtab[symtab32[i].st_name];
+			if (symtab32[i].st_name < elf_data_offset(obj) + elf_data_filesz(obj)) {
+				symbol->name = &obj->strtab[symtab32[i].st_name];
+			} else {
+				symbol->name = "invalid_name_index";
+			}
 			symbol->value = symtab32[i].st_value;
 			symbol->shndx = symtab32[i].st_shndx;
 			symbol->size = symtab32[i].st_size;
@@ -266,7 +276,11 @@ build_symtab_data(struct elfobj *obj)
 			break;
 		case elfclass64:
 			symtab64 = obj->symtab64;
-			symbol->name = &obj->strtab[symtab64[i].st_name];
+			if (symtab64[i].st_name < elf_data_offset(obj) + elf_data_filesz(obj)) {
+				symbol->name = &obj->strtab[symtab64[i].st_name];
+			} else {
+				symbol->name = "invalid_name_index";
+			}
 			symbol->value = symtab64[i].st_value;
 			symbol->shndx = symtab64[i].st_shndx;
 			symbol->size = symtab64[i].st_size;
@@ -583,15 +597,18 @@ load_dynamic_segment_data(struct elfobj *obj)
 	uint32_t dt_pltgot = 0, dt_pltrelsz = 0, dt_symtab = 0,
 	    dt_strtab = 0, dt_strsz = 0, dt_hash = 0, dt_pltrel = 0,
 	    dt_jmprel = 0, dt_rela = 0, dt_relasz = 0, dt_rel = 0, dt_relsz = 0,
-	    dt_fini = 0, dt_init = 0, dt_relent = 0, dt_init_array = 0, dt_init_arraysz = 0,
+	    dt_fini = 0, dt_init = 0, dt_relent = 0, dt_relaent = 0,
+	    dt_init_array = 0, dt_init_arraysz = 0,
 	    dt_fini_array = 0, dt_fini_arraysz = 0, dt_debug = 0;
+	uint32_t ptr_width = elf_class(obj) == elfclass32 ? 4 : 8;
 
 	/*
 	 * If the ELF object has no section headers, then .dynstr won't be set
 	 * yet, and elf_dynamic_string() will fail. So before we use the
 	 * dynamic iterator to set all dynamic segment values, we must first
 	 * manually find the location of dynstr and set it. Its somewhat
-	 * redundant, but its a quick and simple fix.
+	 * redundant, but its a quick and simple fix. After that we can
+	 * call elf_dynamic_string() as necessary.
 	 */
 	elf_dynamic_iterator_init(obj, &iter);
 	for (;;) {
@@ -629,88 +646,206 @@ load_dynamic_segment_data(struct elfobj *obj)
 		obj->dynseg.exists = true;
 		/*
 		 * SECURITY: Some of these tags are expected more
-		 * than once
+		 * than once:
 		 * like DT_NEEDED. But an attacker who wants to
 		 * circumvent our reconstruction could put two
 		 * DT_PLTGOT tags for instance and we would save
 		 * the second one as the PLT/GOT address, and it
 		 * could be bunk. So lets make sure there's only
-		 * one of each unless it expected otherwise.
+		 * one of each unless it expected otherwise (such as NEEDED)
 		 * Eventually lets make sure to do further validation
-		 * i.e. does the pltgot.addr even point to a valid
-		 * location? (i.e. is it in the data segment)
+		 *
+		 * SECURITY TODO: Currently we do boundary checks on each value
+		 * and make sure that certain vital values are sane. This
+		 * is imperative for forensics reconstruction. There is a
+		 * fundamental problem with our approach that needs to be
+		 * addressed later on. We are assuming that these tags point
+		 * to values either in the traditional text segment or the
+		 * traditional data segment. Consider a scenario where the
+		 * DT_PLTGOT is in a loadable segment that is not determined
+		 * to be the data segment, yet we are using elf_data_base(obj)
+		 * to calculate sanity checks. This is important since we
+		 * need to be able to reconstruct the data segment, however
+		 * we may advance our technique in the future to support
+		 * reconstruction, even if a given tag value points to a
+		 * non-traditional memory range, as long as that segment
+		 * permissions are in alignment with the dynamic tag value
+		 * then we could respect it. This enhancement will ultimately
+		 * be spec'd out and designed properly and documented based
+		 * on more analysis and samples.
 		 */
 		switch(entry.tag) {
 		case DT_PLTGOT:
 			if (dt_pltgot++ > 0)
 				break;
+			if (obj->dynseg.pltgot.addr < elf_data_base(obj) ||
+			    obj->dynseg.pltgot.addr > elf_data_base(obj) +
+			    elf_data_filesz(obj) - ptr_width - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.pltgot.addr = entry.value;
 			break;
 		case DT_PLTRELSZ:
 			if (dt_pltrelsz++ > 0)
 				break;
+			if (entry.value > obj->size - 1)
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
 			obj->dynseg.pltrel.size = entry.value;
 			break;
 		case DT_SYMTAB:
 			if (dt_symtab++ > 0)
 				break;
+			if (entry.value < elf_text_base(obj) ||
+			    entry.value > elf_text_base(obj) +
+			    elf_text_filesz(obj) - ptr_width - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.dynsym.addr = entry.value;
 			break;
 		case DT_STRTAB:
 			if (dt_strtab++ > 0)
 				break;
+			if (entry.value < elf_text_base(obj) ||
+			    entry.value > elf_text_base(obj) +
+			    elf_text_filesz(obj) - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.dynstr.addr = entry.value;
 			break;
 		case DT_STRSZ:
 			if (dt_strsz++ > 0)
 				break;
+			if (entry.value >= obj->size)
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
 			obj->dynseg.dynstr.size = entry.value;
 			break;
 		case DT_HASH:
 		case DT_GNU_HASH:
 			if (dt_hash++ > 0)
 				break;
+			if (entry.value < elf_text_base(obj) ||
+			    entry.value > elf_text_base(obj) +
+			    elf_text_filesz(obj) - ptr_width - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.hash.addr = entry.value;
 			break;
 		case DT_PLTREL:
 			if (dt_pltrel++ > 0)
 				break;
+			if (entry.value != ELF_DT_PLTREL_RELA &&
+			    entry.value != ELF_DT_PLTREL_RELA) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->flags |= ELF_PLT_RELOCS_F;
 			obj->dynseg.pltrel.type = entry.value;
 			break;
 		case DT_JMPREL:
 			if (dt_jmprel++ > 0)
 				break;
+			if (entry.value < elf_text_base(obj) ||
+			    entry.value > elf_text_base(obj) +
+			    elf_text_filesz(obj) - ptr_width - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.pltrel.addr = entry.value;
 			break;
 		case DT_RELA:
 			if (dt_rela++ > 0)
 				break;
+			if (entry.value < elf_text_base(obj) ||
+			    entry.value > elf_text_base(obj) +
+			    elf_text_filesz(obj) - ptr_width - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.rela.addr = entry.value;
 			break;
 		case DT_RELASZ:
 			if (dt_relasz++ > 0)
 				break;
+			/*
+			 * If we haven't hit DT_RELA yet, then we
+			 * cannot properly calculate an invalid size
+			 * since we won't have the exact location
+			 * of the relocation section yet. In that
+			 * case we do an approximation of whether the
+			 * size is 'likely' or 'approximately' sane
+			 */
+			if (obj->dynseg.rela.addr == 0) {
+				/*
+				 * Approximate check
+				 */
+				if (entry.value > elf_text_offset(obj) +
+				    elf_text_filesz(obj) - 1) {
+					obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+				}
+			} else {
+				if (obj->dynseg.rela.addr + entry.value >
+				    elf_text_base(obj) + elf_text_filesz(obj) - 1) {
+					obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+				}
+			}
 			obj->dynseg.rela.size = entry.value;
 			break;
 		case DT_REL:
 			if (dt_rel++ > 0)
 				break;
+			if (entry.value < elf_text_base(obj) ||
+			    entry.value > elf_text_base(obj) +
+			    elf_text_filesz(obj) - ptr_width - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.rel.addr = entry.value;
 			break;
 		case DT_RELSZ:
 			if (dt_relsz++ > 0)
 				break;
+			/*
+			 * Same logic as how we handle DT_RELASZ, read
+			 * comments in case DT_RELASZ
+			 */
+			if (obj->dynseg.rela.addr == 0) {
+				/*
+				 * Approximate check
+				 */
+				if (entry.value > elf_text_offset(obj) +
+				    elf_text_filesz(obj) - 1) {
+					obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+				}
+			} else {
+				if (obj->dynseg.rel.addr + entry.value >
+				    elf_text_base(obj) + elf_text_filesz(obj) - 1) {
+					obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+				}
+			}
 			obj->dynseg.rel.size = entry.value;
 			break;
 		case DT_INIT:
 			if (dt_init++ > 0)
 				break;
+			/*
+			 * Approximate guess since we don't yet know the
+			 * size of .init
+			 */
+			if (entry.value < elf_text_base(obj) ||
+			    entry.value > elf_text_base(obj) +
+			    elf_text_filesz(obj) - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.init.addr = entry.value;
 			break;
 		case DT_FINI:
 			if (dt_fini++ > 0)
 				break;
+			/*
+			 * Approximate guess since we don't yet know the
+			 * size of .fini
+			 */
+			if (entry.value < elf_text_base(obj) ||
+			    entry.value > elf_text_base(obj) +
+			    elf_text_filesz(obj) - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.fini.addr = entry.value;
 			break;
 		case DT_NEEDED:
@@ -722,25 +857,71 @@ load_dynamic_segment_data(struct elfobj *obj)
 				return false;
 			so->index++;
 			so->basename = elf_dynamic_string(obj, entry.value);
+			if (so->basename == NULL) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+				free(so);
+				break;
+			}
 			LIST_INSERT_HEAD(&obj->list.shared_objects, so,
 			    _linkage);
 			break;
 		case DT_RELAENT:
+			if (dt_relaent++ > 0)
+				break;
+			if (elf_class(obj) == elfclass32) {
+				if (entry.value != sizeof(Elf32_Rela))
+					obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			} else if (elf_class(obj) == elfclass64) {
+				if (entry.value != sizeof(Elf64_Rela))
+					obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
+			obj->dynseg.relaent.size = entry.value;
+			break;
 		case DT_RELENT:
+			/*
+			 * At this point DT_RELENT and DT_RELAENT are not
+			 * necessarily vital for forensics reconstruction we may want
+			 * to take the anomaly checks out for these.
+			 */
 			if (dt_relent++ > 0)
 				break;
+			if (elf_class(obj) == elfclass32) {
+				if (entry.value != sizeof(Elf32_Rel))
+					obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			} else if (elf_class(obj) == elfclass64) {
+				if (entry.value != sizeof(Elf64_Rel))
+					obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.relent.size = entry.value;
 			break;
 		case DT_INIT_ARRAY:
 			if (dt_init_array++ > 0)
 				break;
+			if (entry.value < elf_data_base(obj) ||
+			    entry.value > elf_data_base(obj) +
+			    elf_data_filesz(obj) - ptr_width - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.init_array.addr = entry.value;
 			break;
 		case DT_FINI_ARRAY:
 			if (dt_fini_array++ > 0)
 				break;
+			/*
+			 * note to self: approximate guess here as well
+			 * since usually DT_FINI_ARRAY comes before DT_INIT_ARRAY
+			 */
+			if (entry.value < elf_data_base(obj) ||
+			    entry.value > elf_data_base(obj) +
+			    elf_data_filesz(obj) - ptr_width - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.fini_array.addr = entry.value;
 			break;
+			/*
+			 * TODO put in anomaly checks for these to make sure
+			 * they are valid for reconstruction.
+			 */
 		case DT_INIT_ARRAYSZ:
 			if (dt_init_arraysz++ > 0)
 				break;
@@ -750,13 +931,22 @@ load_dynamic_segment_data(struct elfobj *obj)
 			if (dt_fini_arraysz++ > 0)
 				break;
 			obj->dynseg.fini_array.size = entry.value;
-		break;
+			break;
 		case DT_RPATH:
+			/*
+			 * TODO we must get the runpath for
+			 * supporting these types of .so path
+			 * lookups. Also $ORIGIN expansion support
+			 * is a must as it is actually used in
+			 * a number of important ELF applications
+			 * that I've seen.
+			 */
 		case DT_RUNPATH:
+			break;
 		case DT_DEBUG:
 			if (dt_debug++ > 0)
 				break;
-			obj->dynseg.debug.value = 0;
+			obj->dynseg.debug.value = entry.value;
 			obj->flags |= ELF_DT_DEBUG_F;
 			break;
 		default:
@@ -768,6 +958,7 @@ load_dynamic_segment_data(struct elfobj *obj)
 
 void free_misc(elfobj_t *obj)
 {
+
 	if (elf_flags(obj, ELF_FORENSICS_F) == true) {
 		free(obj->shstrtab);
 		switch(obj->e_class) {
@@ -859,10 +1050,33 @@ free_arrays(elfobj_t *obj)
 }
 
 bool
-insane_headers(elfobj_t *obj)
+insane_section_headers(elfobj_t *obj)
 {
 
-	return (obj->anomalies > 0);
+	if (obj->anomalies & INVALID_F_SHOFF)
+		return true;
+	if (obj->anomalies & INVALID_F_SHSTRNDX)
+		return true;
+	if (obj->anomalies & INVALID_F_SHOFFSET)
+		return true;
+	if (obj->anomalies & INVALID_F_SHNUM)
+		return true;
+	if (obj->anomalies & INVALID_F_SHENTSIZE)
+		return true;
+	if (obj->anomalies & INVALID_F_SH_HEADERS)
+		return true;
+	if (obj->anomalies & INVALID_F_SHSTRTAB)
+		return true;
+	return false;
+}
+
+bool
+insane_dynamic_segment(elfobj_t *obj)
+{
+
+	if (obj->anomalies & INVALID_F_VITAL_DTAG_VALUE)
+		return true;
+	return false;
 }
 
 /*
@@ -933,19 +1147,18 @@ resolve_plt_addr(elfobj_t *obj)
 	 * for the indirect GOT jump won't be using IP relative addressing.
 	 */
 	for (marker = inst = &obj->mem[init_offset]; inst; inst++, i++) {
-		if (*inst != 0x48 && *(inst + 1) != 0x83)
-			continue;
 		if (inst - marker > INIT_SIZE_THRESHOLD)
 			return 0;
+		if (*inst != 0x48 && *(inst + 1) != 0x83)
+			continue;
 		for (;; inst++) {
 			if (*inst == 0xc3) {
 				for (;; inst++) {
+					if (inst - marker > INIT_SIZE_THRESHOLD)
+						return 0;
 					if (*inst == 0xff && *(inst + 1) == 0x35) {
 						return (uint64_t)((uint8_t *)inst -
 						    (uint8_t *)marker) + obj->dynseg.init.addr;
-					}
-					if (inst - marker > INIT_SIZE_THRESHOLD) {
-						return 0;
 					}
 				}
 			}
@@ -956,14 +1169,14 @@ resolve_plt_addr(elfobj_t *obj)
 	return 0;
 i386:
 	for (marker = inst = &obj->mem[init_offset + start]; inst; inst++, i++) {
+		if (inst - marker > INIT_SIZE_THRESHOLD)
+			return 0;
 		if (*inst != 0x5b) /* pop %ebx */
 			continue;
 		if (*(inst + 1) == 0xc3) { /* ret */
 			return (uint64_t)((uint8_t *)inst -
 			    (uint8_t *)marker) + obj->dynseg.init.addr;
 		}
-		if (inst - marker > INIT_SIZE_THRESHOLD)
-			return 0;
 	}
 	return 0;
 }
@@ -973,6 +1186,11 @@ i386:
  * so lets locate the beginning of the text segment and search
  * from there since we are looking for the _start glibc init code
  * and if we can't find it we create a section called .text_segment
+ * We return 0 on failure, since 0 will never be a valid entry point
+ * address due to the fact that there must always be an ELF file header
+ * first. Even in a heavily modified binary (i.e. a virus infected file)
+ * the smallest entry address would be 0x41, assuming the program header
+ * table was shifted forward, such as in a reverse text infection.
  */
 #define GLIBC_START_CODE_64	"\x55\x48\x89\xe5\x48" /* enough to identify _start */
 #define GLIBC_START_CODE_64_v2	"\x31\xed\x49\x89\xd1" /* enough to identify _start */
@@ -985,6 +1203,8 @@ original_ep(elfobj_t *obj)
 	size_t i;
 
 	for (i = 0, marker = inst = ptr; inst; inst++, i++) {
+		if (i >= (elf_text_offset(obj) + elf_text_filesz(obj) - 6))
+			return 0;
 		if (obj->arch == x64) {
 			if (memcmp(&inst[i], GLIBC_START_CODE_64,
 			    sizeof(GLIBC_START_CODE_64) - 1) == 0)
@@ -1500,8 +1720,8 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 			return elf_error_set(e, ".plt", &soffset);
 		}
 		elf.shdr64.sh_addr = resolve_plt_addr(obj);
-		if (obj->dynseg.pltrel.size != 0 && obj->dynseg.relent.size != 0)
-			relaplt_count = obj->dynseg.pltrel.size / obj->dynseg.relent.size;
+		if (obj->dynseg.pltrel.size != 0 && obj->dynseg.relaent.size != 0)
+			relaplt_count = obj->dynseg.pltrel.size / obj->dynseg.relaent.size;
 		relaplt_size = relaplt_count * 16;
 		elf.shdr64.sh_size = relaplt_size;
 		elf.shdr64.sh_size += 16;
@@ -1519,7 +1739,7 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		/*
 		 * .rel[a].plt (Necessary for plt iterators)
 		 */
-		sname = obj->dynseg.relent.size == RELA_ENT_SIZE ? ".rela.plt" :
+		sname = obj->dynseg.relaent.size == RELA_ENT_SIZE ? ".rela.plt" :
 		    "rel.plt";
 		if (add_shstrtab_entry(obj, sname, &soffset) == false) {
 			return elf_error_set(e, "add_shstrtab_entry failed");
@@ -1529,9 +1749,9 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		elf.shdr64.sh_link = dynsym_index;
 		elf.shdr64.sh_offset = obj->dynseg.pltrel.addr - elf_text_base(obj);
 		elf.shdr64.sh_info = gotplt_index;
-		elf.shdr64.sh_entsize = obj->dynseg.relent.size;
+		elf.shdr64.sh_entsize = obj->dynseg.relaent.size;
 		elf.shdr64.sh_name = soffset;
-		elf.shdr64.sh_type = obj->dynseg.relent.size == RELA_ENT_SIZE
+		elf.shdr64.sh_type = obj->dynseg.relaent.size == RELA_ENT_SIZE
 		    ? SHT_RELA : SHT_REL;
 		total_sh_offset_len += elf.shdr64.sh_size;
 
@@ -1831,28 +2051,15 @@ dw_read_location(elfobj_t *obj, uint64_t vaddr, size_t len,
 {
 	uint8_t *ptr = NULL;
 
-	if (vaddr >= obj->text_address + obj->size) {
+	ptr = elf_address_pointer(obj, vaddr);
+	if (ptr == NULL) {
 		*res = false;
 		return 0;
 	}
-	if (vaddr >= obj->text_address + obj->text_segment_filesz) {
-		ptr = &obj->mem[vaddr - obj->data_address];
-	} else {
-		ptr = &obj->mem[vaddr - obj->text_address];
-	} 
 	*res = true;
 	if (ev != NULL) {
-		if (vaddr >= obj->text_address + obj->text_segment_filesz) {
-			ev->initial_loc =
-			    *(uint32_t *)&obj->mem[vaddr - obj->data_address];
-			ev->fde_entry_offset =
-			    *(uint32_t *)&obj->mem[vaddr - obj->data_address + 4];
-		} else {
-			ev->initial_loc =
-			    *(uint32_t *)&obj->mem[vaddr - obj->text_address];
-			ev->fde_entry_offset =
-			    *(uint32_t *)&obj->mem[vaddr - obj->text_address + 4];
-		}
+		ev->initial_loc = *(uint32_t *)ptr;
+		ev->fde_entry_offset = *(uint32_t *)&ptr[4];
 		return 0;
 	}
 	switch(len) {

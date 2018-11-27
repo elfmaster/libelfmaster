@@ -492,9 +492,21 @@ elf_data_offset(struct elfobj *obj)
 void *
 elf_address_pointer(struct elfobj *obj, uint64_t address)
 {
-	uint64_t offset = elf_data_offset(obj) + address - elf_data_base(obj);
+	elf_segment_iterator_t iter;
+	struct elf_segment segment;
+	long long offset = -1;
 
-	if (offset > obj->size - 1)
+	elf_segment_iterator_init(obj, &iter);
+	while (elf_segment_iterator_next(&iter, &segment) == ELF_ITER_OK) {
+		if (address < segment.vaddr ||
+		    address >= segment.vaddr + segment.filesz)
+			continue;
+		offset = segment.offset + (address - segment.vaddr);
+		break;
+	}
+	if (offset == -1)
+		return NULL;
+	if ((size_t)offset > obj->size - 1)
 		return NULL;
 	return (void *)((uint8_t *)&obj->mem[offset]);
 }
@@ -512,7 +524,7 @@ const char *
 elf_dynamic_string(struct elfobj *obj, uint64_t offset)
 {
 
-	if (offset >= obj->size)
+	if (offset >= obj->size - 1)
 		return NULL;
 	return &obj->dynstr[offset];
 }
@@ -1369,7 +1381,7 @@ elf_note_iterator_next(struct elf_note_iterator *iter,
 		    ELFNOTE_NAMESZ(iter->note32);
 		max_note_offset = iter->obj->note_offset + iter->obj->note_size;
 		if (entry_size >= max_note_offset) {
-			elf_error_set(e, "Invalid note entry size\n");
+			elf_error_set(e, "Invalid PT_NOTE entry size\n");
 			return ELF_ITER_ERROR;
 		}
 		entry->mem = ELFNOTE_DESC(iter->note32);
@@ -1786,7 +1798,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 		 * segment's we pick the first one and use that. If there are two
 		 * PT_GNU_EH_FRAME segment's we pick the first one. We also must perform
 		 * rigirous sanity checks since we will be internally referencing several
-		 * of these program header types for a variety of reasons.
+		 * of these program header types for a variety of reasons
 		 */
 		obj->pt_load = calloc(INITIAL_LOAD_COUNT, sizeof(struct pt_load));
 		if (obj->pt_load == NULL) {
@@ -1977,9 +1989,6 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 			obj->shstrtab =
 			    (char *)&mem[obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset];
 		}
-		if ((obj->anomalies & INVALID_F_SH_HEADERS) == 0)
-			obj->section_count = section_count = obj->ehdr64->e_shnum;
-
 		if (obj->ehdr64->e_shentsize != sizeof(Elf64_Shdr)) {
 			if (__strict) {
 				elf_error_set(error, "invalid_e_shentsize: %u",
@@ -1988,6 +1997,20 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 			}
 			obj->anomalies |= INVALID_F_SHENTSIZE;
 		}
+		/*
+		 * NOTE:
+		 * It is the position of libelfmaster to not parse existing section
+		 * headers under the following conditions:
+		 * 1. If the section header table is malformed, i.e. offset of the table
+		 * points somewhere out of the file range.
+		 * 2. If e_shentsize != sizeof(ElfW(Shdr)) -- and this decision should be
+		 * re-addressed in the future so that we can parse custom section headers
+		 * that crafty hackers don't want us to parse
+		 */
+		if ((obj->anomalies & INVALID_F_SH_HEADERS) == 0 &&
+		    (obj->anomalies & INVALID_F_SHENTSIZE) == 0)
+			obj->section_count = section_count = obj->ehdr64->e_shnum;
+
 		if (obj->ehdr64->e_type != ET_REL) {
 			if (obj->ehdr64->e_phentsize != sizeof(Elf64_Phdr)) {
 				elf_error_set(error, "invalid e_phentsize: %u",
@@ -2002,6 +2025,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 			elf_error_set(error, "calloc: %s", strerror(errno));
 			goto err;
 		}
+
 		phdr_count = INITIAL_LOAD_COUNT;
 		for (i = 0; i < obj->ehdr64->e_phnum; i++) {
 			if (obj->load_count >= phdr_count) {
@@ -2120,7 +2144,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 	 * we just skip section parsing/loading, after which we can sort them but
 	 * but not now.
 	 */
-	if (insane_headers(obj) == true) {
+	if (insane_section_headers(obj) == true) {
 		goto final_load_stages;
 	}
 
@@ -2207,7 +2231,8 @@ final_load_stages:
 	 * of dynamically linked executables. We need to fix this ASAP.
 	 */
 	if (elf_flags(obj, ELF_DYNAMIC_F) == true &&
-	    insane_headers(obj) == true && (load_flags & ELF_LOAD_F_FORENSICS)) {
+	    insane_section_headers(obj) == true &&
+	    (load_flags & ELF_LOAD_F_FORENSICS)) {
 		elf_error_t suberror;
 
 		if (reconstruct_elf_sections(obj, &suberror) == false) {
@@ -2221,14 +2246,13 @@ final_load_stages:
 		 * FORENSICS flag in elf_open_object, then skip the
 		 * reconstruction of necessary data.
 		 */
-		if (insane_headers(obj) == true)
+		if (insane_section_headers(obj) == true)
 			goto finalize;
 	}
-
 	/*
 	 * Build a cache for symtab and dynsym as needed.
 	 */
-	if (insane_headers(obj) == true &&
+	if (insane_section_headers(obj) == true &&
 	    (load_flags & ELF_LOAD_F_FORENSICS)) {
 		/*
 		 * Make room to reconstruct up to SYMTAB_RECONSTRUCT_COUNT functions
@@ -2292,6 +2316,7 @@ elf_close_object(elfobj_t *obj)
 	free_caches(obj);
 	free_arrays(obj);
 	free_misc(obj);
+	free(obj->pt_load);
 	/*
 	 * Unmap memory
 	 */
