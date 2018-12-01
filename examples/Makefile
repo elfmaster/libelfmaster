@@ -15,6 +15,8 @@ all:
 	gcc -O2 -no-pie -m32 test.c ../src/libelfmaster.a -o test32bit
 	gcc -O2 -fPIC -pie -m32 test.c ../src/libelfmaster.a -o test32bit_pie
 	gcc -no-pie -m32 test.c -o test32_stripped
+	gcc -m32 -fPIC -pie -Wl,-z,separate-code test.c -o test32_scop
+	gcc -fPIC -pie -Wl,-z,separate-code test.c -o test_scop
 	gcc ../utils/stripx.c -o stripx
 	./stripx test_stripped
 	./stripx test32_stripped

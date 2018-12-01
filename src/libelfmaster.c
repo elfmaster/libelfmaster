@@ -564,8 +564,8 @@ elf_section_by_index(struct elfobj *obj, uint32_t index,
     struct elf_section *out)
 {
 
-        switch(obj->e_class) {
-        case elfclass32:
+	switch(obj->e_class) {
+	case elfclass32:
 		if (index >= obj->ehdr32->e_shnum)
 			return false;
 		out->name = &obj->shstrtab[obj->shdr32[index].sh_name];
@@ -577,7 +577,7 @@ elf_section_by_index(struct elfobj *obj, uint32_t index,
 		out->offset = obj->shdr32[index].sh_offset;
 		out->address = obj->shdr32[index].sh_addr;
 		break;
-        case elfclass64:
+	case elfclass64:
 		if (index >= obj->ehdr64->e_shnum)
 			return false;
 		out->name = &obj->shstrtab[obj->shdr64[index].sh_name];
@@ -591,7 +591,7 @@ elf_section_by_index(struct elfobj *obj, uint32_t index,
 		break;
 	default:
 		return false;
-        }
+	}
 	return true;
 }
 
@@ -1880,7 +1880,72 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 						obj->eh_frame_hdr_offset = obj->phdr32[i].p_offset;
 					}
 				}
+				/*
+				 * When observing the text segment (Traditionally a single PT_LOAD segment)
+				 * we must also consider SCOP (Secure code partitioning):
+				 * http://www.bitlackeys.org/papers/secure_code_partitioning_2018.txt
+				 */
 			} else if (obj->phdr32[i].p_type == PT_LOAD && obj->phdr32[i].p_offset == 0) {
+				if (text_found == false && obj->phdr32[i].p_flags == PF_R) {
+					if (obj->phdr32[i + 1].p_flags == PF_R|PF_X &&
+					    obj->phdr32[i + 2].p_flags == PF_R) {
+						obj->flags |= ELF_SCOP_F;
+						text_found = true;
+						obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
+						obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_F;
+						obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
+						obj->pt_load[obj->load_count + 2].flag |= ELF_PT_LOAD_TEXT_F;
+						obj->pt_load[obj->load_count + 2].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
+						/*
+						 * Consider a SCOP (Secure code partitioning) scenario
+						 * where all of the read-only sections are prepended before
+						 * the executable sections, and therefore there are only
+						 * two segments that make up the text segment instead of
+						 * three. This is a hypothetical but conceievable linking
+						 * configuration. SCOP is very new, and currently is in
+						 * the order of 3 PT_LOAD segments; the first being PF_R
+						 * the second being PF_R|PF_X and the 3rd being PF_R, this
+						 * supports the conventional order of the ELF sections from
+						 * a historic standpoint and will probably stay this way
+						 * for quite a while, but we must atleast be prepared for
+						 * other variations of this, and even more than what we are
+						 * currently doing here:
+						 */
+						obj->text_address = obj->phdr32[i].p_vaddr;
+						obj->text_segment_filesz = obj->phdr32[i].p_filesz;
+
+						memcpy(&obj->pt_load[obj->load_count].phdr32,
+						    &obj->phdr32[i], sizeof(Elf32_Phdr));
+						memcpy(&obj->pt_load[obj->load_count + 1].phdr32,
+						    &obj->phdr32[i + 1], sizeof(Elf32_Phdr));
+						memcpy(&obj->pt_load[obj->load_count + 2].phdr32,
+						    &obj->phdr32[i + 2], sizeof(Elf32_Phdr));
+						i += 2;
+						obj->load_count += 3;
+						continue;
+					} else if (obj->phdr32[i + 1].p_flags == PF_R|PF_X &&
+							/*
+							 * Assuming the next segment would be the
+							 * data segment, hence PF_R|PF_W, and the
+							 * two segments before it SCOP text segments.
+							 */
+						    obj->phdr32[i + 2].p_flags == PF_R|PF_W) {
+							text_found = true;
+							obj->flags |= ELF_SCOP_F;
+							obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
+							obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_F;
+							obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
+							obj->text_address = obj->phdr32[i].p_vaddr;
+							obj->text_segment_filesz = obj->phdr32[i].p_filesz;
+							memcpy(&obj->pt_load[obj->load_count].phdr32,
+							    &obj->phdr32[i], sizeof(Elf32_Phdr));
+							memcpy(&obj->pt_load[obj->load_count].phdr32,
+							    &obj->phdr32[i], sizeof(Elf32_Phdr));
+							i += 1;
+							obj->load_count += 2;
+							continue;
+						}
+				}
 				obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
 				text_found = true;
 				memcpy(&obj->pt_load[obj->load_count++].phdr32, &obj->phdr32[i],
@@ -1911,6 +1976,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 					    &obj->phdr32[i], sizeof(Elf32_Phdr));
 					obj->data_segment_filesz = obj->phdr32[i].p_filesz;
 				}
+
 			}
 		}
 		break;
@@ -2099,6 +2165,50 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 					}
 				}
 			} else if (obj->phdr64[i].p_type == PT_LOAD && obj->phdr64[i].p_offset == 0) {
+				/*
+				 * NOTE: Read coments in the i386 PT_LOAD parsing above
+				 * as it applies to this next chunk of code here as well for x64.
+				 */
+				   if (text_found == false && obj->phdr64[i].p_flags == PF_R) {
+					   printf("Found read only segment\n");
+					if (obj->phdr64[i + 1].p_flags == PF_R|PF_X &&
+					    obj->phdr64[i + 2].p_flags == PF_R) {
+						obj->flags |= ELF_SCOP_F;
+						text_found = true;
+						obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
+						obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_F;
+						obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
+						obj->pt_load[obj->load_count + 2].flag |= ELF_PT_LOAD_TEXT_F;
+						obj->pt_load[obj->load_count + 2].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
+						obj->text_address = obj->phdr64[i].p_vaddr;
+						obj->text_segment_filesz = obj->phdr64[i].p_filesz;
+						memcpy(&obj->pt_load[obj->load_count++].phdr64, &obj->phdr64[i],
+						    sizeof(Elf64_Phdr));
+						memcpy(&obj->pt_load[obj->load_count + 1].phdr64,
+						  &obj->phdr64[i + 1], sizeof(Elf64_Phdr));
+						memcpy(&obj->pt_load[obj->load_count + 2].phdr64,
+						    &obj->phdr64[i + 2], sizeof(Elf64_Phdr));
+						i += 2;
+						obj->load_count += 3;
+						continue;
+					} else if (obj->phdr64[i + 1].p_flags == PF_R|PF_X &&
+						    obj->phdr64[i + 2].p_flags == PF_R|PF_W) {
+							text_found = true;
+							obj->flags |= ELF_SCOP_F;
+							obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
+							obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_F;
+							obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
+							obj->text_address = obj->phdr64[i].p_vaddr;
+							obj->text_segment_filesz = obj->phdr64[i].p_filesz;
+							memcpy(&obj->pt_load[obj->load_count].phdr64,
+							    &obj->phdr64[i], sizeof(Elf64_Phdr));
+							memcpy(&obj->pt_load[obj->load_count].phdr64,
+							    &obj->phdr64[i], sizeof(Elf64_Phdr));
+							i += 1;
+							obj->load_count += 2;
+							continue;
+					}
+				}
 				obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
 				text_found = true;
 				memcpy(&obj->pt_load[obj->load_count++].phdr64, &obj->phdr64[i],

@@ -47,9 +47,10 @@
 #define ELF_DT_PLTREL_REL	0x11
 
 /*
- * In reality will never exceed 2,3, or 4 at the highest.
+ * In reality will never exceed 2,3, or 4 at the highest
+ * i.e. 4 PT_LOAD with SCOP (secure code partitioning)
  */
-#define MAX_LOADABLE_MAPPINGS 8
+#define MAX_LOADABLE_MAPPINGS 12
 
 #define ELFNOTE_NAME(_n_) ((unsigned char*)(_n_) + sizeof(*(_n_)))
 #define ELFNOTE_ALIGN(_n_) (((_n_)+3)&~3)
@@ -113,7 +114,8 @@ typedef enum elf_obj_flags {
 	ELF_FULL_PIE_F =		(1 << 14), /* fully relocatable ET_DYN */
 	ELF_SYMTAB_RECONSTRUCTION_F =	(1 << 15), /* .symtab is being reconstructed */
 	ELF_FORENSICS_F =		(1 << 16),  /* elf sections at the least are reconstructed */
-	ELF_DT_DEBUG_F =		(1 << 17)
+	ELF_DT_DEBUG_F =		(1 << 17),
+	ELF_SCOP_F =			(1 << 18) /* secure code partitioning */
 } elf_obj_flags_t;
 
 /*
@@ -273,6 +275,9 @@ typedef struct elfobj {
 #define ELF_PT_LOAD_TEXT_F (1 << 0)
 #define ELF_PT_LOAD_DATA_F (1 << 1)
 #define ELF_PT_LOAD_MISC_F (1 << 2)
+	/* Handle SCOP cases */
+#define ELF_PT_LOAD_TEXT_RDONLY_F (1 << 3)
+
 	struct pt_load *pt_load;
 	size_t load_count;
 	/*
