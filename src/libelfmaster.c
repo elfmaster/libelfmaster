@@ -606,6 +606,22 @@ elf_section_name_by_index(struct elfobj *obj, uint32_t index)
 }
 
 bool
+elf_section_by_address(struct elfobj *obj, uint64_t addr, struct elf_section *out)
+{
+	struct elf_section section;
+	elf_section_iterator_t iter;
+
+	elf_section_iterator_init(obj, &iter);
+	while (elf_section_iterator_next(&iter, &section) == ELF_ITER_OK) {
+		if (addr >= section.address && addr < section.address + section.size) {
+			memcpy(out, &section, sizeof(section));
+			return true;
+		}
+	}
+	return false;
+}
+
+bool
 elf_symbol_by_index(struct elfobj *obj, unsigned int index,
     struct elf_symbol *out, const int which)
 {
@@ -2170,7 +2186,6 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 				 * as it applies to this next chunk of code here as well for x64.
 				 */
 				   if (text_found == false && obj->phdr64[i].p_flags == PF_R) {
-					   printf("Found read only segment\n");
 					if (obj->phdr64[i + 1].p_flags == PF_R|PF_X &&
 					    obj->phdr64[i + 2].p_flags == PF_R) {
 						obj->flags |= ELF_SCOP_F;

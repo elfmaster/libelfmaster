@@ -618,6 +618,10 @@ void * elf_offset_pointer(elfobj_t *, uint64_t);
 void * elf_section_pointer(elfobj_t *, void *);
 
 /*
+ * ELF section by address
+ */
+bool elf_section_by_address(elfobj_t *, uint64_t, struct elf_section *);
+/*
  * Success: returns section name
  * failure: returns NULL
  */
