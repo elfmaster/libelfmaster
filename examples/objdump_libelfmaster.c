@@ -54,17 +54,21 @@ int main(int argc, char **argv)
 
 	printf("Disassembling %lu bytes\n", len - base_offset);
 	count = cs_disasm(handle, ptr, len - base_offset, base_vaddr, base_offset, &insn);
-	printf("Count: %d\n", count);
 	if (count > 0) {
 		size_t j;
 		bool checked = false;
 		for (j = 0; j < count; j++) {
 			char *sname = ".unknown";
+			char *symname = "sub_unknown";
+			struct elf_symbol symbol;
+
+			if (elf_symbol_by_value(&obj, insn[j].address, &symbol) == true)
+				symname = symbol.name;
 
 			if (elf_section_by_address(&obj, insn[j].address, &section) == true)
 				sname = section.name;
 
-			printf("%s:0x%"PRIx64":\t%s\t\t%s\n", section.name,
+			printf("%s:%s:0x%"PRIx64":\t%s\t\t%s\n", section.name, symname,
 			    insn[j].address, insn[j].mnemonic,
 			    insn[j].op_str);
 		}

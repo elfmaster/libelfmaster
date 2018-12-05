@@ -603,6 +603,8 @@ bool elf_symbol_by_name(elfobj_t *, const char *, struct elf_symbol *);
 
 bool elf_symbol_by_index(elfobj_t *, unsigned int, struct elf_symbol *, const int);
 
+bool elf_symbol_by_value(elfobj_t *, uint64_t, struct elf_symbol *);
+
 /*
  * Return a pointer to an offset into the memory mapped ELF file.
  */

@@ -622,6 +622,30 @@ elf_section_by_address(struct elfobj *obj, uint64_t addr, struct elf_section *ou
 }
 
 bool
+elf_symbol_by_value(struct elfobj *obj, uint64_t addr, struct elf_symbol *out)
+{
+	struct elf_symbol symbol;
+	elf_symtab_iterator_t symtab_iter;
+	elf_dynsym_iterator_t dynsym_iter;
+
+	elf_dynsym_iterator_init(obj, &dynsym_iter);
+	while (elf_dynsym_iterator_next(&dynsym_iter, &symbol) == ELF_ITER_OK) {
+		if (addr >= symbol.value && addr < symbol.value + symbol.size) {
+			memcpy(out, &symbol, sizeof(symbol));
+			return true;
+		}
+	}
+	elf_symtab_iterator_init(obj, &symtab_iter);
+	while (elf_symtab_iterator_next(&symtab_iter, &symbol) == ELF_ITER_OK) {
+		if (addr >= symbol.value && addr < symbol.value + symbol.size) {
+			memcpy(out, &symbol, sizeof(symbol));
+			return true;
+		}
+	}
+	return false;
+}
+
+bool
 elf_symbol_by_index(struct elfobj *obj, unsigned int index,
     struct elf_symbol *out, const int which)
 {
