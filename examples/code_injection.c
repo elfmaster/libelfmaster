@@ -181,22 +181,20 @@ elf_inject_code(struct elfobj *host, struct elfobj *target, uint64_t *payload_of
 					}
 				}
 			}
-			if (code_segment_found && injection_end) {
-				injection_end = true;
-				memcpy(dest_mem, host->mem, ehdr_size);
-				memcpy(dest_mem + ehdr_size, target->mem, target->size);
-				memcpy(dest_mem + ehdr_size + PAGE_SIZE, host->mem + ehdr_size, host->size - ehdr_size);
-				*payload_offset = ehdr_size;
-				host->mem = dest_mem;
-				host->size = final_size + PAGE_SIZE;
-				if (host->e_class == ELFCLASS32) {
-					Elf32_Ehdr *ehdr = (Elf32_Ehdr*)host->mem;
-					ehdr->e_phoff += PAGE_SIZE;
-				} else {
-					Elf64_Ehdr *ehdr = (Elf64_Ehdr*)host->mem;
-					ehdr->e_phoff += PAGE_SIZE;
-				}
+			memcpy(dest_mem, host->mem, ehdr_size);
+			memcpy(dest_mem + ehdr_size, target->mem, target->size);
+			memcpy(dest_mem + ehdr_size + PAGE_SIZE, host->mem + ehdr_size, host->size - ehdr_size);
+			*payload_offset = ehdr_size;
+			host->mem = dest_mem;
+			host->size = final_size + PAGE_SIZE;
+			if (host->e_class == ELFCLASS32) {
+				Elf32_Ehdr *ehdr = (Elf32_Ehdr*)host->mem;
+				ehdr->e_phoff += PAGE_SIZE;
+			} else {
+				Elf64_Ehdr *ehdr = (Elf64_Ehdr*)host->mem;
+				ehdr->e_phoff += PAGE_SIZE;
 			}
+			injection_end = true;
 			break;	
 		}
 
