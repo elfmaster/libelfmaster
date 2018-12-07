@@ -22,11 +22,11 @@
 #include "../include/internal.h"
 
 #define ELF_INJECT_F_DATA 		0
-#define ELF_INJECT_F_REVERSE_CODE		1
+#define ELF_INJECT_F_REVERSE_CODE	1
 #define ELF_ET_STUB  			-1
-#define PAGE_SIZE 0x1000
-#define PAGE_ALIGN(x) (x & ~(PAGE_SIZE - 1))
-#define PAGE_ALIGN_UP(x) (PAGE_ALIGN(x) + PAGE_SIZE)
+#define PAGE_SIZE 			0x1000
+#define PAGE_ALIGN(x) 			(x & ~(PAGE_SIZE - 1))
+#define PAGE_ALIGN_UP(x) 		(PAGE_ALIGN(x) + PAGE_SIZE)
 
 // -----------------------------------ulexec
 
@@ -103,12 +103,16 @@ bool
 elf_inject_code(struct elfobj *host, struct elfobj *target, uint64_t *payload_offset, 
 		uint64_t injection_flags, elf_error_t *error) 
 {
-	uint64_t offset;
+	bool injection_end;
+	size_t final_size;
 	uint8_t *dest_mem;
+	size_t ehdr_size;
 	elf_segment_iterator_t p_iter;
 	struct elf_segment segment;
-	bool injection_end = false;
-	size_t final_size = host->size + target->size;
+	
+	injection_end = false;
+	final_size = host->size + target->size;
+	ehdr_size = (host->e_class == ELFCLASS32) ? sizeof(Elf32_Ehdr) : sizeof(Elf64_Ehdr);
 
 	if((dest_mem = (uint8_t *)calloc(1, final_size)) == NULL) {
 		elf_error_set(error, "calloc: %s", strerror(errno));
@@ -116,28 +120,29 @@ elf_inject_code(struct elfobj *host, struct elfobj *target, uint64_t *payload_of
 	}
 
 	switch(injection_flags) {
-		case ELF_INJECT_DATA: {
+		case ELF_INJECT_F_DATA: {
+			uint32_t offset;
 			host->data_offset = elf_data_offset(host);
 			elf_segment_iterator_init(host, &p_iter);
 			while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
 				if(segment.type == PT_LOAD && segment.offset == host->data_offset) {
 					if (host->e_class == ELFCLASS32) {
 						Elf32_Phdr *phdr = &host->phdr32[p_iter.index-1];
-						offset = phdr->p_offset + phdr->p_memsz;
+						offset = phdr->p_offset + phdr->p_filesz;
 						phdr->p_memsz += PAGE_ALIGN_UP(target->size);
 						phdr->p_filesz += PAGE_ALIGN_UP(target->size);
 						phdr->p_flags |= PF_X;
 
 					} else {	
 						Elf64_Phdr *phdr = &host->phdr64[p_iter.index-1];
-						offset = phdr->p_offset + phdr->p_memsz;
+						offset = phdr->p_offset + phdr->p_filesz;
 						phdr->p_memsz += PAGE_ALIGN_UP(target->size);
 						phdr->p_filesz += PAGE_ALIGN_UP(target->size);
 						phdr->p_flags |= PF_X;
-				
 					}
 					memcpy(dest_mem, host->mem, host->size);
 					memcpy(dest_mem + offset, target->mem, target->size);
+					*payload_offset = offset;
 					host->mem = dest_mem;
 					host->size = final_size;
 					injection_end = true;
@@ -146,14 +151,60 @@ elf_inject_code(struct elfobj *host, struct elfobj *target, uint64_t *payload_of
 			}
 			break;
 		}
-		case ELF_INJECT_REVERSE_CODE:
+		case ELF_INJECT_F_REVERSE_CODE: {
+			elf_segment_iterator_init(host, &p_iter);
+			while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
+				if(segment.offset) {
+					if (host->e_class == ELFCLASS32) {
+						Elf32_Phdr *phdr = &host->phdr32[p_iter.index-1];
+						phdr->p_offset += PAGE_SIZE;
+
+					} else {
+						Elf64_Phdr *phdr = &host->phdr64[p_iter.index-1];
+						phdr->p_offset += PAGE_SIZE;
+					}
+
+				} else if(!segment.offset && segment.type == PT_LOAD){
+					if (host->e_class == ELFCLASS32) {
+						Elf32_Phdr *phdr = &host->phdr32[p_iter.index-1];
+						phdr->p_vaddr -= PAGE_SIZE;
+						phdr->p_paddr -= PAGE_SIZE;
+						phdr->p_filesz += PAGE_SIZE;
+						phdr->p_memsz += PAGE_SIZE;
+
+					} else {
+						Elf64_Phdr *phdr = &host->phdr64[p_iter.index-1];
+						phdr->p_vaddr -= PAGE_SIZE;
+						phdr->p_paddr -= PAGE_SIZE;
+						phdr->p_filesz += PAGE_SIZE;
+						phdr->p_memsz += PAGE_SIZE;
+					}
+				}
+			}
+			if (code_segment_found && injection_end) {
+				injection_end = true;
+				memcpy(dest_mem, host->mem, ehdr_size);
+				memcpy(dest_mem + ehdr_size, target->mem, target->size);
+				memcpy(dest_mem + ehdr_size + PAGE_SIZE, host->mem + ehdr_size, host->size - ehdr_size);
+				*payload_offset = ehdr_size;
+				host->mem = dest_mem;
+				host->size = final_size + PAGE_SIZE;
+				if (host->e_class == ELFCLASS32) {
+					Elf32_Ehdr *ehdr = (Elf32_Ehdr*)host->mem;
+					ehdr->e_phoff += PAGE_SIZE;
+				} else {
+					Elf64_Ehdr *ehdr = (Elf64_Ehdr*)host->mem;
+					ehdr->e_phoff += PAGE_SIZE;
+				}
+			}
 			break;	
+		}
+
 	}
 	if (injection_end == false) {
 		elf_error_set(error, "Target segment was not found for injection");
 		return false;
 	}	
-	*payload_offset = offset;
 	return true;	
 }
 
@@ -188,14 +239,14 @@ internal_offset_to_address(struct elfobj *obj, uint64_t offset, uint64_t *addres
 	elf_segment_iterator_init(obj, &p_iter);
 	while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
 		if(segment.type == PT_LOAD) {
-			if(segment.offset <= offset && 
+			if(offset >= segment.offset && 
 					offset < segment.offset + segment.filesz) {
 				*address = (offset + (segment.vaddr - segment.offset));
 				return true;
 			}
 		}
 	}
-	elf_error_set(error, "Offset not found in any segment for the provided elfobj_t instance");
+	elf_error_set(error, "Offset 0x%x not found in any segment for the provided elfobj_t instance", offset);
 	return false;
 }
 
@@ -219,7 +270,7 @@ internal_address_to_offset(struct elfobj *obj, uint64_t address, uint64_t *offse
 			}
 		}
 	}
-	elf_error_set(error, "Address not found in any segment for the provided elfobj_t instance");
+	elf_error_set(error, "Address 0x%x not found in any segment for the provided elfobj_t instance", address);
 	return false;
 }
 
@@ -359,10 +410,10 @@ int main (int argc, char **argv)
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
-	if (elf_inject_code(&objdest, &obj2, &p_offset, ELF_INJECT_F_DATA, &error) == false) {
+	if (elf_inject_code(&objdest, &obj2, &p_offset, /*ELF_INJECT_F_DATA*/ ELF_INJECT_F_REVERSE_CODE, &error) == false) {
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
-	} 
+	}
 	if(internal_offset_to_address(&objdest, p_offset, &p_address, &error) == false) {
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
