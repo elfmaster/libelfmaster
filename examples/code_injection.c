@@ -23,6 +23,7 @@
 
 #define ELF_INJECT_F_PREPEND 		0
 #define ELF_INJECT_F_POSTPEND		1
+#define ELF_INJECT_F_INTERPEND		2
 #define ELF_ET_STUB  			-1
 #define PAGE_SIZE 			0x1000
 #define PAGE_ALIGN(x) 			(x & ~(PAGE_SIZE - 1))
@@ -120,28 +121,28 @@ elf_inject_code(struct elfobj *host, struct elfobj *target, uint64_t *payload_of
 
 	switch(injection_flags) {
 		case ELF_INJECT_F_POSTPEND: {
-			uint32_t offset;
+			uint32_t poffset;
 			host->data_offset = elf_data_offset(host);
 			elf_segment_iterator_init(host, &p_iter);
 			while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
 				if(segment.type == PT_LOAD && segment.offset == host->data_offset) {
 					if (host->e_class == ELFCLASS32) {
 						Elf32_Phdr *phdr = &host->phdr32[p_iter.index-1];
-						offset = phdr->p_offset + phdr->p_filesz;
+						poffset = phdr->p_offset + phdr->p_filesz;
 						phdr->p_memsz += expansion_size;
 						phdr->p_filesz += expansion_size;
 						phdr->p_flags |= PF_X;
 
 					} else {	
 						Elf64_Phdr *phdr = &host->phdr64[p_iter.index-1];
-						offset = phdr->p_offset + phdr->p_filesz;
+						poffset = phdr->p_offset + phdr->p_filesz;
 						phdr->p_memsz += expansion_size;
 						phdr->p_filesz += expansion_size;
 						phdr->p_flags |= PF_X;
 					}
 					memcpy(dest_mem, host->mem, host->size);
-					memcpy(dest_mem + offset, target->mem, target->size);
-					*payload_offset = offset;
+					memcpy(dest_mem + poffset, target->mem, target->size);
+					*payload_offset = poffset;
 					host->mem = dest_mem;
 					host->size += expansion_size;
 					injection_end = true;
@@ -192,6 +193,60 @@ elf_inject_code(struct elfobj *host, struct elfobj *target, uint64_t *payload_of
 			}
 			injection_end = true;
 			break;	
+		}
+		case ELF_INJECT_F_INTERPEND: {
+			size_t code_segment_size;
+			uint32_t data_offset;
+			uint32_t data_size;
+			elf_segment_iterator_init(host, &p_iter);
+			while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
+				if (!segment.offset && segment.type == PT_LOAD) {
+					if (host->e_class == ELFCLASS32) {
+						Elf32_Phdr *phdr = &host->phdr32[p_iter.index-1];
+						code_segment_size = phdr->p_filesz;
+						phdr->p_filesz += PAGE_ALIGN_UP(target->size); 
+						phdr->p_memsz  += PAGE_ALIGN_UP(target->size);
+						expansion_size  = PAGE_ALIGN_UP(target->size);
+					} else {
+						Elf64_Phdr *phdr = &host->phdr64[p_iter.index-1];
+						code_segment_size = phdr->p_filesz;
+						phdr->p_filesz += PAGE_ALIGN_UP(target->size); 
+						phdr->p_memsz  += PAGE_ALIGN_UP(target->size); 
+						expansion_size  = PAGE_ALIGN_UP(target->size);
+					}
+				} else if (segment.offset && segment.type == PT_LOAD) {	
+					if (host->e_class == ELFCLASS32) {
+						Elf32_Phdr *phdr = &host->phdr32[p_iter.index-1];
+						phdr->p_offset += expansion_size;
+						data_offset = phdr->p_offset;
+						data_size = phdr->p_filesz;
+
+					} else {
+						Elf64_Phdr *phdr = &host->phdr64[p_iter.index-1];
+						phdr->p_offset += expansion_size; 
+						data_offset = phdr->p_offset;
+						data_size = phdr->p_filesz;
+					}
+				} else if (segment.type == PT_DYNAMIC) {
+					if (host->e_class == ELFCLASS32) {
+						Elf32_Phdr *phdr = &host->phdr32[p_iter.index-1];
+						phdr->p_offset += expansion_size;
+
+					} else {
+						Elf64_Phdr *phdr = &host->phdr64[p_iter.index-1];
+						phdr->p_offset += expansion_size; 
+					}
+					memcpy(dest_mem, host->mem, code_segment_size);
+					memcpy(dest_mem + code_segment_size, target->mem, target->size > expansion_size ? 
+						       expansion_size : target->size);
+					memcpy(dest_mem + data_offset, host->mem + data_offset - expansion_size, data_size);
+					*payload_offset = code_segment_size;
+					host->mem = dest_mem;
+					host->size += expansion_size;
+					injection_end = true;	
+					break;
+				} 
+			}
 		}
 	}
 	if (injection_end == false) {
@@ -403,7 +458,7 @@ int main (int argc, char **argv)
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
-	if (elf_inject_code(&objdest, &obj2, &p_offset, ELF_INJECT_F_PREPEND, &error) == false) {
+	if (elf_inject_code(&objdest, &obj2, &p_offset, ELF_INJECT_F_INTERPEND, &error) == false) {
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
