@@ -221,13 +221,13 @@ elf_inject_code(struct elfobj *host, struct elfobj *target, uint64_t *payload_of
 					if (host->e_class == ELFCLASS32) {
 						Elf32_Phdr *phdr = &host->phdr32[p_iter.index-1];
 						code_size = phdr->p_filesz;
-						phdr->p_filesz += PAGE_ALIGN_UP(target->size); 
-						phdr->p_memsz  += PAGE_ALIGN_UP(target->size);
+						phdr->p_filesz += payload_size; 
+						phdr->p_memsz  += payload_size;
 					} else {
 						Elf64_Phdr *phdr = &host->phdr64[p_iter.index-1];
 						code_size = phdr->p_filesz;
-						phdr->p_filesz += PAGE_ALIGN_UP(target->size); 
-						phdr->p_memsz  += PAGE_ALIGN_UP(target->size); 
+						phdr->p_filesz += payload_size; 
+						phdr->p_memsz  += payload_size; 
 					}
 				} else if (segment.offset != host->text_offset && segment.type == PT_LOAD) {	
 					if (host->e_class == ELFCLASS32) {
