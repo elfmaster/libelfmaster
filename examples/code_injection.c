@@ -29,7 +29,6 @@
 #define PAGE_ALIGN(x) 			(x & ~(PAGE_SIZE - 1))
 #define PAGE_ALIGN_UP(x) 		(PAGE_ALIGN(x) + PAGE_SIZE)
 
-// -----------------------------------ulexec
 
 /*
  * Creates an elf object. initial content can be specified to contain a given ELF file.
@@ -260,7 +259,9 @@ elf_inject_code(struct elfobj *host, struct elfobj *target, uint64_t *payload_of
 				if (host->e_class == ELFCLASS32) {
 					Elf32_Shdr *shdr = &host->shdr32[s_iter.index-1];
 					if (shdr->sh_offset > host->text_offset) {
-					 shdr->sh_offset += payload_size;
+						shdr->sh_offset += payload_size;
+					} else if (shdr->sh_type == SHT_DYNAMIC) {
+						shdr->sh_offset += payload_size;
 					}
 				} else {
 					Elf64_Shdr *shdr = &host->shdr64[s_iter.index-1];
