@@ -107,44 +107,50 @@ elf_inject_code(struct elfobj *host, struct elfobj *target, uint64_t *payload_of
 	bool injection_end;
 	uint8_t *dest_mem;
 	size_t ehdr_size;
-	size_t expansion_size;
+	size_t payload_size;
 	elf_segment_iterator_t p_iter;
+	elf_section_iterator_t s_iter;
 	struct elf_segment segment;
-	expansion_size = PAGE_ALIGN_UP(target->size);
+	struct elf_section section;
+	
 	injection_end = false;
+	payload_size = PAGE_ALIGN_UP(target->size);
 	ehdr_size = (host->e_class == ELFCLASS32) ? sizeof(Elf32_Ehdr) : sizeof(Elf64_Ehdr);
 	
-	if((dest_mem = (uint8_t *)calloc(1, host->size + expansion_size)) == NULL) {
+	if((dest_mem = (uint8_t *)calloc(1, host->size + payload_size)) == NULL) {
 		elf_error_set(error, "calloc: %s", strerror(errno));
 		return false;
 	}
 
+	host->data_offset = elf_data_offset(host);
+	host->text_offset = elf_text_offset(host);
+
 	switch(injection_flags) {
 		case ELF_INJECT_F_POSTPEND: {
 			uint32_t poffset;
-			host->data_offset = elf_data_offset(host);
+
 			elf_segment_iterator_init(host, &p_iter);
 			while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
 				if(segment.type == PT_LOAD && segment.offset == host->data_offset) {
 					if (host->e_class == ELFCLASS32) {
 						Elf32_Phdr *phdr = &host->phdr32[p_iter.index-1];
 						poffset = phdr->p_offset + phdr->p_filesz;
-						phdr->p_memsz += expansion_size;
-						phdr->p_filesz += expansion_size;
+						phdr->p_memsz += payload_size;
+						phdr->p_filesz += payload_size;
 						phdr->p_flags |= PF_X;
 
 					} else {	
 						Elf64_Phdr *phdr = &host->phdr64[p_iter.index-1];
 						poffset = phdr->p_offset + phdr->p_filesz;
-						phdr->p_memsz += expansion_size;
-						phdr->p_filesz += expansion_size;
+						phdr->p_memsz += payload_size;
+						phdr->p_filesz += payload_size;
 						phdr->p_flags |= PF_X;
 					}
 					memcpy(dest_mem, host->mem, host->size);
 					memcpy(dest_mem + poffset, target->mem, target->size);
 					*payload_offset = poffset;
 					host->mem = dest_mem;
-					host->size += expansion_size;
+					host->size += payload_size;
 					injection_end = true;
 					break;
 				}
@@ -154,99 +160,137 @@ elf_inject_code(struct elfobj *host, struct elfobj *target, uint64_t *payload_of
 		case ELF_INJECT_F_PREPEND: {
 			elf_segment_iterator_init(host, &p_iter);
 			while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
-				if(segment.offset) {
+				if(segment.offset != host->text_offset) {
 					if (host->e_class == ELFCLASS32) {
 						Elf32_Phdr *phdr = &host->phdr32[p_iter.index-1];
-						phdr->p_offset += expansion_size;
+						phdr->p_offset += payload_size;
 					} else {
 						Elf64_Phdr *phdr = &host->phdr64[p_iter.index-1];
-						phdr->p_offset += expansion_size;
+						phdr->p_offset += payload_size;
 					}
-				} else if(!segment.offset && segment.type == PT_LOAD){
+				} else if(segment.offset == host->text_offset && segment.type == PT_LOAD){
 					if (host->e_class == ELFCLASS32) {
 						Elf32_Phdr *phdr = &host->phdr32[p_iter.index-1];
-						phdr->p_vaddr -= expansion_size;
-						phdr->p_paddr -= expansion_size;
-						phdr->p_filesz += expansion_size;
-						phdr->p_memsz += expansion_size;
+						phdr->p_vaddr -= payload_size;
+						phdr->p_paddr -= payload_size;
+						phdr->p_filesz += payload_size;
+						phdr->p_memsz += payload_size;
 					} else {
 						Elf64_Phdr *phdr = &host->phdr64[p_iter.index-1];
-						phdr->p_vaddr -= expansion_size;
-						phdr->p_paddr -= expansion_size;
-						phdr->p_filesz += expansion_size;
-						phdr->p_memsz += expansion_size;
+						phdr->p_vaddr -= payload_size;
+						phdr->p_paddr -= payload_size;
+						phdr->p_filesz += payload_size;
+						phdr->p_memsz += payload_size;
 					}
 				}
 			}
+			elf_section_iterator_init(host, &s_iter);
+			while (elf_section_iterator_next(&s_iter, &section) == ELF_ITER_OK) {
+				if (host->e_class == ELFCLASS32) {
+					Elf32_Shdr *shdr = &host->shdr32[s_iter.index-1];
+					shdr->sh_offset += payload_size;
+				} else {
+					Elf64_Shdr *shdr = &host->shdr64[s_iter.index-1];
+					shdr->sh_offset += payload_size;
+				}
+			}
+			
 			memcpy(dest_mem, host->mem, ehdr_size);
 			memcpy(dest_mem + ehdr_size, target->mem, target->size);
-			memcpy(dest_mem + ehdr_size + expansion_size, host->mem + ehdr_size, host->size - ehdr_size);
+			memcpy(dest_mem + ehdr_size + payload_size, host->mem + ehdr_size, host->size - ehdr_size);
 			*payload_offset = ehdr_size;
 			host->mem = dest_mem;
-			host->size += expansion_size;
+			host->size += payload_size;
 			if (host->e_class == ELFCLASS32) {
 				Elf32_Ehdr *ehdr = (Elf32_Ehdr*)host->mem;
-				ehdr->e_phoff += expansion_size;
+				ehdr->e_phoff += payload_size;
+				ehdr->e_shoff += payload_size;
 			} else {
 				Elf64_Ehdr *ehdr = (Elf64_Ehdr*)host->mem;
-				ehdr->e_phoff += expansion_size;
+				ehdr->e_phoff += payload_size;
+				ehdr->e_shoff += payload_size;
 			}
 			injection_end = true;
 			break;	
 		}
 		case ELF_INJECT_F_INTERPEND: {
-			size_t code_segment_size;
-			uint32_t data_offset;
-			uint32_t data_size;
+			size_t code_size;
+			size_t data_size;
+			
 			elf_segment_iterator_init(host, &p_iter);
 			while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
-				if (!segment.offset && segment.type == PT_LOAD) {
+				if (segment.offset == host->text_offset && segment.type == PT_LOAD) {
 					if (host->e_class == ELFCLASS32) {
 						Elf32_Phdr *phdr = &host->phdr32[p_iter.index-1];
-						code_segment_size = phdr->p_filesz;
+						code_size = phdr->p_filesz;
 						phdr->p_filesz += PAGE_ALIGN_UP(target->size); 
 						phdr->p_memsz  += PAGE_ALIGN_UP(target->size);
-						expansion_size  = PAGE_ALIGN_UP(target->size);
 					} else {
 						Elf64_Phdr *phdr = &host->phdr64[p_iter.index-1];
-						code_segment_size = phdr->p_filesz;
+						code_size = phdr->p_filesz;
 						phdr->p_filesz += PAGE_ALIGN_UP(target->size); 
 						phdr->p_memsz  += PAGE_ALIGN_UP(target->size); 
-						expansion_size  = PAGE_ALIGN_UP(target->size);
 					}
-				} else if (segment.offset && segment.type == PT_LOAD) {	
+				} else if (segment.offset != host->text_offset && segment.type == PT_LOAD) {	
 					if (host->e_class == ELFCLASS32) {
 						Elf32_Phdr *phdr = &host->phdr32[p_iter.index-1];
-						phdr->p_offset += expansion_size;
-						data_offset = phdr->p_offset;
+						phdr->p_offset += payload_size;
 						data_size = phdr->p_filesz;
+						host->data_offset = phdr->p_offset;
 
 					} else {
 						Elf64_Phdr *phdr = &host->phdr64[p_iter.index-1];
-						phdr->p_offset += expansion_size; 
-						data_offset = phdr->p_offset;
+						phdr->p_offset += payload_size; 
 						data_size = phdr->p_filesz;
+						host->data_offset = phdr->p_offset;
 					}
 				} else if (segment.type == PT_DYNAMIC) {
 					if (host->e_class == ELFCLASS32) {
 						Elf32_Phdr *phdr = &host->phdr32[p_iter.index-1];
-						phdr->p_offset += expansion_size;
+						phdr->p_offset += payload_size;
 
 					} else {
 						Elf64_Phdr *phdr = &host->phdr64[p_iter.index-1];
-						phdr->p_offset += expansion_size; 
+						phdr->p_offset += payload_size; 
 					}
-					memcpy(dest_mem, host->mem, code_segment_size);
-					memcpy(dest_mem + code_segment_size, target->mem, target->size > expansion_size ? 
-						       expansion_size : target->size);
-					memcpy(dest_mem + data_offset, host->mem + data_offset - expansion_size, data_size);
-					*payload_offset = code_segment_size;
-					host->mem = dest_mem;
-					host->size += expansion_size;
-					injection_end = true;	
-					break;
 				} 
 			}
+			elf_section_iterator_init(host, &s_iter);
+			while (elf_section_iterator_next(&s_iter, &section) == ELF_ITER_OK) {
+				if (host->e_class == ELFCLASS32) {
+					Elf32_Shdr *shdr = &host->shdr32[s_iter.index-1];
+					if (shdr->sh_offset > host->text_offset) {
+					 shdr->sh_offset += payload_size;
+					}
+				} else {
+					Elf64_Shdr *shdr = &host->shdr64[s_iter.index-1];
+					if (shdr->sh_offset > host->data_offset) {
+						shdr->sh_offset += payload_size;
+					} else if (shdr->sh_type == SHT_DYNAMIC) {
+						shdr->sh_offset += payload_size;
+					}
+				}
+			}
+			
+			memcpy(dest_mem, host->mem, code_size);
+			memcpy(dest_mem + code_size, target->mem, target->size > payload_size ? 
+				       payload_size : target->size);
+			memcpy(dest_mem + host->data_offset, host->mem + host->data_offset - payload_size, host->size - code_size);
+
+			*payload_offset = code_size;
+			host->mem = dest_mem;
+			host->size += payload_size;
+			if (host->e_class == ELFCLASS32) {
+				Elf32_Ehdr *ehdr = (Elf32_Ehdr*)host->mem;
+				ehdr->e_shoff += payload_size;
+			} else {
+				Elf64_Ehdr *ehdr = (Elf64_Ehdr*)host->mem;
+				ehdr->e_shoff += payload_size;
+
+			}
+
+			injection_end = true;	
+			break;
 		}
 	}
 	if (injection_end == false) {
@@ -340,7 +384,7 @@ elf_has_header(const char *path, bool *has_header, elf_error_t *error)
 		elf_error_set(error, "pread: %s", strerror(errno));
 		return false;
 	}
-	*has_header = magic == 0x464c457f ? true : false;
+	*has_header = (magic == 0x464c457f) ? true : false;
 	close(fd);
 	return true;
 }
@@ -458,7 +502,7 @@ int main (int argc, char **argv)
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
-	if (elf_inject_code(&objdest, &obj2, &p_offset, ELF_INJECT_F_INTERPEND, &error) == false) {
+	if (elf_inject_code(&objdest, &obj2, &p_offset, ELF_INJECT_F_POSTPEND, &error) == false) {
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
