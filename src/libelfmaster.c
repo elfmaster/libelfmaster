@@ -749,6 +749,13 @@ elf_type(struct elfobj *obj)
 	return obj->type;
 }
 
+size_t
+elf_size(struct elfobj *obj)
+{
+
+	return obj->size;
+}
+
 void *
 elf_offset_pointer(elfobj_t *obj, uint64_t off)
 {
@@ -1657,8 +1664,8 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 {
 	int fd;
 	uint32_t i, phdr_count = 0;
-	unsigned int open_flags = O_RDONLY;
-	unsigned int mmap_perms = PROT_READ|PROT_WRITE;
+	unsigned int open_flags = (load_flags & ELF_LOAD_F_MODIFY) ? O_RDWR : O_RDONLY;
+	unsigned int mmap_perms = PROT_READ|PROT_WRITE; // always need +write even with MAP_PRIVATE
 	unsigned int mmap_flags = MAP_PRIVATE;
 	uint8_t *mem;
 	uint8_t e_class;
@@ -1698,7 +1705,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 
 	mem = mmap(NULL, st.st_size, mmap_perms, mmap_flags, fd, 0);
 	if (mem == MAP_FAILED) {
-		elf_error_set(error, "mmap: %s", strerror(errno));
+		elf_error_set(error, "mmap(1): %s", strerror(errno));
 		close(fd);
 		return false;
 	}
@@ -2366,7 +2373,8 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 final_load_stages:
 	if (elf_flags(obj, ELF_DYNAMIC_F) == true) {
 		if (load_dynamic_segment_data(obj) == false) {
-			elf_error_set(error, "failed to build dynamic segment data");
+			elf_error_set(error, "failed to build dynamic segment data: %s",
+			    path);
 			goto err;
 		}
 	}
@@ -2469,5 +2477,8 @@ elf_close_object(elfobj_t *obj)
 	/*
 	 * Unmap memory
 	 */
+	if (obj->load_flags & ELF_LOAD_F_MODIFY) {
+		msync(obj->mem, obj->size, MS_SYNC);
+	}
 	munmap(obj->mem, obj->size);
 }

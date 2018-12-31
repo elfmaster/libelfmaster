@@ -523,6 +523,7 @@ typedef struct elf_shared_object_iterator {
 					   //if the section header tables and symbols are missing or are corrupted.
 #define ELF_LOAD_F_MODIFY	(1UL << 3) //Used for modifying binaries
 #define ELF_LOAD_F_ULEXEC	(1UL << 4) //Used for ulexec based debugging API
+#define ELF_LOAD_F_MAP_WRITE	(1UL << 5)
 
 /*
  * Loads an ELF object of any type, for reading or modifying.
@@ -592,6 +593,7 @@ bool elf_plt_by_name(elfobj_t *, const char *, struct elf_plt *);
 
 uint64_t elf_entry_point(elfobj_t *);
 uint32_t elf_type(elfobj_t *);
+size_t elf_size(elfobj_t *);
 uint16_t elf_machine(elfobj_t *);
 
 bool elf_map_loadable_segments(elfobj_t *, struct elf_mapping *, elf_error_t *);

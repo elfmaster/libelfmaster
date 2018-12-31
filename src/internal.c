@@ -189,6 +189,19 @@ build_dynsym_data(struct elfobj *obj)
 	return true;
 }
 
+static bool
+sanity_check_st_name(struct elfobj *obj, size_t offset)
+{
+
+	(void)obj;
+	(void)offset;
+
+	/*
+	 * XXX TODO
+	 */
+	return true;
+}
+
 bool
 build_symtab_data(struct elfobj *obj)
 {
@@ -262,10 +275,19 @@ build_symtab_data(struct elfobj *obj)
 			 * there is an issue with the symbol->st_name string table index.
 			 */
 			symtab32 = obj->symtab32;
-			if (symtab32[i].st_name < elf_data_offset(obj) + elf_data_filesz(obj)) {
-				symbol->name = &obj->strtab[symtab32[i].st_name];
-			} else {
-				symbol->name = "invalid_name_index";
+			if (elf_type(obj) == ET_REL) {
+				if (symtab32[i].st_name < elf_size(obj)) {
+					symbol->name = &obj->strtab[symtab32[i].st_name];
+				} else {
+					symbol->name = "invalid_name_index";
+				}
+			} else if (elf_type(obj) == ET_DYN || elf_type(obj) == ET_EXEC) {
+				if (symtab32[i].st_name < elf_data_offset(obj) +
+				    elf_data_filesz(obj)) {
+					symbol->name = &obj->strtab[symtab32[i].st_name];
+				} else {
+					symbol->name = "invalid_name_index";
+				}
 			}
 			symbol->value = symtab32[i].st_value;
 			symbol->shndx = symtab32[i].st_shndx;
@@ -276,10 +298,17 @@ build_symtab_data(struct elfobj *obj)
 			break;
 		case elfclass64:
 			symtab64 = obj->symtab64;
-			if (symtab64[i].st_name < elf_data_offset(obj) + elf_data_filesz(obj)) {
-				symbol->name = &obj->strtab[symtab64[i].st_name];
-			} else {
-				symbol->name = "invalid_name_index";
+			if (elf_type(obj) == ET_REL) {
+				if (symtab64[i].st_name < elf_size(obj)) {
+					symbol->name = &obj->strtab[symtab64[i].st_name];
+				} else {
+					symbol->name = "invalid_name_index";
+				}
+			} else if (elf_type(obj) == ET_DYN || elf_type(obj) == ET_EXEC) {
+					if (sanity_check_st_name(obj, symtab64[i].st_name) == true)
+						symbol->name = &obj->strtab[symtab64[i].st_name];
+					else
+						symbol->name = "invalid_name_index";
 			}
 			symbol->value = symtab64[i].st_value;
 			symbol->shndx = symtab64[i].st_shndx;
@@ -601,7 +630,6 @@ load_dynamic_segment_data(struct elfobj *obj)
 	    dt_init_array = 0, dt_init_arraysz = 0,
 	    dt_fini_array = 0, dt_fini_arraysz = 0, dt_debug = 0;
 	uint32_t ptr_width = elf_class(obj) == elfclass32 ? 4 : 8;
-
 	/*
 	 * If the ELF object has no section headers, then .dynstr won't be set
 	 * yet, and elf_dynamic_string() will fail. So before we use the
@@ -615,25 +643,38 @@ load_dynamic_segment_data(struct elfobj *obj)
 		res = elf_dynamic_iterator_next(&iter, &entry);
 		if (res == ELF_ITER_DONE)
 			break;
-		if (res == ELF_ITER_ERROR)
+		if (res == ELF_ITER_ERROR) {
+			fprintf(stderr, "Initial iteration over dynamic segment failed\n");
 			return false;
+		}
 		if (entry.tag != DT_STRTAB)
 			continue;
 		/*
-		 * TODO:
-		 * In later versions we should handle anomalies where .dynstr
+		 * we must handle anomalies where .dynstr
 		 * is not stored in the text segment. I've seen this before
 		 * with strange linker script configs where .dynstr is writable
 		 * and in the data segment. For now return false if .dynstr is
 		 * not in the text segment and we are performing forensics
-		 * reconstruction.
+		 * reconstruction. We must also adjust elf_data_base and elf_text_base
+		 * to account for SCOP binaries.
 		 */
 		if (entry.value >=
-		    elf_text_base(obj) + obj->text_segment_filesz)
-			return false;
+		    elf_text_base(obj) + elf_text_filesz(obj)) {
+			if (entry.value >= elf_data_base(obj) &&
+			    entry.value < elf_data_base(obj) + elf_data_filesz(obj)) {
+				obj->dynstr = (char *)&obj->mem[entry.value -
+				    elf_data_base(obj)];
+				if (obj->dynstr == NULL)
+					return false;
+			} else {
+				fprintf(stderr,
+				    ".dynstr points outside of text and data segment\n");
+				return false;
+			}
+		}
 		obj->dynstr = (char *)&obj->mem[entry.value - elf_text_base(obj)];
 		if (obj->dynstr == NULL)
-			return NULL;
+			return false;
 	}
 	LIST_INIT(&obj->list.shared_objects);
 	elf_dynamic_iterator_init(obj, &iter);
@@ -641,8 +682,10 @@ load_dynamic_segment_data(struct elfobj *obj)
 		res = elf_dynamic_iterator_next(&iter, &entry);
 		if (res == ELF_ITER_DONE)
 			return true;
-		if (res == ELF_ITER_ERROR)
+		if (res == ELF_ITER_ERROR) {
+			fprintf(stderr, "Second iteration over dynamic segment failed\n");
 			return false;
+		}
 		obj->dynseg.exists = true;
 		/*
 		 * SECURITY: Some of these tags are expected more
