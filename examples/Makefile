@@ -1,24 +1,25 @@
+CC=gcc
 all:
-	gcc -O0 -g -fPIC -pie elfparse.c ../src/libelfmaster.a -o elfparse
-	gcc -O0 -g ldd.c ../src/libelfmaster.a -o ldd
-	gcc -O2 -g read_mem.c ../src/libelfmaster.a -o read_mem
-	gcc -O2 -g plt_dump.c ../src/libelfmaster.a -o plt_dump
-	gcc -O2 -g plt_dump2.c ../src/libelfmaster.a -o plt_dump2
-	gcc -O2 -g sections.c ../src/libelfmaster.a -o sections
-	gcc -O0 -ggdb symbols.c ../src/libelfmaster.a -o symbols
-	gcc -O2 -g eh_frame.c ../src/libelfmaster.a -o eh_frame
-	gcc -O2 -g checksec.c ../src/libelfmaster.a -o checksec
-	gcc -O2 -g -fPIC -pie test.c -o test_pie
-	gcc -O2 -no-pie test.c ../src/libelfmaster.a -o test
-	gcc -O2 -fPIC -pie test.c ../src/libelfmaster.a -o test2_pie
-	gcc -O2 -no-pie test.c ../src/libelfmaster.a -o test_stripped
-	gcc -O2 -no-pie -m32 test.c ../src/libelfmaster.a -o test32bit
-	gcc -O2 -fPIC -pie -m32 test.c ../src/libelfmaster.a -o test32bit_pie
-	gcc -no-pie -m32 test.c -o test32_stripped
-	gcc -m32 -fPIC -pie -Wl,-z,separate-code test.c -o test32_scop
-	gcc -g objdump_libelfmaster.c ../src/libelfmaster.a -o objdump_elfmaster -lcapstone
-	gcc -fPIC -pie -Wl,-z,separate-code,-z,relro,-z,now test.c -o test_scop
-	gcc ../utils/stripx.c -o stripx
+	$(CC) -O0 -g -fPIC -pie elfparse.c ../src/libelfmaster.a -o elfparse
+	$(CC) -O0 -g ldd.c ../src/libelfmaster.a -o ldd
+	$(CC) -O2 -g read_mem.c ../src/libelfmaster.a -o read_mem
+	$(CC) -O2 -g plt_dump.c ../src/libelfmaster.a -o plt_dump
+	$(CC) -O2 -g plt_dump2.c ../src/libelfmaster.a -o plt_dump2
+	$(CC) -O2 -g sections.c ../src/libelfmaster.a -o sections
+	$(CC) -O0 -ggdb symbols.c ../src/libelfmaster.a -o symbols
+	$(CC) -O2 -g eh_frame.c ../src/libelfmaster.a -o eh_frame
+	$(CC) -O2 -g checksec.c ../src/libelfmaster.a -o checksec
+	$(CC) -O2 -g -fPIC -pie test.c -o test_pie
+	$(CC) -O2 -no-pie test.c ../src/libelfmaster.a -o test
+	$(CC) -O2 -fPIC -pie test.c ../src/libelfmaster.a -o test2_pie
+	$(CC) -O2 -no-pie test.c ../src/libelfmaster.a -o test_stripped
+	$(CC) -O2 -no-pie -m32 test.c ../src/libelfmaster.a -o test32bit
+	$(CC) -O2 -fPIC -pie -m32 test.c ../src/libelfmaster.a -o test32bit_pie
+	$(CC) -no-pie -m32 test.c -o test32_stripped
+	$(CC) -m32 -fPIC -pie -Wl,-z,separate-code test.c -o test32_scop
+	$(CC) -g objdump_libelfmaster.c ../src/libelfmaster.a -o objdump_elfmaster -lcapstone
+	$(CC) -fPIC -pie -Wl,-z,separate-code,-z,relro,-z,now test.c -o test_scop
+	$(CC) ../utils/stripx.c -o stripx
 	./stripx test_stripped
 	./stripx test32_stripped
 clean:

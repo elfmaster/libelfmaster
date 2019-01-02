@@ -271,8 +271,10 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 			return "R_386_GOTOFF";
 		case R_386_GOTPC:
 			return "R_386_GOTPC";
+#ifdef __linux__
 		case R_386_32PLT:
 			return "R_386_32PLT";
+#endif
 		case R_386_TLS_TPOFF:
 			return "R_386_TLS_TPOFF";
 		case R_386_TLS_LE:
@@ -281,6 +283,7 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 			return "R_386_TLS_GD";
 		case R_386_TLS_LDM:
 			return "R_386_TLS_LDM";
+#ifdef __linux__
 		case R_386_16:
 			return "R_386_16";
 		case R_386_PC16:
@@ -289,6 +292,7 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 			return "R_386_8";
 		case R_386_PC8:
 			return "R_386_PC8";
+#endif
 		case R_386_TLS_GD_32:
 			return "R_386_TLS_GD_32";
 		case R_386_TLS_GD_PUSH:
@@ -317,6 +321,7 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 			return "R_386_TLS_DTOFF32";
 		case R_386_TLS_TPOFF32:
 			return "R_386_TLS_TPOFF32";
+#ifdef __linux__
 		case R_386_SIZE32:
 			return "R_386_TLS_SIZE32";
 		case R_386_TLS_GOTDESC:
@@ -325,6 +330,7 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 			return "R_386_TLS_DESC_CALL";
 		case R_386_TLS_DESC:
 			return "R_386_TLS_DESC";
+#endif
 		case R_386_IRELATIVE:
 			return "R_386_IRELATIVE";
 		default:
@@ -346,8 +352,10 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 			return "R_X86_64_COPY";
 		case R_X86_64_GLOB_DAT:
 			return "R_X86_64_GLOB_DAT";
+#ifdef __linux__
 		case R_X86_64_JUMP_SLOT:
 			return "R_X86_64_JUMP_SLOT";
+#endif
 		case R_X86_64_RELATIVE:
 			return "R_X86_64_RELATIVE";
 		case R_X86_64_GOTPCREL:
@@ -408,8 +416,10 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 			return "R_X86_64_TLSDESC";
 		case R_X86_64_IRELATIVE:
 			return "R_X86_64_IRELATIVE";
+#ifdef __linux__
 		case R_X86_64_RELATIVE64:
 			return "R_X86_64_RELATIVE64";
+#endif
 		default:
 			return "R_UNKNOWN";
 		}

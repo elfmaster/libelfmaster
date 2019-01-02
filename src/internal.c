@@ -2151,7 +2151,7 @@ dw_decode_pointer(elfobj_t *obj, uint8_t encoding_byte,
 	} encoding;
 
 	int value_size;
-	bool res;
+	bool res = false;
 	uint64_t text_section_vaddr;
 	struct elf_section shdr;
 
