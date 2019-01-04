@@ -216,4 +216,12 @@ bool phdr_sanity(elfobj_t *, void *);
  * Get the address range of every function found in .eh_frame
  */
 ssize_t dw_get_eh_frame_ranges(elfobj_t *);
+
+uint64_t internal_address_to_rva(struct elfobj *, uint64_t);
+
+uint64_t internal_segment_offset_delta(struct elfobj *, struct elf_segment *); 
+
+bool internal_offset_to_address(struct elfobj *, uint64_t, uint64_t *, elf_error_t *);
+
+bool internal_address_to_offset(struct elfobj *, uint64_t, uint64_t *, elf_error_t *); 
 #endif // _LIBELFMASTER_INTERNAL_H_

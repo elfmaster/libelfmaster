@@ -79,6 +79,15 @@
 
 #define SYMTAB_RECONSTRUCT_COUNT 8192
 
+#define ELF_INJECT_F_PREPEND 		0
+#define ELF_INJECT_F_POSTPEND		1
+#define ELF_INJECT_F_INTERPEND		2
+#define ELF_ET_STUB  			-1
+#define PAGE_SIZE 			0x1000
+#define PAGE_ALIGN(x) 			(x & ~(PAGE_SIZE - 1))
+#define PAGE_ALIGN_UP(x) 		(PAGE_ALIGN(x) + PAGE_SIZE)
+
+
 typedef struct elf_error {
         char string[MAX_ERROR_STR_LEN];
         int _errno;
@@ -746,4 +755,19 @@ typedef enum typewidth {
 bool elf_read_address(elfobj_t *, uint64_t, uint64_t *, typewidth_t);
 bool elf_read_offset(elfobj_t *, uint64_t, uint64_t *, typewidth_t);
 
+
+bool elf_has_header(const char *, bool *, elf_error_t *); 
+
+bool elf_open_stub(const char *, struct elfobj *, elf_error_t *);
+
+bool elf_init_stub(struct elfobj *, uint8_t *, size_t, elf_error_t *); 
+
+bool elf_create_object(const char *, struct elfobj *, struct elfobj *, size_t, uint64_t, elf_error_t *); 
+
+bool elf_commit_object(struct elfobj *, size_t, int, elf_error_t *);
+
+bool elf_inject_code(struct elfobj *, struct elfobj *, uint64_t *, uint64_t, elf_error_t *);
+
+
 #endif
+

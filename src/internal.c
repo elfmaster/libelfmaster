@@ -2207,3 +2207,71 @@ phdr_sanity(elfobj_t *obj, void *phdr)
 	}
 	return true;
 }
+
+/*
+ *  Returns the RVA of a given address
+ */
+uint64_t 
+internal_address_to_rva(struct elfobj *obj, uint64_t address) 
+{
+	return address - obj->text_address;
+}
+
+/*
+ * Returns segment virtual address delta to its disk offset. Implemented to handle segment
+ * alignment properlly.
+ */
+uint64_t
+internal_segment_offset_delta(struct elfobj *obj, struct elf_segment *segment) 
+{
+	return segment->offset - internal_address_to_rva(obj, segment->vaddr);
+}
+
+/*
+ * Translates a given offset to its equivalent address for a given elfobj_t instance.
+ */
+bool
+internal_offset_to_address(struct elfobj *obj, uint64_t offset, uint64_t *address, elf_error_t *error) 
+{
+	elf_segment_iterator_t p_iter;
+	struct elf_segment segment;
+
+	elf_segment_iterator_init(obj, &p_iter);
+	while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
+		if(segment.type == PT_LOAD) {
+			if(offset >= segment.offset && 
+					offset < segment.offset + segment.filesz) {
+				*address = (offset + (segment.vaddr - segment.offset));
+				return true;
+			}
+		}
+	}
+	elf_error_set(error, "Offset 0x%x not found in any segment for the provided elfobj_t instance", offset);
+	return false;
+}
+
+/*
+ * Translates a given address to its equivalent offset for a given elfobj_t instance.
+ */
+bool 
+internal_address_to_offset(struct elfobj *obj, uint64_t address, uint64_t *offset, elf_error_t *error) 
+{
+	elf_segment_iterator_t p_iter;
+	struct elf_segment segment;
+
+	elf_segment_iterator_init(obj, &p_iter);
+	while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
+		if (segment.type == PT_LOAD) {
+			if (segment.vaddr <= address &&
+					address < segment.vaddr + segment.memsz) {
+				*offset = (internal_address_to_rva(obj, address) +
+					internal_segment_offset_delta(obj, &segment));
+				return true;
+			}
+		}
+	}
+	elf_error_set(error, "Address 0x%x not found in any segment for the provided elfobj_t instance", address);
+	return false;
+}
+
+
