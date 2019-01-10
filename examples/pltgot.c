@@ -17,7 +17,7 @@ int main(int argc, char **argv)
 	elfobj_t obj;
 	elf_error_t error;
 	elf_pltgot_iterator_t pltgot_iter;
-	struct elf_pltgot pltgot;
+	struct elf_pltgot_entry pltgot;
 
 	if (argc < 2) {
 		printf("Usage: %s <binary>\n", argv[0]);

@@ -47,9 +47,10 @@
 #define ELF_DT_PLTREL_REL	0x11
 
 /*
- * In reality will never exceed 2,3, or 4 at the highest.
+ * In reality will never exceed 2,3, or 4 at the highest
+ * i.e. 4 PT_LOAD with SCOP (secure code partitioning)
  */
-#define MAX_LOADABLE_MAPPINGS 8
+#define MAX_LOADABLE_MAPPINGS 12
 
 #define ELFNOTE_NAME(_n_) ((unsigned char*)(_n_) + sizeof(*(_n_)))
 #define ELFNOTE_ALIGN(_n_) (((_n_)+3)&~3)
@@ -78,15 +79,6 @@
 #define MAX_VALID_SHNUM 65535 - 1
 
 #define SYMTAB_RECONSTRUCT_COUNT 8192
-
-#define ELF_INJECT_F_PREPEND 		0
-#define ELF_INJECT_F_POSTPEND		1
-#define ELF_INJECT_F_INTERPEND		2
-#define ELF_ET_STUB  			-1
-#define PAGE_SIZE 			0x1000
-#define PAGE_ALIGN(x) 			(x & ~(PAGE_SIZE - 1))
-#define PAGE_ALIGN_UP(x) 		(PAGE_ALIGN(x) + PAGE_SIZE)
-
 
 typedef struct elf_error {
         char string[MAX_ERROR_STR_LEN];
@@ -122,7 +114,8 @@ typedef enum elf_obj_flags {
 	ELF_FULL_PIE_F =		(1 << 14), /* fully relocatable ET_DYN */
 	ELF_SYMTAB_RECONSTRUCTION_F =	(1 << 15), /* .symtab is being reconstructed */
 	ELF_FORENSICS_F =		(1 << 16),  /* elf sections at the least are reconstructed */
-	ELF_DT_DEBUG_F =		(1 << 17)
+	ELF_DT_DEBUG_F =		(1 << 17),
+	ELF_SCOP_F =			(1 << 18) /* secure code partitioning */
 } elf_obj_flags_t;
 
 /*
@@ -240,7 +233,6 @@ typedef struct elfobj {
 	unsigned int type;
 	unsigned long long int anomalies;
 	uint64_t load_flags;
-	int fd;
 	const char *path;
 	union {
 		Elf32_Ehdr *ehdr32;
@@ -283,6 +275,9 @@ typedef struct elfobj {
 #define ELF_PT_LOAD_TEXT_F (1 << 0)
 #define ELF_PT_LOAD_DATA_F (1 << 1)
 #define ELF_PT_LOAD_MISC_F (1 << 2)
+	/* Handle SCOP cases */
+#define ELF_PT_LOAD_TEXT_RDONLY_F (1 << 3)
+
 	struct pt_load *pt_load;
 	size_t load_count;
 	/*
@@ -528,6 +523,7 @@ typedef struct elf_shared_object_iterator {
 					   //if the section header tables and symbols are missing or are corrupted.
 #define ELF_LOAD_F_MODIFY	(1UL << 3) //Used for modifying binaries
 #define ELF_LOAD_F_ULEXEC	(1UL << 4) //Used for ulexec based debugging API
+#define ELF_LOAD_F_MAP_WRITE	(1UL << 5)
 
 /*
  * Loads an ELF object of any type, for reading or modifying.
@@ -597,6 +593,7 @@ bool elf_plt_by_name(elfobj_t *, const char *, struct elf_plt *);
 
 uint64_t elf_entry_point(elfobj_t *);
 uint32_t elf_type(elfobj_t *);
+size_t elf_size(elfobj_t *);
 uint16_t elf_machine(elfobj_t *);
 
 bool elf_map_loadable_segments(elfobj_t *, struct elf_mapping *, elf_error_t *);
@@ -607,6 +604,8 @@ bool elf_map_loadable_segments(elfobj_t *, struct elf_mapping *, elf_error_t *);
 bool elf_symbol_by_name(elfobj_t *, const char *, struct elf_symbol *);
 
 bool elf_symbol_by_index(elfobj_t *, unsigned int, struct elf_symbol *, const int);
+
+bool elf_symbol_by_value(elfobj_t *, uint64_t, struct elf_symbol *);
 
 /*
  * Return a pointer to an offset into the memory mapped ELF file.
@@ -622,6 +621,10 @@ void * elf_offset_pointer(elfobj_t *, uint64_t);
  */
 void * elf_section_pointer(elfobj_t *, void *);
 
+/*
+ * ELF section by address
+ */
+bool elf_section_by_address(elfobj_t *, uint64_t, struct elf_section *);
 /*
  * Success: returns section name
  * failure: returns NULL
@@ -754,20 +757,4 @@ typedef enum typewidth {
 
 bool elf_read_address(elfobj_t *, uint64_t, uint64_t *, typewidth_t);
 bool elf_read_offset(elfobj_t *, uint64_t, uint64_t *, typewidth_t);
-
-
-bool elf_has_header(const char *, bool *, elf_error_t *); 
-
-bool elf_open_stub(const char *, struct elfobj *, elf_error_t *);
-
-bool elf_init_stub(struct elfobj *, uint8_t *, size_t, elf_error_t *); 
-
-bool elf_create_object(const char *, struct elfobj *, struct elfobj *, size_t, uint64_t, elf_error_t *); 
-
-bool elf_commit_object(struct elfobj *, size_t, int, elf_error_t *);
-
-bool elf_inject_code(struct elfobj *, struct elfobj *, uint64_t *, uint64_t, elf_error_t *);
-
-
 #endif
-

@@ -271,8 +271,10 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 			return "R_386_GOTOFF";
 		case R_386_GOTPC:
 			return "R_386_GOTPC";
+#ifdef __linux__
 		case R_386_32PLT:
 			return "R_386_32PLT";
+#endif
 		case R_386_TLS_TPOFF:
 			return "R_386_TLS_TPOFF";
 		case R_386_TLS_LE:
@@ -281,6 +283,7 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 			return "R_386_TLS_GD";
 		case R_386_TLS_LDM:
 			return "R_386_TLS_LDM";
+#ifdef __linux__
 		case R_386_16:
 			return "R_386_16";
 		case R_386_PC16:
@@ -289,6 +292,7 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 			return "R_386_8";
 		case R_386_PC8:
 			return "R_386_PC8";
+#endif
 		case R_386_TLS_GD_32:
 			return "R_386_TLS_GD_32";
 		case R_386_TLS_GD_PUSH:
@@ -317,6 +321,7 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 			return "R_386_TLS_DTOFF32";
 		case R_386_TLS_TPOFF32:
 			return "R_386_TLS_TPOFF32";
+#ifdef __linux__
 		case R_386_SIZE32:
 			return "R_386_TLS_SIZE32";
 		case R_386_TLS_GOTDESC:
@@ -325,6 +330,7 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 			return "R_386_TLS_DESC_CALL";
 		case R_386_TLS_DESC:
 			return "R_386_TLS_DESC";
+#endif
 		case R_386_IRELATIVE:
 			return "R_386_IRELATIVE";
 		default:
@@ -346,8 +352,10 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 			return "R_X86_64_COPY";
 		case R_X86_64_GLOB_DAT:
 			return "R_X86_64_GLOB_DAT";
+#ifdef __linux__
 		case R_X86_64_JUMP_SLOT:
 			return "R_X86_64_JUMP_SLOT";
+#endif
 		case R_X86_64_RELATIVE:
 			return "R_X86_64_RELATIVE";
 		case R_X86_64_GOTPCREL:
@@ -408,8 +416,10 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 			return "R_X86_64_TLSDESC";
 		case R_X86_64_IRELATIVE:
 			return "R_X86_64_IRELATIVE";
+#ifdef __linux__
 		case R_X86_64_RELATIVE64:
 			return "R_X86_64_RELATIVE64";
+#endif
 		default:
 			return "R_UNKNOWN";
 		}
@@ -492,9 +502,21 @@ elf_data_offset(struct elfobj *obj)
 void *
 elf_address_pointer(struct elfobj *obj, uint64_t address)
 {
-	uint64_t offset = elf_data_offset(obj) + address - elf_data_base(obj);
+	elf_segment_iterator_t iter;
+	struct elf_segment segment;
+	long long offset = -1;
 
-	if (offset > obj->size - 1)
+	elf_segment_iterator_init(obj, &iter);
+	while (elf_segment_iterator_next(&iter, &segment) == ELF_ITER_OK) {
+		if (address < segment.vaddr ||
+		    address >= segment.vaddr + segment.filesz)
+			continue;
+		offset = segment.offset + (address - segment.vaddr);
+		break;
+	}
+	if (offset == -1)
+		return NULL;
+	if ((size_t)offset > obj->size - 1)
 		return NULL;
 	return (void *)((uint8_t *)&obj->mem[offset]);
 }
@@ -512,7 +534,7 @@ const char *
 elf_dynamic_string(struct elfobj *obj, uint64_t offset)
 {
 
-	if (offset >= obj->size)
+	if (offset >= obj->size - 1)
 		return NULL;
 	return &obj->dynstr[offset];
 }
@@ -552,8 +574,8 @@ elf_section_by_index(struct elfobj *obj, uint32_t index,
     struct elf_section *out)
 {
 
-        switch(obj->e_class) {
-        case elfclass32:
+	switch(obj->e_class) {
+	case elfclass32:
 		if (index >= obj->ehdr32->e_shnum)
 			return false;
 		out->name = &obj->shstrtab[obj->shdr32[index].sh_name];
@@ -565,7 +587,7 @@ elf_section_by_index(struct elfobj *obj, uint32_t index,
 		out->offset = obj->shdr32[index].sh_offset;
 		out->address = obj->shdr32[index].sh_addr;
 		break;
-        case elfclass64:
+	case elfclass64:
 		if (index >= obj->ehdr64->e_shnum)
 			return false;
 		out->name = &obj->shstrtab[obj->shdr64[index].sh_name];
@@ -579,7 +601,7 @@ elf_section_by_index(struct elfobj *obj, uint32_t index,
 		break;
 	default:
 		return false;
-        }
+	}
 	return true;
 }
 
@@ -591,6 +613,46 @@ elf_section_name_by_index(struct elfobj *obj, uint32_t index)
 	if (elf_section_by_index(obj, index, &section) == false)
 		return NULL;
 	return section.name;
+}
+
+bool
+elf_section_by_address(struct elfobj *obj, uint64_t addr, struct elf_section *out)
+{
+	struct elf_section section;
+	elf_section_iterator_t iter;
+
+	elf_section_iterator_init(obj, &iter);
+	while (elf_section_iterator_next(&iter, &section) == ELF_ITER_OK) {
+		if (addr >= section.address && addr < section.address + section.size) {
+			memcpy(out, &section, sizeof(section));
+			return true;
+		}
+	}
+	return false;
+}
+
+bool
+elf_symbol_by_value(struct elfobj *obj, uint64_t addr, struct elf_symbol *out)
+{
+	struct elf_symbol symbol;
+	elf_symtab_iterator_t symtab_iter;
+	elf_dynsym_iterator_t dynsym_iter;
+
+	elf_dynsym_iterator_init(obj, &dynsym_iter);
+	while (elf_dynsym_iterator_next(&dynsym_iter, &symbol) == ELF_ITER_OK) {
+		if (addr >= symbol.value && addr < symbol.value + symbol.size) {
+			memcpy(out, &symbol, sizeof(symbol));
+			return true;
+		}
+	}
+	elf_symtab_iterator_init(obj, &symtab_iter);
+	while (elf_symtab_iterator_next(&symtab_iter, &symbol) == ELF_ITER_OK) {
+		if (addr >= symbol.value && addr < symbol.value + symbol.size) {
+			memcpy(out, &symbol, sizeof(symbol));
+			return true;
+		}
+	}
+	return false;
 }
 
 bool
@@ -695,6 +757,13 @@ elf_type(struct elfobj *obj)
 {
 
 	return obj->type;
+}
+
+size_t
+elf_size(struct elfobj *obj)
+{
+
+	return obj->size;
 }
 
 void *
@@ -1369,7 +1438,7 @@ elf_note_iterator_next(struct elf_note_iterator *iter,
 		    ELFNOTE_NAMESZ(iter->note32);
 		max_note_offset = iter->obj->note_offset + iter->obj->note_size;
 		if (entry_size >= max_note_offset) {
-			elf_error_set(e, "Invalid note entry size\n");
+			elf_error_set(e, "Invalid PT_NOTE entry size\n");
 			return ELF_ITER_ERROR;
 		}
 		entry->mem = ELFNOTE_DESC(iter->note32);
@@ -1605,8 +1674,8 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 {
 	int fd;
 	uint32_t i, phdr_count = 0;
-	unsigned int open_flags = O_RDONLY;
-	unsigned int mmap_perms = PROT_READ|PROT_WRITE;
+	unsigned int open_flags = (load_flags & ELF_LOAD_F_MODIFY) ? O_RDWR : O_RDONLY;
+	unsigned int mmap_perms = PROT_READ|PROT_WRITE; // always need +write even with MAP_PRIVATE
 	unsigned int mmap_flags = MAP_PRIVATE;
 	uint8_t *mem;
 	uint8_t e_class;
@@ -1635,7 +1704,6 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 		elf_error_set(error, "open: %s", strerror(errno));
 		return false;
 	}
-	obj->fd = fd;
 
 	if (fstat(fd, &st) < 0) {
 		elf_error_set(error, "fstat: %s", strerror(errno));
@@ -1647,7 +1715,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 
 	mem = mmap(NULL, st.st_size, mmap_perms, mmap_flags, fd, 0);
 	if (mem == MAP_FAILED) {
-		elf_error_set(error, "mmap: %s", strerror(errno));
+		elf_error_set(error, "mmap(1): %s", strerror(errno));
 		close(fd);
 		return false;
 	}
@@ -1787,7 +1855,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 		 * segment's we pick the first one and use that. If there are two
 		 * PT_GNU_EH_FRAME segment's we pick the first one. We also must perform
 		 * rigirous sanity checks since we will be internally referencing several
-		 * of these program header types for a variety of reasons.
+		 * of these program header types for a variety of reasons
 		 */
 		obj->pt_load = calloc(INITIAL_LOAD_COUNT, sizeof(struct pt_load));
 		if (obj->pt_load == NULL) {
@@ -1869,7 +1937,72 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 						obj->eh_frame_hdr_offset = obj->phdr32[i].p_offset;
 					}
 				}
+				/*
+				 * When observing the text segment (Traditionally a single PT_LOAD segment)
+				 * we must also consider SCOP (Secure code partitioning):
+				 * http://www.bitlackeys.org/papers/secure_code_partitioning_2018.txt
+				 */
 			} else if (obj->phdr32[i].p_type == PT_LOAD && obj->phdr32[i].p_offset == 0) {
+				if (text_found == false && obj->phdr32[i].p_flags == PF_R) {
+					if (obj->phdr32[i + 1].p_flags == PF_R|PF_X &&
+					    obj->phdr32[i + 2].p_flags == PF_R) {
+						obj->flags |= ELF_SCOP_F;
+						text_found = true;
+						obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
+						obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_F;
+						obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
+						obj->pt_load[obj->load_count + 2].flag |= ELF_PT_LOAD_TEXT_F;
+						obj->pt_load[obj->load_count + 2].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
+						/*
+						 * Consider a SCOP (Secure code partitioning) scenario
+						 * where all of the read-only sections are prepended before
+						 * the executable sections, and therefore there are only
+						 * two segments that make up the text segment instead of
+						 * three. This is a hypothetical but conceievable linking
+						 * configuration. SCOP is very new, and currently is in
+						 * the order of 3 PT_LOAD segments; the first being PF_R
+						 * the second being PF_R|PF_X and the 3rd being PF_R, this
+						 * supports the conventional order of the ELF sections from
+						 * a historic standpoint and will probably stay this way
+						 * for quite a while, but we must atleast be prepared for
+						 * other variations of this, and even more than what we are
+						 * currently doing here:
+						 */
+						obj->text_address = obj->phdr32[i].p_vaddr;
+						obj->text_segment_filesz = obj->phdr32[i].p_filesz;
+
+						memcpy(&obj->pt_load[obj->load_count].phdr32,
+						    &obj->phdr32[i], sizeof(Elf32_Phdr));
+						memcpy(&obj->pt_load[obj->load_count + 1].phdr32,
+						    &obj->phdr32[i + 1], sizeof(Elf32_Phdr));
+						memcpy(&obj->pt_load[obj->load_count + 2].phdr32,
+						    &obj->phdr32[i + 2], sizeof(Elf32_Phdr));
+						i += 2;
+						obj->load_count += 3;
+						continue;
+					} else if (obj->phdr32[i + 1].p_flags == PF_R|PF_X &&
+							/*
+							 * Assuming the next segment would be the
+							 * data segment, hence PF_R|PF_W, and the
+							 * two segments before it SCOP text segments.
+							 */
+						    obj->phdr32[i + 2].p_flags == PF_R|PF_W) {
+							text_found = true;
+							obj->flags |= ELF_SCOP_F;
+							obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
+							obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_F;
+							obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
+							obj->text_address = obj->phdr32[i].p_vaddr;
+							obj->text_segment_filesz = obj->phdr32[i].p_filesz;
+							memcpy(&obj->pt_load[obj->load_count].phdr32,
+							    &obj->phdr32[i], sizeof(Elf32_Phdr));
+							memcpy(&obj->pt_load[obj->load_count].phdr32,
+							    &obj->phdr32[i], sizeof(Elf32_Phdr));
+							i += 1;
+							obj->load_count += 2;
+							continue;
+						}
+				}
 				obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
 				text_found = true;
 				memcpy(&obj->pt_load[obj->load_count++].phdr32, &obj->phdr32[i],
@@ -1900,6 +2033,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 					    &obj->phdr32[i], sizeof(Elf32_Phdr));
 					obj->data_segment_filesz = obj->phdr32[i].p_filesz;
 				}
+
 			}
 		}
 		break;
@@ -1978,9 +2112,6 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 			obj->shstrtab =
 			    (char *)&mem[obj->shdr64[obj->ehdr64->e_shstrndx].sh_offset];
 		}
-		if ((obj->anomalies & INVALID_F_SH_HEADERS) == 0)
-			obj->section_count = section_count = obj->ehdr64->e_shnum;
-
 		if (obj->ehdr64->e_shentsize != sizeof(Elf64_Shdr)) {
 			if (__strict) {
 				elf_error_set(error, "invalid_e_shentsize: %u",
@@ -1989,6 +2120,20 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 			}
 			obj->anomalies |= INVALID_F_SHENTSIZE;
 		}
+		/*
+		 * NOTE:
+		 * It is the position of libelfmaster to not parse existing section
+		 * headers under the following conditions:
+		 * 1. If the section header table is malformed, i.e. offset of the table
+		 * points somewhere out of the file range.
+		 * 2. If e_shentsize != sizeof(ElfW(Shdr)) -- and this decision should be
+		 * re-addressed in the future so that we can parse custom section headers
+		 * that crafty hackers don't want us to parse
+		 */
+		if ((obj->anomalies & INVALID_F_SH_HEADERS) == 0 &&
+		    (obj->anomalies & INVALID_F_SHENTSIZE) == 0)
+			obj->section_count = section_count = obj->ehdr64->e_shnum;
+
 		if (obj->ehdr64->e_type != ET_REL) {
 			if (obj->ehdr64->e_phentsize != sizeof(Elf64_Phdr)) {
 				elf_error_set(error, "invalid e_phentsize: %u",
@@ -2003,6 +2148,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 			elf_error_set(error, "calloc: %s", strerror(errno));
 			goto err;
 		}
+
 		phdr_count = INITIAL_LOAD_COUNT;
 		for (i = 0; i < obj->ehdr64->e_phnum; i++) {
 			if (obj->load_count >= phdr_count) {
@@ -2076,6 +2222,49 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 					}
 				}
 			} else if (obj->phdr64[i].p_type == PT_LOAD && obj->phdr64[i].p_offset == 0) {
+				/*
+				 * NOTE: Read coments in the i386 PT_LOAD parsing above
+				 * as it applies to this next chunk of code here as well for x64.
+				 */
+				   if (text_found == false && obj->phdr64[i].p_flags == PF_R) {
+					if (obj->phdr64[i + 1].p_flags == PF_R|PF_X &&
+					    obj->phdr64[i + 2].p_flags == PF_R) {
+						obj->flags |= ELF_SCOP_F;
+						text_found = true;
+						obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
+						obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_F;
+						obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
+						obj->pt_load[obj->load_count + 2].flag |= ELF_PT_LOAD_TEXT_F;
+						obj->pt_load[obj->load_count + 2].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
+						obj->text_address = obj->phdr64[i].p_vaddr;
+						obj->text_segment_filesz = obj->phdr64[i].p_filesz;
+						memcpy(&obj->pt_load[obj->load_count++].phdr64, &obj->phdr64[i],
+						    sizeof(Elf64_Phdr));
+						memcpy(&obj->pt_load[obj->load_count + 1].phdr64,
+						  &obj->phdr64[i + 1], sizeof(Elf64_Phdr));
+						memcpy(&obj->pt_load[obj->load_count + 2].phdr64,
+						    &obj->phdr64[i + 2], sizeof(Elf64_Phdr));
+						i += 2;
+						obj->load_count += 3;
+						continue;
+					} else if (obj->phdr64[i + 1].p_flags == PF_R|PF_X &&
+						    obj->phdr64[i + 2].p_flags == PF_R|PF_W) {
+							text_found = true;
+							obj->flags |= ELF_SCOP_F;
+							obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
+							obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_F;
+							obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
+							obj->text_address = obj->phdr64[i].p_vaddr;
+							obj->text_segment_filesz = obj->phdr64[i].p_filesz;
+							memcpy(&obj->pt_load[obj->load_count].phdr64,
+							    &obj->phdr64[i], sizeof(Elf64_Phdr));
+							memcpy(&obj->pt_load[obj->load_count].phdr64,
+							    &obj->phdr64[i], sizeof(Elf64_Phdr));
+							i += 1;
+							obj->load_count += 2;
+							continue;
+					}
+				}
 				obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
 				text_found = true;
 				memcpy(&obj->pt_load[obj->load_count++].phdr64, &obj->phdr64[i],
@@ -2121,7 +2310,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 	 * we just skip section parsing/loading, after which we can sort them but
 	 * but not now.
 	 */
-	if (insane_headers(obj) == true) {
+	if (insane_section_headers(obj) == true) {
 		goto final_load_stages;
 	}
 
@@ -2194,7 +2383,8 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 final_load_stages:
 	if (elf_flags(obj, ELF_DYNAMIC_F) == true) {
 		if (load_dynamic_segment_data(obj) == false) {
-			elf_error_set(error, "failed to build dynamic segment data");
+			elf_error_set(error, "failed to build dynamic segment data: %s",
+			    path);
 			goto err;
 		}
 	}
@@ -2208,7 +2398,8 @@ final_load_stages:
 	 * of dynamically linked executables. We need to fix this ASAP.
 	 */
 	if (elf_flags(obj, ELF_DYNAMIC_F) == true &&
-	    insane_headers(obj) == true && (load_flags & ELF_LOAD_F_FORENSICS)) {
+	    insane_section_headers(obj) == true &&
+	    (load_flags & ELF_LOAD_F_FORENSICS)) {
 		elf_error_t suberror;
 
 		if (reconstruct_elf_sections(obj, &suberror) == false) {
@@ -2222,14 +2413,13 @@ final_load_stages:
 		 * FORENSICS flag in elf_open_object, then skip the
 		 * reconstruction of necessary data.
 		 */
-		if (insane_headers(obj) == true)
+		if (insane_section_headers(obj) == true)
 			goto finalize;
 	}
-
 	/*
 	 * Build a cache for symtab and dynsym as needed.
 	 */
-	if (insane_headers(obj) == true &&
+	if (insane_section_headers(obj) == true &&
 	    (load_flags & ELF_LOAD_F_FORENSICS)) {
 		/*
 		 * Make room to reconstruct up to SYMTAB_RECONSTRUCT_COUNT functions
@@ -2293,9 +2483,13 @@ elf_close_object(elfobj_t *obj)
 	free_caches(obj);
 	free_arrays(obj);
 	free_misc(obj);
+	free(obj->pt_load);
 	/*
 	 * Unmap memory
 	 */
+	if (obj->load_flags & ELF_LOAD_F_MODIFY) {
+		msync(obj->mem, obj->size, MS_SYNC);
+	}
 	munmap(obj->mem, obj->size);
 }
 
@@ -2644,5 +2838,4 @@ elf_inject_code(struct elfobj *host, struct elfobj *target, uint64_t *payload_of
 	}	
 	return true;	
 }
-
 

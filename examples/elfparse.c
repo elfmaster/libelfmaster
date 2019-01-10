@@ -33,6 +33,7 @@ int main(int argc, char **argv)
 	struct elf_shared_object_iterator so_iter;
 	struct timeval tv, tv2;
 	unsigned int count = 0;
+	bool scop = false;
 
 	if (elf_open_object(argv[1], &obj, ELF_LOAD_F_FORENSICS,
 	    &error) == false) {
@@ -76,6 +77,10 @@ int main(int argc, char **argv)
 
 	elf_segment_iterator_init(&obj, &p_iter);
 	while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
+		if (elf_flags(&obj, ELF_SCOP_F) == true && scop == false) {
+			printf("SCOP enabled\n");
+			scop = true;
+		}
 		printf("\nAddr:    %#lx\n", segment.vaddr);
 		printf("Filesz:  %#lx\n", segment.filesz);
 		printf("MemSz:   %#lx\n", segment.memsz);

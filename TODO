@@ -4,6 +4,13 @@ Fix all parsing bugs in crashes. I have some more fixing and testing to go befor
 the release tag of this alpha version, so this last commit is not a complete update to
 the code base, but resolves quite a number of the existing issues.
 
+## Handle SCOP (Secure code partitioning)
+
+We must determine how functions such as elf_text_base are going to work
+when there are multiple LOAD segments in SCOP linked binaries.
+
+## Merge in Ignacios work for code injection
+
 ## 9/17/2018
 
 Make sure that we take into account dynamic segments that exist in

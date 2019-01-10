@@ -31,7 +31,7 @@ int main(int argc, char **argv)
 	struct elf_symbol symbol;
 	elf_linking_type_t link_type;
 	bool dynamic = false, relro = false, strict_linking = false, executable_data = false,
-	    pax = false, writable_text = false, executable_stack = false;
+	    pax = false, writable_text = false, executable_stack = false, scop = false;
 	unsigned int pax_flags;
 	char pax_string[256] = {0};
 
@@ -48,6 +48,9 @@ int main(int argc, char **argv)
 		printf("%s\n", elf_error_msg(&error));
 		return -1;
 	}
+	if (elf_flags(&obj, ELF_SCOP_F) == true)
+		printf("SCOP (Secure code partitioning) is enabled\n");
+
 	if ((link_type = elf_linking_type(&obj)) == ELF_LINKING_UNDEF) {
 		printf("Object: %s is not an executable or shared library\n", argv[0]);
 		exit(EXIT_SUCCESS);

@@ -189,6 +189,19 @@ build_dynsym_data(struct elfobj *obj)
 	return true;
 }
 
+static bool
+sanity_check_st_name(struct elfobj *obj, size_t offset)
+{
+
+	(void)obj;
+	(void)offset;
+
+	/*
+	 * XXX TODO
+	 */
+	return true;
+}
+
 bool
 build_symtab_data(struct elfobj *obj)
 {
@@ -207,7 +220,7 @@ build_symtab_data(struct elfobj *obj)
 	 * that correspond to each FDE within .eh_frame.
 	 */
 	if ((obj->load_flags & ELF_LOAD_F_FORENSICS) &&
-	    insane_headers(obj) == true) {
+	    insane_section_headers(obj) == true) {
 		struct elf_symbol_node *symbol;
 		struct elf_eh_frame fde;
 		elf_eh_frame_iterator_t  eh_iter;
@@ -262,10 +275,19 @@ build_symtab_data(struct elfobj *obj)
 			 * there is an issue with the symbol->st_name string table index.
 			 */
 			symtab32 = obj->symtab32;
-			if (symtab32[i].st_name < elf_data_offset(obj) + elf_data_filesz(obj)) {
-				symbol->name = &obj->strtab[symtab32[i].st_name];
-			} else {
-				symbol->name = "invalid_name_index";
+			if (elf_type(obj) == ET_REL) {
+				if (symtab32[i].st_name < elf_size(obj)) {
+					symbol->name = &obj->strtab[symtab32[i].st_name];
+				} else {
+					symbol->name = "invalid_name_index";
+				}
+			} else if (elf_type(obj) == ET_DYN || elf_type(obj) == ET_EXEC) {
+				if (symtab32[i].st_name < elf_data_offset(obj) +
+				    elf_data_filesz(obj)) {
+					symbol->name = &obj->strtab[symtab32[i].st_name];
+				} else {
+					symbol->name = "invalid_name_index";
+				}
 			}
 			symbol->value = symtab32[i].st_value;
 			symbol->shndx = symtab32[i].st_shndx;
@@ -276,10 +298,17 @@ build_symtab_data(struct elfobj *obj)
 			break;
 		case elfclass64:
 			symtab64 = obj->symtab64;
-			if (symtab64[i].st_name < elf_data_offset(obj) + elf_data_filesz(obj)) {
-				symbol->name = &obj->strtab[symtab64[i].st_name];
-			} else {
-				symbol->name = "invalid_name_index";
+			if (elf_type(obj) == ET_REL) {
+				if (symtab64[i].st_name < elf_size(obj)) {
+					symbol->name = &obj->strtab[symtab64[i].st_name];
+				} else {
+					symbol->name = "invalid_name_index";
+				}
+			} else if (elf_type(obj) == ET_DYN || elf_type(obj) == ET_EXEC) {
+					if (sanity_check_st_name(obj, symtab64[i].st_name) == true)
+						symbol->name = &obj->strtab[symtab64[i].st_name];
+					else
+						symbol->name = "invalid_name_index";
 			}
 			symbol->value = symtab64[i].st_value;
 			symbol->shndx = symtab64[i].st_shndx;
@@ -601,7 +630,6 @@ load_dynamic_segment_data(struct elfobj *obj)
 	    dt_init_array = 0, dt_init_arraysz = 0,
 	    dt_fini_array = 0, dt_fini_arraysz = 0, dt_debug = 0;
 	uint32_t ptr_width = elf_class(obj) == elfclass32 ? 4 : 8;
-
 	/*
 	 * If the ELF object has no section headers, then .dynstr won't be set
 	 * yet, and elf_dynamic_string() will fail. So before we use the
@@ -615,25 +643,38 @@ load_dynamic_segment_data(struct elfobj *obj)
 		res = elf_dynamic_iterator_next(&iter, &entry);
 		if (res == ELF_ITER_DONE)
 			break;
-		if (res == ELF_ITER_ERROR)
+		if (res == ELF_ITER_ERROR) {
+			fprintf(stderr, "Initial iteration over dynamic segment failed\n");
 			return false;
+		}
 		if (entry.tag != DT_STRTAB)
 			continue;
 		/*
-		 * TODO:
-		 * In later versions we should handle anomalies where .dynstr
+		 * we must handle anomalies where .dynstr
 		 * is not stored in the text segment. I've seen this before
 		 * with strange linker script configs where .dynstr is writable
 		 * and in the data segment. For now return false if .dynstr is
 		 * not in the text segment and we are performing forensics
-		 * reconstruction.
+		 * reconstruction. We must also adjust elf_data_base and elf_text_base
+		 * to account for SCOP binaries.
 		 */
 		if (entry.value >=
-		    elf_text_base(obj) + obj->text_segment_filesz)
-			return false;
+		    elf_text_base(obj) + elf_text_filesz(obj)) {
+			if (entry.value >= elf_data_base(obj) &&
+			    entry.value < elf_data_base(obj) + elf_data_filesz(obj)) {
+				obj->dynstr = (char *)&obj->mem[entry.value -
+				    elf_data_base(obj)];
+				if (obj->dynstr == NULL)
+					return false;
+			} else {
+				fprintf(stderr,
+				    ".dynstr points outside of text and data segment\n");
+				return false;
+			}
+		}
 		obj->dynstr = (char *)&obj->mem[entry.value - elf_text_base(obj)];
 		if (obj->dynstr == NULL)
-			return NULL;
+			return false;
 	}
 	LIST_INIT(&obj->list.shared_objects);
 	elf_dynamic_iterator_init(obj, &iter);
@@ -641,21 +682,40 @@ load_dynamic_segment_data(struct elfobj *obj)
 		res = elf_dynamic_iterator_next(&iter, &entry);
 		if (res == ELF_ITER_DONE)
 			return true;
-		if (res == ELF_ITER_ERROR)
+		if (res == ELF_ITER_ERROR) {
+			fprintf(stderr, "Second iteration over dynamic segment failed\n");
 			return false;
+		}
 		obj->dynseg.exists = true;
 		/*
 		 * SECURITY: Some of these tags are expected more
-		 * than once
+		 * than once:
 		 * like DT_NEEDED. But an attacker who wants to
 		 * circumvent our reconstruction could put two
 		 * DT_PLTGOT tags for instance and we would save
 		 * the second one as the PLT/GOT address, and it
 		 * could be bunk. So lets make sure there's only
-		 * one of each unless it expected otherwise.
+		 * one of each unless it expected otherwise (such as NEEDED)
 		 * Eventually lets make sure to do further validation
-		 * i.e. does the pltgot.addr even point to a valid
-		 * location? (i.e. is it in the data segment)
+		 *
+		 * SECURITY TODO: Currently we do boundary checks on each value
+		 * and make sure that certain vital values are sane. This
+		 * is imperative for forensics reconstruction. There is a
+		 * fundamental problem with our approach that needs to be
+		 * addressed later on. We are assuming that these tags point
+		 * to values either in the traditional text segment or the
+		 * traditional data segment. Consider a scenario where the
+		 * DT_PLTGOT is in a loadable segment that is not determined
+		 * to be the data segment, yet we are using elf_data_base(obj)
+		 * to calculate sanity checks. This is important since we
+		 * need to be able to reconstruct the data segment, however
+		 * we may advance our technique in the future to support
+		 * reconstruction, even if a given tag value points to a
+		 * non-traditional memory range, as long as that segment
+		 * permissions are in alignment with the dynamic tag value
+		 * then we could respect it. This enhancement will ultimately
+		 * be spec'd out and designed properly and documented based
+		 * on more analysis and samples.
 		 */
 		switch(entry.tag) {
 		case DT_PLTGOT:
@@ -751,7 +811,8 @@ load_dynamic_segment_data(struct elfobj *obj)
 			 * cannot properly calculate an invalid size
 			 * since we won't have the exact location
 			 * of the relocation section yet. In that
-			 * case we do an approximation
+			 * case we do an approximation of whether the
+			 * size is 'likely' or 'approximately' sane
 			 */
 			if (obj->dynseg.rela.addr == 0) {
 				/*
@@ -839,21 +900,41 @@ load_dynamic_segment_data(struct elfobj *obj)
 				return false;
 			so->index++;
 			so->basename = elf_dynamic_string(obj, entry.value);
+			if (so->basename == NULL) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+				free(so);
+				break;
+			}
 			LIST_INSERT_HEAD(&obj->list.shared_objects, so,
 			    _linkage);
 			break;
 		case DT_RELAENT:
 			if (dt_relaent++ > 0)
 				break;
-			if (entry.value != ELF_DT_PLTREL_RELA)
-				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			if (elf_class(obj) == elfclass32) {
+				if (entry.value != sizeof(Elf32_Rela))
+					obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			} else if (elf_class(obj) == elfclass64) {
+				if (entry.value != sizeof(Elf64_Rela))
+					obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.relaent.size = entry.value;
 			break;
 		case DT_RELENT:
+			/*
+			 * At this point DT_RELENT and DT_RELAENT are not
+			 * necessarily vital for forensics reconstruction we may want
+			 * to take the anomaly checks out for these.
+			 */
 			if (dt_relent++ > 0)
 				break;
-			if (entry.value != ELF_DT_PLTREL_REL)
-				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			if (elf_class(obj) == elfclass32) {
+				if (entry.value != sizeof(Elf32_Rel))
+					obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			} else if (elf_class(obj) == elfclass64) {
+				if (entry.value != sizeof(Elf64_Rel))
+					obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.relent.size = entry.value;
 			break;
 		case DT_INIT_ARRAY:
@@ -873,8 +954,17 @@ load_dynamic_segment_data(struct elfobj *obj)
 			 * note to self: approximate guess here as well
 			 * since usually DT_FINI_ARRAY comes before DT_INIT_ARRAY
 			 */
+			if (entry.value < elf_data_base(obj) ||
+			    entry.value > elf_data_base(obj) +
+			    elf_data_filesz(obj) - ptr_width - 1) {
+				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
+			}
 			obj->dynseg.fini_array.addr = entry.value;
 			break;
+			/*
+			 * TODO put in anomaly checks for these to make sure
+			 * they are valid for reconstruction.
+			 */
 		case DT_INIT_ARRAYSZ:
 			if (dt_init_arraysz++ > 0)
 				break;
@@ -886,12 +976,20 @@ load_dynamic_segment_data(struct elfobj *obj)
 			obj->dynseg.fini_array.size = entry.value;
 			break;
 		case DT_RPATH:
+			/*
+			 * TODO we must get the runpath for
+			 * supporting these types of .so path
+			 * lookups. Also $ORIGIN expansion support
+			 * is a must as it is actually used in
+			 * a number of important ELF applications
+			 * that I've seen.
+			 */
 		case DT_RUNPATH:
 			break;
 		case DT_DEBUG:
 			if (dt_debug++ > 0)
 				break;
-			obj->dynseg.debug.value = 0;
+			obj->dynseg.debug.value = entry.value;
 			obj->flags |= ELF_DT_DEBUG_F;
 			break;
 		default:
@@ -903,6 +1001,7 @@ load_dynamic_segment_data(struct elfobj *obj)
 
 void free_misc(elfobj_t *obj)
 {
+
 	if (elf_flags(obj, ELF_FORENSICS_F) == true) {
 		free(obj->shstrtab);
 		switch(obj->e_class) {
@@ -994,10 +1093,33 @@ free_arrays(elfobj_t *obj)
 }
 
 bool
-insane_headers(elfobj_t *obj)
+insane_section_headers(elfobj_t *obj)
 {
 
-	return (obj->anomalies > 0);
+	if (obj->anomalies & INVALID_F_SHOFF)
+		return true;
+	if (obj->anomalies & INVALID_F_SHSTRNDX)
+		return true;
+	if (obj->anomalies & INVALID_F_SHOFFSET)
+		return true;
+	if (obj->anomalies & INVALID_F_SHNUM)
+		return true;
+	if (obj->anomalies & INVALID_F_SHENTSIZE)
+		return true;
+	if (obj->anomalies & INVALID_F_SH_HEADERS)
+		return true;
+	if (obj->anomalies & INVALID_F_SHSTRTAB)
+		return true;
+	return false;
+}
+
+bool
+insane_dynamic_segment(elfobj_t *obj)
+{
+
+	if (obj->anomalies & INVALID_F_VITAL_DTAG_VALUE)
+		return true;
+	return false;
 }
 
 /*
@@ -2029,7 +2151,7 @@ dw_decode_pointer(elfobj_t *obj, uint8_t encoding_byte,
 	} encoding;
 
 	int value_size;
-	bool res;
+	bool res = false;
 	uint64_t text_section_vaddr;
 	struct elf_section shdr;
 
@@ -2207,7 +2329,6 @@ phdr_sanity(elfobj_t *obj, void *phdr)
 	}
 	return true;
 }
-
 /*
  *  Returns the RVA of a given address
  */
@@ -2273,5 +2394,4 @@ internal_address_to_offset(struct elfobj *obj, uint64_t address, uint64_t *offse
 	elf_error_set(error, "Address 0x%x not found in any segment for the provided elfobj_t instance", address);
 	return false;
 }
-
 
