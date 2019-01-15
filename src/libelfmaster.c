@@ -461,6 +461,65 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 }
 
 /*
+ * Return executable text segment offset
+ * for SCOP binaries
+ */
+uint64_t
+elf_executable_text_offset(struct elfobj *obj)
+{
+
+	return elf_executable_text_base(obj) - elf_text_base(obj);
+}
+/*
+ *
+ * Return executable text segment for SCOP
+ * binaries.
+ */
+uint64_t
+elf_executable_text_base(struct elfobj *obj)
+{
+	struct elf_segment segment;
+	elf_segment_iterator_t iter;
+	elf_iterator_res_t res;
+	
+	/*
+	 * For Helen... the ornamental saps conspired in the
+	 * virgin dark.
+	 * In astral silences, the trackless radiance unites.
+	 * The moon descends in cubes-- crystalized by the intrepid
+	 * and glorious cymatic. Expanding space and time in ageless
+	 * fields of natures own sweetness and pain.
+	 */
+	if (peu_probable(elf_flags(obj, ELF_SCOP_F) == false)) {
+		return elf_text_base(obj);
+	}
+	elf_segment_iterator_init(obj, &iter);
+
+	for (;;) {
+		res = elf_segment_iterator_next(&iter, &segment);
+		if (res == ELF_ITER_OK) {
+			if (segment.flags & PF_X) {
+				if (segment.type == PT_LOAD) {
+					/*
+					 * We use the same semantics as the linker, but in reverse.
+					 * and avoid any ambiguities by going directly to the sh_flags
+					 * of the section headers. Even if they are forensically re-constructed.
+					 */
+					struct elf_section section;
+
+					if (elf_section_by_address(obj, segment.vaddr,
+					    &section) == true) {
+						if (section.flags & SHF_EXECINSTR)
+							return segment.vaddr;
+					}
+				}
+			}
+		}
+	}
+	return 0;
+}
+
+/*
  * In the event of SCOP we will give the base address
  * of the first LOAD segment that is RDONLY. For more
  * granularity use the elf_executable_text_base()

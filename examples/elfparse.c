@@ -43,6 +43,8 @@ int main(int argc, char **argv)
 
 	if (obj.flags & ELF_SHDRS_F)
 		printf("*** Section Headers:\n");
+	
+	printf("executable base: %#lx\n", elf_executable_text_base(&obj));
 	/*
 	 * The iterator simply won't print anything if there are no sections
 	 * so we don't have to nest this block of code

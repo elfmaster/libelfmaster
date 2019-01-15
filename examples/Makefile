@@ -18,7 +18,7 @@ all:
 	$(CC) -no-pie -m32 test.c -o test32_stripped
 	$(CC) -m32 -fPIC -pie -Wl,-z,separate-code test.c -o test32_scop
 	$(CC) -g objdump_libelfmaster.c ../src/libelfmaster.a -o objdump_elfmaster -lcapstone
-	$(CC) -fPIC -pie -Wl,-z,separate-code,-z,relro,-z,now test.c -o test_scop
+	$(CC) -Wl,-z,separate-code,-z,relro,-z,now test.c -o test_scop
 	$(CC) ../utils/stripx.c -o stripx
 	$(CC) -N -static -m32 -nostdlib nostdlib.c -o nostdlib32
 	$(CC) -N -static -nostdlib nostdlib.c -o nostdlib

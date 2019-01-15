@@ -37,6 +37,8 @@
 #include <sys/queue.h>
 #include <sys/stat.h>
 
+#define peu_probable __glibc_unlikely
+
 #define MAX_ERROR_STR_LEN 128
 
 /*
@@ -768,5 +770,7 @@ bool elf_read_offset(elfobj_t *, uint64_t, uint64_t *, typewidth_t);
  * and return the sum total
  */
 ssize_t elf_scop_text_filesz(elfobj_t *);
+uint64_t elf_executable_text_offset(elfobj_t *);
+uint64_t elf_executable_text_base(elfobj_t *);
 
 #endif
