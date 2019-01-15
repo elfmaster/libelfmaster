@@ -115,7 +115,8 @@ typedef enum elf_obj_flags {
 	ELF_SYMTAB_RECONSTRUCTION_F =	(1 << 15), /* .symtab is being reconstructed */
 	ELF_FORENSICS_F =		(1 << 16),  /* elf sections at the least are reconstructed */
 	ELF_DT_DEBUG_F =		(1 << 17),
-	ELF_SCOP_F =			(1 << 18) /* secure code partitioning */
+	ELF_SCOP_F =			(1 << 18), /* secure code partitioning */
+	ELF_MERGED_SEGMENTS_F =		(1 << 19)  /* Merged text+data segment, i.e. gcc -nostdlib -N -static test.c -o test */
 } elf_obj_flags_t;
 
 /*
@@ -277,6 +278,10 @@ typedef struct elfobj {
 #define ELF_PT_LOAD_MISC_F (1 << 2)
 	/* Handle SCOP cases */
 #define ELF_PT_LOAD_TEXT_RDONLY_F (1 << 3)
+	/*
+	 * Handle merged text and data
+	 */
+#define ELF_PT_LOAD_MERGED_F 	(1 << 4)
 
 	struct pt_load *pt_load;
 	size_t load_count;
@@ -757,4 +762,11 @@ typedef enum typewidth {
 
 bool elf_read_address(elfobj_t *, uint64_t, uint64_t *, typewidth_t);
 bool elf_read_offset(elfobj_t *, uint64_t, uint64_t *, typewidth_t);
+
+/*
+ * Return an allocated array of the file sizes for each text LOAD segment
+ * and return the sum total
+ */
+ssize_t elf_scop_text_filesz(elfobj_t *);
+
 #endif

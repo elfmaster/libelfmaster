@@ -20,7 +20,12 @@ all:
 	$(CC) -g objdump_libelfmaster.c ../src/libelfmaster.a -o objdump_elfmaster -lcapstone
 	$(CC) -fPIC -pie -Wl,-z,separate-code,-z,relro,-z,now test.c -o test_scop
 	$(CC) ../utils/stripx.c -o stripx
+	$(CC) -N -static -m32 -nostdlib nostdlib.c -o nostdlib32
+	$(CC) -N -static -nostdlib nostdlib.c -o nostdlib
+	$(CC) -O2 -g elf_text.c ../src/libelfmaster.a -o elf_text
+	$(CC) -no-pie -Wl,-z,separate-code test.c -o test_scop_binary
+
 	./stripx test_stripped
 	./stripx test32_stripped
 clean:
-	rm elfparse ldd plt_dump plt_dump2 sections eh_frame test test2 test32bit_pie test_pie test_stripped test32bit stripx symbols checksec test32_stripped
+	rm elfparse ldd plt_dump plt_dump2 sections eh_frame test test2 test32bit_pie test_pie test_stripped test32bit stripx symbols checksec test32_stripped test_scop_binary elf_text nostdlib nostdlib32 test_scop test32_scop

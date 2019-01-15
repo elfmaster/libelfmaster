@@ -9,7 +9,7 @@
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <inttypes.h>
-
+#include <string.h>
 #include "../include/libelfmaster.h"
 #include <capstone/capstone.h>
 

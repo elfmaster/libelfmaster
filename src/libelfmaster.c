@@ -177,6 +177,39 @@ elf_text_filesz(elfobj_t *obj)
 	return obj->text_segment_filesz;
 }
 
+/*
+ * Gets the sum total of all 3 LOAD segments for SCOP
+ * binaries.
+ */
+ssize_t
+elf_scop_text_filesz(elfobj_t *obj)
+{
+	elf_segment_iterator_t iter;
+	struct elf_segment segment;
+	uint32_t count = 0;
+	size_t total = 0;
+
+	elf_segment_iterator_init(obj, &iter);
+	for (;;) {
+		elf_iterator_res_t res;
+
+		res = elf_segment_iterator_next(&iter, &segment);
+		if (res == ELF_ITER_OK) {
+			if (segment.type == PT_LOAD && count < 3) {
+				total += segment.filesz;
+				count++;
+			}
+		} else if (res == ELF_ITER_ERROR) {
+			return -1;
+		} else if (res == ELF_ITER_DONE) {
+			return total;
+		} else {
+			return total;
+		}
+	}
+	return -1;
+}
+
 const char *
 elf_pathname(elfobj_t *obj)
 {
@@ -427,13 +460,22 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 	return "R_UNKNOWN";
 }
 
+/*
+ * In the event of SCOP we will give the base address
+ * of the first LOAD segment that is RDONLY. For more
+ * granularity use the elf_executable_text_base()
+ * function when elf_flags(obj, ELF_SCOP_F) == true
+ * If you need to locate the base of where the executable
+ * region actually begins.
+ */
 uint64_t
 elf_text_base(struct elfobj *obj)
 {
 	size_t i;
 
 	for (i = 0; i < obj->load_count; i++) {
-		if (obj->pt_load[i].flag & ELF_PT_LOAD_TEXT_F) {
+		if ((obj->pt_load[i].flag & ELF_PT_LOAD_TEXT_F) |
+		    (obj->pt_load[i].flag & ELF_PT_LOAD_TEXT_RDONLY_F)) {
 			switch(obj->e_class) {
 			case elfclass32:
 				return obj->pt_load[i].phdr32.p_vaddr;
@@ -445,13 +487,18 @@ elf_text_base(struct elfobj *obj)
 	return 0;
 }
 
+/*
+ * Same logic as elf_text_base for taking SCOP
+ * binaries into consideration. See PARSING_DETAILS.md
+ */
 uint64_t
 elf_text_offset(struct elfobj *obj)
 {
 	size_t i;
 
 	for (i = 0; i < obj->load_count; i++) {
-		if (obj->pt_load[i].flag & ELF_PT_LOAD_TEXT_F) {
+		if ((obj->pt_load[i].flag & ELF_PT_LOAD_TEXT_F) |
+		    (obj->pt_load[i].flag & ELF_PT_LOAD_TEXT_RDONLY_F)) {
 			switch(obj->e_class) {
 			case elfclass32:
 				return obj->pt_load[i].phdr32.p_offset;
@@ -1673,7 +1720,8 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
     elf_error_t *error)
 {
 	int fd;
-	uint32_t i, phdr_count = 0;
+	uint32_t i;
+	uint32_t phdr_count = 0, possible_merge_index = 0;
 	unsigned int open_flags = (load_flags & ELF_LOAD_F_MODIFY) ? O_RDWR : O_RDONLY;
 	unsigned int mmap_perms = PROT_READ|PROT_WRITE; // always need +write even with MAP_PRIVATE
 	unsigned int mmap_flags = MAP_PRIVATE;
@@ -2011,7 +2059,8 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 				obj->text_segment_filesz = obj->phdr32[i].p_filesz;
 			} else if (obj->phdr32[i].p_type == PT_LOAD && text_found == false) {
 				/*
-				 * TODO: This will not catch text segments marked as RWX.
+				 * Handle cases where there is a single R+X text segment and
+				 * no data segment.
 				 */
 				if ((obj->phdr32[i].p_flags & (PF_R|PF_X)) == (PF_R|PF_X)) {
 					obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
@@ -2020,6 +2069,20 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 					    &obj->phdr32[i], sizeof(Elf32_Phdr));
 					obj->text_segment_filesz = obj->phdr32[i].p_filesz;
 					obj->text_address = obj->phdr32[i].p_vaddr;
+				/*
+				 * Handle cases where the text and data segment are merged into one RWX
+				 * PT_LOAD segment. Note a possible_merge_index, and then if we haven't
+				 * found a data segment we can finally assign it the ELF_PT_LOAD_MERGED_F
+				 * flag
+				 */
+				} else if ((obj->phdr32[i].p_flags & (PF_R|PF_W|PF_X)) == (PF_R|PF_W|PF_X)) {
+					obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
+					text_found = true;
+					memcpy(&obj->pt_load[obj->load_count++].phdr32,
+					    &obj->phdr32[i], sizeof(Elf32_Phdr));
+					obj->text_segment_filesz = obj->phdr32[i].p_filesz;
+					obj->text_address = obj->phdr32[i].p_vaddr;
+					possible_merge_index = i;
 				}
 			} else if (obj->phdr32[i].p_type == PT_LOAD) {
 				if (data_found == true) {
@@ -2035,6 +2098,12 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 				}
 
 			}
+			if (data_found == false) {
+				obj->pt_load[possible_merge_index].flag = ELF_PT_LOAD_DATA_F|ELF_PT_LOAD_TEXT_F|
+				    ELF_PT_LOAD_MERGED_F;
+				obj->flags |= ELF_MERGED_SEGMENTS_F;
+			}
+
 		}
 		break;
 	case ELFCLASS64:
@@ -2279,7 +2348,16 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 					    &obj->phdr64[i], sizeof(Elf64_Phdr));
 					obj->text_segment_filesz = obj->phdr64[i].p_filesz;
 					obj->text_address = obj->phdr64[i].p_vaddr;
+				}  else if ((obj->phdr64[i].p_flags & (PF_R|PF_W|PF_X)) == (PF_R|PF_W|PF_X)) {
+					obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
+					text_found = true;
+					memcpy(&obj->pt_load[obj->load_count++].phdr64,
+					    &obj->phdr64[i], sizeof(Elf64_Phdr));
+					obj->text_segment_filesz = obj->phdr64[i].p_filesz;
+					obj->text_address = obj->phdr64[i].p_vaddr;
+					possible_merge_index = i;
 				}
+
 			} else if (obj->phdr64[i].p_type == PT_LOAD) {
 				if (data_found == true) {
 					obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_MISC_F;
@@ -2293,6 +2371,12 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 					obj->data_segment_filesz = obj->phdr64[i].p_filesz;
 				}
 			}
+			if (data_found == false) {
+				obj->pt_load[possible_merge_index].flag = ELF_PT_LOAD_DATA_F|ELF_PT_LOAD_TEXT_F|
+				    ELF_PT_LOAD_MERGED_F;
+				obj->flags |= ELF_MERGED_SEGMENTS_F;
+			}
+
 		}
 		break;
 	default:
