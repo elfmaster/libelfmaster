@@ -765,10 +765,6 @@ typedef enum typewidth {
 bool elf_read_address(elfobj_t *, uint64_t, uint64_t *, typewidth_t);
 bool elf_read_offset(elfobj_t *, uint64_t, uint64_t *, typewidth_t);
 
-/*
- * Return an allocated array of the file sizes for each text LOAD segment
- * and return the sum total
- */
 ssize_t elf_scop_text_filesz(elfobj_t *);
 uint64_t elf_executable_text_offset(elfobj_t *);
 uint64_t elf_executable_text_base(elfobj_t *);

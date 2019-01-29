@@ -26,7 +26,8 @@ is in enabled...
 uint64_t elf_text_base() gives the base address of the first PT_LOAD
 which is probably PF_R.  We then have elf_executable_text_base() which will
 return the (In most cases) second load segment base, which is the one that's
-actually executable.
+actually executable. And elf_executable_text_offset() to return the offset
+of the executable part of the text segment.
 
 We have also had size_t elf_text_filesz(elfobj_t *) which returns the
 p_filesz of the text segment.  We now have in addition  ssize_t
@@ -37,7 +38,7 @@ i.e. it adds them all up and gives the sum total.
 Status: Finished
 TODO: Handle SCOP scenarios where one of the PT_LOAD's (Say out of 3) have been modified
 to be executable, i.e. phdr[text + 0] |= PF_X; which will throw off the way that
-libelfmaster handles. SCOP parsing. This is an easy fix in ELF_LOAD_F_STRICT_F cases
+libelfmaster handles SCOP parsing. This is an easy fix in ELF_LOAD_F_STRICT_F cases
 because we can simply follow the sh_flags of the section headers to see which corresponding
 segments (To SHN_ALLOC, SHN_ALLOC|SHN_EXECINSTR) etc. just like the linker does, but for
 forensics mode this doesn't cut it. More heuristics to be added.
