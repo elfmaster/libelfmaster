@@ -773,4 +773,17 @@ ssize_t elf_scop_text_filesz(elfobj_t *);
 uint64_t elf_executable_text_offset(elfobj_t *);
 uint64_t elf_executable_text_base(elfobj_t *);
 
+/*
+ * Write accessor functions.
+ */
+
+/*
+ * Write the symbol at iterator index 0, with the contents
+ * in struct symbol sym; (The 3rd argument).
+ */
+bool elf_symtab_modify(elfobj_t *, uint64_t index, struct elf_symbol *);
+bool elf_dynsym_modify(elfobj_t *, uint64_t index, struct elf_symbol *);
+bool elf_segment_modify(elfobj_t *, uint64_t index, struct elf_segment *);
+bool elf_section_modify(elfobj_t *, uint64_t index, struct elf_section *);
+
 #endif
