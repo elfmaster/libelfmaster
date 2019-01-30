@@ -53,11 +53,137 @@
 #define ALIGN_CACHE(addr)				\
 	(((addr) + __alignof__ (struct cache_file_new) -1)	\
 	    & (~(__alignof__ (struct cache_file_new) - 1)))
+
+bool
+elf_symtab_count(elfobj_t *obj, uint64_t *count)
+{
+	struct elf_section section;
+	size_t symbol_size;
+
+	if (elf_section_by_name(obj, ".symtab", &section) == false)
+		return false;
+
+	/*
+	 * Sanity checks
+	 */
+	if (section.entsize > section.size)
+		return false;
+
+	switch(obj->e_class) {
+	case elfclass32:
+		symbol_size = sizeof(Elf32_Sym);
+		break;
+	case elfclass64:
+		symbol_size = sizeof(Elf64_Sym);
+		break;
+	default:
+		return false;
+	}
+	/*
+	 * TODO: In the future we want forensics reconstruction mode
+	 * to handle custom symbol entries, which may not be the conventional
+	 * ElfN_Sym struct type.
+	 */
+	if (section.entsize != symbol_size)
+		return false;
+	/*
+	 * Calculate number of symbol table entries in section.
+	 */
+	*count = section.size / section.entsize;
+	return true;
+}
+
+bool
+elf_dynsym_count(elfobj_t *obj, uint64_t *count)
+{
+	struct elf_section section;
+	size_t symbol_size;
+
+	if (elf_section_by_name(obj, ".dynsym", &section) == false)
+		return false;
+
+	/*
+	 * Sanity checks
+	 */
+	if (section.entsize > section.size)
+		return false;
+
+	switch(obj->e_class) {
+	case elfclass32:
+		symbol_size = sizeof(Elf32_Sym);
+		break;
+	case elfclass64:
+		symbol_size = sizeof(Elf64_Sym);
+		break;
+	default:
+		return false;
+	}
+	/*
+	 * TODO: In the future we want forensics reconstruction mode
+	 * to handle custom symbol entries, which may not be the conventional
+	 * ElfN_Sym struct type.
+	 */
+	if (section.entsize != symbol_size)
+		return false;
+	/*
+	 * Calculate number of symbol table entries in section.
+	 */
+	*count = section.size / section.entsize;
+	return true;
+}
 /*
- * TODO:
- * The elf_read_address_ functions need to take into account
- * that there could be loadable segments after the data segment.
+ * Functions for modifying ELF structures
+ * to be used with the ELF_LOAD_F_MODIFY flag
  */
+
+bool
+elf_symtab_modify(elfobj_t *obj, uint64_t index, struct elf_symbol *symbol,
+    elf_error_t *error)
+{
+	uint64_t entcount;
+
+	if ((obj->load_flags & ELF_LOAD_F_MODIFY) == false) {
+		return elf_error_set(error,
+		    "elf_symtab_modify() requires ELF_LOAD_F_MODIFY be set\n");
+	}
+	if (elf_symtab_count(obj, &entcount) == false)
+		return elf_error_set(error, "elf_symtab_count() failed\n");
+
+	switch(obj->e_class) {
+	case elfclass32:
+		if (index >= entcount) {
+			return elf_error_set(error,
+			    "symbol index: %zu outside of range\n", index);
+		}
+		obj->symtab32[index].st_value = symbol->value;
+		obj->symtab32[index].st_shndx = symbol->shndx;
+		obj->symtab32[index].st_size = symbol->size;
+		obj->symtab32[index].st_other = symbol->visibility;
+		obj->symtab32[index].st_info = ELF32_ST_INFO(symbol->bind,
+		    symbol->type);
+		break;
+	case elfclass64:
+		if (index >= entcount) {
+			return elf_error_set(error,
+			    "symbol index: %zu outside of range\n", index);
+		}
+		obj->symtab64[index].st_value = symbol->value;
+		obj->symtab64[index].st_shndx = symbol->shndx;
+		obj->symtab64[index].st_size = symbol->size;
+		obj->symtab64[index].st_other = symbol->visibility;
+		obj->symtab64[index].st_info = ELF64_ST_INFO(symbol->bind,
+		    symbol->type);
+		break;
+	default:
+		return elf_error_set(error, "unknown elfclass: %d\n", obj->e_class);
+	}
+	/*
+	 * TODO Re-enter into the symbol table cache that we maintain within
+	 * elfobj_t
+	 */
+	return true;
+}
+
 bool
 elf_read_address(elfobj_t *obj, uint64_t addr, uint64_t *out, typewidth_t width)
 {

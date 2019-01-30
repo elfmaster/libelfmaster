@@ -770,16 +770,19 @@ uint64_t elf_executable_text_offset(elfobj_t *);
 uint64_t elf_executable_text_base(elfobj_t *);
 
 /*
- * Write accessor functions.
+ * 2nd arg is an output of the number of entries in .symtab
+ * returns true on success. Same thing for elf_dynsym_count
+ * except for the .dynsym symbol table.
  */
+bool elf_symtab_count(elfobj_t *, uint64_t *);
+bool elf_dynsym_count(elfobj_t *, uint64_t *);
 
 /*
- * Write the symbol at iterator index 0, with the contents
- * in struct symbol sym; (The 3rd argument).
+ * Write accessor functions.
  */
-bool elf_symtab_modify(elfobj_t *, uint64_t index, struct elf_symbol *);
-bool elf_dynsym_modify(elfobj_t *, uint64_t index, struct elf_symbol *);
-bool elf_segment_modify(elfobj_t *, uint64_t index, struct elf_segment *);
-bool elf_section_modify(elfobj_t *, uint64_t index, struct elf_section *);
+bool elf_symtab_modify(elfobj_t *, uint64_t index, struct elf_symbol *, elf_error_t *);
+bool elf_dynsym_modify(elfobj_t *, uint64_t index, struct elf_symbol *, elf_error_t *);
+bool elf_segment_modify(elfobj_t *, uint64_t index, struct elf_segment *, elf_error_t *);
+bool elf_section_modify(elfobj_t *, uint64_t index, struct elf_section *, elf_error_t *);
 
 #endif
