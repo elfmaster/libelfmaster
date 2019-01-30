@@ -19,6 +19,7 @@ all:
 	$(CC) -m32 -fPIC -pie -Wl,-z,separate-code test.c -o test32_scop
 	$(CC) -g objdump_libelfmaster.c ../src/libelfmaster.a -o objdump_elfmaster -lcapstone
 	$(CC) -Wl,-z,separate-code,-z,relro,-z,now test.c -o test_scop
+	$(CC) -O2 -g modify.c ../src/libelfmaster.a -o modify
 	$(CC) ../utils/stripx.c -o stripx
 	$(CC) -N -static -m32 -nostdlib nostdlib.c -o nostdlib32
 	$(CC) -N -static -nostdlib nostdlib.c -o nostdlib

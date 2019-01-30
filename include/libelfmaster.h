@@ -443,6 +443,7 @@ typedef struct elf_dynamic_entry {
 
 typedef struct elf_symtab_iterator {
 	struct elf_symbol_node *current;
+	unsigned int index;
 } elf_symtab_iterator_t;
 
 typedef struct elf_dynsym_iterator {

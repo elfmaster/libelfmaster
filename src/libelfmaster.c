@@ -181,6 +181,9 @@ elf_symtab_modify(elfobj_t *obj, uint64_t index, struct elf_symbol *symbol,
 	 * TODO Re-enter into the symbol table cache that we maintain within
 	 * elfobj_t
 	 */
+	if (msync(obj->mem, obj->size, MS_SYNC) < 0) {
+		return elf_error_set(error, "msync: %s\n", strerror(errno));
+	}
 	return true;
 }
 
@@ -1501,6 +1504,7 @@ elf_symtab_iterator_init(struct elfobj *obj, struct elf_symtab_iterator *iter)
 {
 
 	iter->current = LIST_FIRST(&obj->list.symtab);
+	iter->index = 0;
 	return;
 }
 
@@ -1518,6 +1522,7 @@ elf_symtab_iterator_next(struct elf_symtab_iterator *iter,
 		return ELF_ITER_DONE;
 	memcpy(symbol, iter->current, sizeof(*symbol));
 	iter->current = LIST_NEXT(iter->current, _linkage);
+	iter->index++;
 	return ELF_ITER_OK;
 }
 
