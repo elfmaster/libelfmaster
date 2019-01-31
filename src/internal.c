@@ -215,7 +215,6 @@ build_symtab_data(struct elfobj *obj)
 	struct elf_symtab_list *list = &obj->list.symtab;
 
 	LIST_INIT(&obj->list.symtab);
-
 	/*
 	 * Since there is no .symtab in the binary we are only re-creating
 	 * the symbol entries internally to libelfmaster (Within memory)

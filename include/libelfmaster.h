@@ -299,8 +299,8 @@ typedef struct elfobj {
 	 * lists
 	 */
 	struct {
-		LIST_HEAD(elf_symtab_list, elf_symbol_node) symtab;
-		LIST_HEAD(elf_dynsym_list, elf_symbol_node) dynsym;
+		LIST_HEAD(elf_symtab_list, elf_symbol_node) symtab, symtab_backup;
+		LIST_HEAD(elf_dynsym_list, elf_symbol_node) dynsym, dynsym_backup;
 		LIST_HEAD(elf_plt_list, elf_plt_node) plt;
 		LIST_HEAD(elf_shared_object_list, elf_shared_object_node) shared_objects;
 		LIST_HEAD(elf_section_list, elf_section_node) sections;
@@ -786,4 +786,5 @@ bool elf_dynsym_modify(elfobj_t *, uint64_t index, struct elf_symbol *, elf_erro
 bool elf_segment_modify(elfobj_t *, uint64_t index, struct elf_segment *, elf_error_t *);
 bool elf_section_modify(elfobj_t *, uint64_t index, struct elf_section *, elf_error_t *);
 
+bool elf_symtab_commit(elfobj_t *);
 #endif

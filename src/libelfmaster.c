@@ -131,6 +131,44 @@ elf_dynsym_count(elfobj_t *obj, uint64_t *count)
 	*count = section.size / section.entsize;
 	return true;
 }
+
+/*
+ * XXX This cannot be called inside of elf_symtab_iterator_next() which is
+ * often where calls to elf_symtab_modify will be made. Make sure to call
+ * elf_symtab_commit() after the iterator has finished.
+ * TODO: Create an internal stack to store nested linked lists to fix
+ * this issue.
+ */
+bool
+elf_symtab_commit(elfobj_t *obj)
+{
+	/*
+	 * Remove old list of symbol data, and re-create a new one
+	 * to represent any new changes to the internal representation
+	 * of symbol data stored in obj->lists.symtab, and obj->cache.symtab
+	 */
+	  if (LIST_EMPTY(&obj->list.symtab) == 0) {
+		struct elf_symbol_node *current, *next;
+
+		LIST_FOREACH_SAFE(current, &obj->list.symtab,
+		    _linkage, next) {
+			/*
+			 * If we forensically reconstructed .symtab then we are
+			 * going to have heap allocated symbol->name's so we must
+			 * free them.
+			 */
+			if (elf_flags(obj, ELF_SYMTAB_RECONSTRUCTION_F) == true)
+				free((char *)current->name);
+			free(current);
+		}
+	}
+	if (build_symtab_data(obj) == false) {
+		printf("build_symtab_data filed bitch\n");
+		return false;
+	}
+	return true;
+}
+
 /*
  * Functions for modifying ELF structures
  * to be used with the ELF_LOAD_F_MODIFY flag
@@ -176,13 +214,6 @@ elf_symtab_modify(elfobj_t *obj, uint64_t index, struct elf_symbol *symbol,
 		break;
 	default:
 		return elf_error_set(error, "unknown elfclass: %d\n", obj->e_class);
-	}
-	/*
-	 * TODO Re-enter into the symbol table cache that we maintain within
-	 * elfobj_t
-	 */
-	if (msync(obj->mem, obj->size, MS_SYNC) < 0) {
-		return elf_error_set(error, "msync: %s\n", strerror(errno));
 	}
 	return true;
 }
@@ -2721,6 +2752,11 @@ final_load_stages:
 		elf_error_set(error, "failed to build dynamic symbol data");
 		goto err;
 	}
+	/*
+	 * 2nd arg is 'false' which indicates that we are creating the real symtab
+	 * linked list, and not a secondary list that is used for certain modification
+	 * operations internally.
+	 */
 	if (build_symtab_data(obj) == false) {
 		elf_error_set(error, "failed to build symtab symbol data");
 		goto err;
