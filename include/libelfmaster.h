@@ -448,6 +448,7 @@ typedef struct elf_symtab_iterator {
 
 typedef struct elf_dynsym_iterator {
 	struct elf_symbol_node *current;
+	unsigned int index;
 } elf_dynsym_iterator_t;
 
 typedef struct elf_eh_frame_iterator {
@@ -786,5 +787,9 @@ bool elf_dynsym_modify(elfobj_t *, uint64_t index, struct elf_symbol *, elf_erro
 bool elf_segment_modify(elfobj_t *, uint64_t index, struct elf_segment *, elf_error_t *);
 bool elf_section_modify(elfobj_t *, uint64_t index, struct elf_section *, elf_error_t *);
 
+/*
+ * Must be used after elf_symtab_modify/elf_dynsym_modify
+ */
 bool elf_symtab_commit(elfobj_t *);
+bool elf_dynsym_commit(elfobj_t *);
 #endif

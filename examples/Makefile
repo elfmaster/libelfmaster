@@ -20,6 +20,7 @@ all:
 	$(CC) -g objdump_libelfmaster.c ../src/libelfmaster.a -o objdump_elfmaster -lcapstone
 	$(CC) -Wl,-z,separate-code,-z,relro,-z,now test.c -o test_scop
 	$(CC) -O2 -g modify_symbol.c ../src/libelfmaster.a -o modify_symbol
+	$(CC) -O2 -g modify_dynsym.c ../src/libelfmaster.a -o modify_dynsym
 	$(CC) ../utils/stripx.c -o stripx
 	$(CC) -N -static -m32 -nostdlib nostdlib.c -o nostdlib32
 	$(CC) -N -static -nostdlib nostdlib.c -o nostdlib

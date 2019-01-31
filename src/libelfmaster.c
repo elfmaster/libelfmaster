@@ -163,11 +163,40 @@ elf_symtab_commit(elfobj_t *obj)
 		}
 	}
 	if (build_symtab_data(obj) == false) {
-		printf("build_symtab_data filed bitch\n");
 		return false;
 	}
 	return true;
 }
+
+/*
+ * XXX This cannot be called inside of elf_dynsym_iterator_next() which is
+ * often where calls to elf_symtab_modify will be made. Make sure to call
+ * elf_symtab_commit() after the iterator has finished.
+ * TODO: Create an internal stack to store nested linked lists to fix
+ * this issue.
+ */
+bool
+elf_dynsym_commit(elfobj_t *obj)
+{
+	/*
+	 * Remove old list of symbol data, and re-create a new one
+	 * to represent any new changes to the internal representation
+	 * of symbol data stored in obj->lists.dynsym, and obj->cache.dynsym
+	 */
+	  if (LIST_EMPTY(&obj->list.dynsym) == 0) {
+		struct elf_symbol_node *current, *next;
+
+		LIST_FOREACH_SAFE(current, &obj->list.dynsym,
+		    _linkage, next) {
+			free(current);
+		}
+	}
+	if (build_dynsym_data(obj) == false) {
+		return false;
+	}
+	return true;
+}
+
 
 /*
  * Functions for modifying ELF structures
@@ -210,6 +239,50 @@ elf_symtab_modify(elfobj_t *obj, uint64_t index, struct elf_symbol *symbol,
 		obj->symtab64[index].st_size = symbol->size;
 		obj->symtab64[index].st_other = symbol->visibility;
 		obj->symtab64[index].st_info = ELF64_ST_INFO(symbol->bind,
+		    symbol->type);
+		break;
+	default:
+		return elf_error_set(error, "unknown elfclass: %d\n", obj->e_class);
+	}
+	return true;
+}
+
+bool
+elf_dynsym_modify(elfobj_t *obj, uint64_t index, struct elf_symbol *symbol,
+    elf_error_t *error)
+{
+	uint64_t entcount;
+
+	if ((obj->load_flags & ELF_LOAD_F_MODIFY) == false) {
+		return elf_error_set(error,
+		    "elf_dynsym_modify() requires ELF_LOAD_F_MODIFY be set\n");
+	}
+	if (elf_dynsym_count(obj, &entcount) == false)
+		return elf_error_set(error, "elf_symtab_count() failed\n");
+
+	switch(obj->e_class) {
+	case elfclass32:
+		if (index >= entcount) {
+			return elf_error_set(error,
+			    "symbol index: %zu outside of range\n", index);
+		}
+		obj->dynsym32[index].st_value = symbol->value;
+		obj->dynsym32[index].st_shndx = symbol->shndx;
+		obj->dynsym32[index].st_size = symbol->size;
+		obj->dynsym32[index].st_other = symbol->visibility;
+		obj->dynsym32[index].st_info = ELF32_ST_INFO(symbol->bind,
+		    symbol->type);
+		break;
+	case elfclass64:
+		if (index >= entcount) {
+			return elf_error_set(error,
+			    "symbol index: %zu outside of range\n", index);
+		}
+		obj->dynsym64[index].st_value = symbol->value;
+		obj->dynsym64[index].st_shndx = symbol->shndx;
+		obj->dynsym64[index].st_size = symbol->size;
+		obj->dynsym64[index].st_other = symbol->visibility;
+		obj->dynsym64[index].st_info = ELF64_ST_INFO(symbol->bind,
 		    symbol->type);
 		break;
 	default:
@@ -1594,6 +1667,7 @@ elf_dynsym_iterator_next(struct elf_dynsym_iterator *iter,
 		return ELF_ITER_DONE;
 	memcpy(symbol, iter->current, sizeof(*symbol));
 	iter->current = LIST_NEXT(iter->current, _linkage);
+	iter->index++;
 	return ELF_ITER_OK;
 }
 

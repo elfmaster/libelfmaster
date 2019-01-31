@@ -1,6 +1,6 @@
 /*
- * Demonstrates how to modify symbol entries in .symtab
- * where we modify each entries st_value member.
+ * Demonstrates how to modify every dynamic symbol table
+ * entry, where we modify the st_value's.
  */
 
 #define _GNU_SOURCE
@@ -18,7 +18,6 @@ int main(int argc, char **argv)
 	elfobj_t obj;
 	elf_error_t error;
 	elf_dynsym_iterator_t ds_iter;
-	elf_symtab_iterator_t sm_iter;
 	struct elf_symbol symbol;
 
 	if (argc < 2) {
@@ -30,28 +29,29 @@ int main(int argc, char **argv)
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
-	elf_symtab_iterator_init(&obj, &sm_iter);
-	while (elf_symtab_iterator_next(&sm_iter, &symbol) == ELF_ITER_OK) {
+	elf_dynsym_iterator_init(&obj, &ds_iter);
+	while (elf_dynsym_iterator_next(&ds_iter, &symbol) == ELF_ITER_OK) {
 		struct elf_symbol sym;
 
 		printf("%s: %#lx-%#lx\n",symbol.name, symbol.value,
 		    symbol.value + symbol.size);
 		memcpy(&sym, &symbol, sizeof(struct elf_symbol));
 		sym.value = 0xdeadbeef;
-		if (elf_symtab_modify(&obj, sm_iter.index - 1, &sym, &error) == false) {
+		/*
+		 * NOTE use iter.index - 1, otherwise it will not hit sym[0] and will
+		 * eventually go out of bounds.
+		 */
+		if (elf_dynsym_modify(&obj, ds_iter.index - 1, &sym, &error) == false) {
 			printf("Failed to modify elf symbol table: %s\n", elf_error_msg(&error));
 		}
 	}
 	/*
-	 * NOTE: commit cannot be called inside of the symtab iterator,
-	 * this will be fixed in the future, however it will incurr overhead
-	 * to call after each symbol modification, but it may at times be
-	 * desirable in some edge cases.
+	 * commit cannot be called inside of the dynsym iterator
 	 */
-	elf_symtab_commit(&obj);
-	elf_symtab_iterator_init(&obj, &sm_iter);
-	printf("After .symtab modification\n");
-	 while (elf_symtab_iterator_next(&sm_iter, &symbol) == ELF_ITER_OK) {
+	elf_dynsym_commit(&obj);
+	elf_dynsym_iterator_init(&obj, &ds_iter);
+	printf("After .dynsym modification\n");
+	 while (elf_dynsym_iterator_next(&ds_iter, &symbol) == ELF_ITER_OK) {
 		struct elf_symbol sym;
 
 		printf("%s: %#lx-%#lx\n",symbol.name, symbol.value,
