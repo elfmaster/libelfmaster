@@ -151,7 +151,6 @@ build_dynsym_data(struct elfobj *obj)
 
 	LIST_INIT(&obj->list.dynsym);
 
-	printf("Building dynsym list\n");
 	for (i = 0; i < obj->dynsym_count; i++) {
 		struct elf_symbol_node *symbol = malloc(sizeof(*symbol));
 

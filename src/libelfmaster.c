@@ -54,6 +54,26 @@
 	(((addr) + __alignof__ (struct cache_file_new) -1)	\
 	    & (~(__alignof__ (struct cache_file_new) - 1)))
 
+size_t
+elf_segment_count(elfobj_t *obj)
+{
+
+	switch(obj->e_class) {
+	case elfclass32:
+		return obj->ehdr32->e_phnum;
+	case elfclass64:
+		return obj->ehdr64->e_phnum;
+	}
+	return 0;
+}
+
+size_t
+elf_section_count(elfobj_t *obj)
+{
+
+	return obj->section_count;
+}
+
 bool
 elf_symtab_count(elfobj_t *obj, uint64_t *count)
 {
@@ -284,6 +304,49 @@ elf_dynsym_modify(elfobj_t *obj, uint64_t index, struct elf_symbol *symbol,
 		obj->dynsym64[index].st_other = symbol->visibility;
 		obj->dynsym64[index].st_info = ELF64_ST_INFO(symbol->bind,
 		    symbol->type);
+		break;
+	default:
+		return elf_error_set(error, "unknown elfclass: %d\n", obj->e_class);
+	}
+	return true;
+}
+
+bool elf_segment_modify(elfobj_t *obj, uint64_t index,
+    struct elf_segment *segment, elf_error_t *error)
+{
+
+	if ((obj->load_flags & ELF_LOAD_F_MODIFY) == false) {
+		return elf_error_set(error,
+		    "elf_segment_modify() requires ELF_LOAD_F_MODIFY be set\n");
+	}
+	switch(obj->e_class) {
+	case elfclass32:
+		if (index >= elf_segment_count(obj)) {
+			return elf_error_set(error,
+			    "symbol index: %zu outside of range\n", index);
+		}
+		obj->phdr32[index].p_type = segment->type;
+		obj->phdr32[index].p_flags = segment->flags;
+		obj->phdr32[index].p_offset = segment->offset;
+		obj->phdr32[index].p_paddr = segment->paddr;
+		obj->phdr32[index].p_vaddr = segment->vaddr;
+		obj->phdr32[index].p_filesz = segment->filesz;
+		obj->phdr32[index].p_memsz = segment->memsz;
+		obj->phdr32[index].p_align = segment->align;
+		break;
+	case elfclass64:
+		if (index >= elf_segment_count(obj)) {
+			return elf_error_set(error,
+			    "symbol index: %zu outside of range\n", index);
+		}
+		obj->phdr64[index].p_type = segment->type;
+		obj->phdr64[index].p_flags = segment->flags;
+		obj->phdr64[index].p_offset = segment->offset;
+		obj->phdr64[index].p_paddr = segment->paddr;
+		obj->phdr64[index].p_vaddr = segment->vaddr;
+		obj->phdr64[index].p_filesz = segment->filesz;
+		obj->phdr64[index].p_memsz = segment->memsz;
+		obj->phdr64[index].p_align = segment->align;
 		break;
 	default:
 		return elf_error_set(error, "unknown elfclass: %d\n", obj->e_class);

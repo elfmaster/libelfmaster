@@ -780,6 +780,15 @@ bool elf_symtab_count(elfobj_t *, uint64_t *);
 bool elf_dynsym_count(elfobj_t *, uint64_t *);
 
 /*
+ * obj->section_count accessor
+ */
+size_t elf_section_count(elfobj_t *);
+/*
+ * obj->ehdr->phnum accessor
+ */
+size_t elf_segment_count(elfobj_t *);
+
+/*
  * Write accessor functions.
  */
 bool elf_symtab_modify(elfobj_t *, uint64_t index, struct elf_symbol *, elf_error_t *);
