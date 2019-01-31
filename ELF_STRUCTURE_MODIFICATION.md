@@ -77,3 +77,4 @@ int main(int argc, char **argv)
 
 	elf_close_object(&obj);
 }
+```
