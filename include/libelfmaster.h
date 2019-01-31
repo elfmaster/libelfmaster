@@ -797,8 +797,19 @@ bool elf_segment_modify(elfobj_t *, uint64_t index, struct elf_segment *, elf_er
 bool elf_section_modify(elfobj_t *, uint64_t index, struct elf_section *, elf_error_t *);
 
 /*
- * Must be used after elf_symtab_modify/elf_dynsym_modify
+ * Must be used after elf_symtab_modify/elf_dynsym_modify, and cannot be used within calls
+ * elf_symtab_iterator_next/elf_dynsym_iterator_next since a commit would change the linked
+ * list that the symbol table iterator functions use.
  */
 bool elf_symtab_commit(elfobj_t *);
 bool elf_dynsym_commit(elfobj_t *);
+
+/*
+ * We could have put this commit function directly into the code for elf_section_modify but it
+ * (thus not needing an elf_section_commit function) but it is computationally expensive if you
+ * are modifying more than one section, so its best to modify N sections, and then have a commit
+ * function call that updates the internal section header table only once. Every commit requires
+ * freeing the existing internal representation and then sorting a new array of strings.
+ */
+bool elf_section_commit(elfobj_t *);
 #endif

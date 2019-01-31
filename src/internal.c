@@ -1987,7 +1987,7 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 bool
 sort_elf_sections(elfobj_t *obj, elf_error_t *error)
 {
-	size_t section_count = obj->section_count;
+	size_t section_count = elf_section_count(obj);
 	size_t i;
 
 	obj->sections = (struct elf_section **)

@@ -323,7 +323,7 @@ bool elf_segment_modify(elfobj_t *obj, uint64_t index,
 	case elfclass32:
 		if (index >= elf_segment_count(obj)) {
 			return elf_error_set(error,
-			    "symbol index: %zu outside of range\n", index);
+			    "segment index: %zu outside of range\n", index);
 		}
 		obj->phdr32[index].p_type = segment->type;
 		obj->phdr32[index].p_flags = segment->flags;
@@ -337,7 +337,7 @@ bool elf_segment_modify(elfobj_t *obj, uint64_t index,
 	case elfclass64:
 		if (index >= elf_segment_count(obj)) {
 			return elf_error_set(error,
-			    "symbol index: %zu outside of range\n", index);
+			    "segment index: %zu outside of range\n", index);
 		}
 		obj->phdr64[index].p_type = segment->type;
 		obj->phdr64[index].p_flags = segment->flags;
@@ -350,6 +350,70 @@ bool elf_segment_modify(elfobj_t *obj, uint64_t index,
 		break;
 	default:
 		return elf_error_set(error, "unknown elfclass: %d\n", obj->e_class);
+	}
+	return true;
+}
+
+bool
+elf_section_commit(elfobj_t *obj)
+{
+	elf_error_t error;
+	uint32_t i;
+
+	/*
+	 * Free up our internal representation of sections
+	 * which are sorted in an array of strings.
+	 */
+	for (i = 0; i < elf_section_count(obj); i++) {
+		free(obj->sections[i]->name);
+		free(obj->sections[i]);
+	}
+	free(obj->sections);
+	/*
+	 * Re-add our internal representation of the ELF sections.
+	 */
+	if (sort_elf_sections(obj, &error) == false)
+		return false;
+	return true;
+}
+
+bool elf_section_modify(elfobj_t *obj, uint64_t index,
+    struct elf_section *section, elf_error_t *error)
+{
+
+	if ((obj->load_flags & ELF_LOAD_F_MODIFY) == false) {
+		return elf_error_set(error,
+		    "elf_section_modify() requires ELF_LOAD_F_MODIFY be set\n");
+	}
+
+	if (index >= elf_section_count(obj)) {
+		return elf_error_set(error,
+		    "section index: %zu outside of range\n", index);
+	}
+	switch(obj->e_class) {
+	case elfclass32:
+		obj->shdr32[index].sh_type = section->type;
+		obj->shdr32[index].sh_flags = section->flags;
+		obj->shdr32[index].sh_addr = section->address;
+		obj->shdr32[index].sh_link = section->link;
+		obj->shdr32[index].sh_addralign = section->align;
+		obj->shdr32[index].sh_entsize = section->entsize;
+		obj->shdr32[index].sh_offset = section->offset;
+		obj->shdr32[index].sh_size = section->size;
+		break;
+	case elfclass64:
+		obj->shdr64[index].sh_type = section->type;
+		obj->shdr64[index].sh_flags = section->flags;
+		obj->shdr64[index].sh_addr = section->address;
+		obj->shdr64[index].sh_link = section->link;
+		obj->shdr64[index].sh_addralign = section->align;
+		obj->shdr64[index].sh_entsize = section->entsize;
+		obj->shdr64[index].sh_offset = section->offset;
+		obj->shdr64[index].sh_size = section->size;
+		break;
+	default:
+		return elf_error_set(error, "unknown elfclass: %d\n",
+		    obj->e_class);
 	}
 	return true;
 }
