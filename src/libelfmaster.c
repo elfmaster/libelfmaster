@@ -53,11 +53,371 @@
 #define ALIGN_CACHE(addr)				\
 	(((addr) + __alignof__ (struct cache_file_new) -1)	\
 	    & (~(__alignof__ (struct cache_file_new) - 1)))
+
+size_t
+elf_segment_count(elfobj_t *obj)
+{
+
+	switch(obj->e_class) {
+	case elfclass32:
+		return obj->ehdr32->e_phnum;
+	case elfclass64:
+		return obj->ehdr64->e_phnum;
+	}
+	return 0;
+}
+
+size_t
+elf_section_count(elfobj_t *obj)
+{
+
+	return obj->section_count;
+}
+
+bool
+elf_symtab_count(elfobj_t *obj, uint64_t *count)
+{
+	struct elf_section section;
+	size_t symbol_size;
+
+	if (elf_section_by_name(obj, ".symtab", &section) == false)
+		return false;
+
+	/*
+	 * Sanity checks
+	 */
+	if (section.entsize > section.size)
+		return false;
+
+	switch(obj->e_class) {
+	case elfclass32:
+		symbol_size = sizeof(Elf32_Sym);
+		break;
+	case elfclass64:
+		symbol_size = sizeof(Elf64_Sym);
+		break;
+	default:
+		return false;
+	}
+	/*
+	 * TODO: In the future we want forensics reconstruction mode
+	 * to handle custom symbol entries, which may not be the conventional
+	 * ElfN_Sym struct type.
+	 */
+	if (section.entsize != symbol_size)
+		return false;
+	/*
+	 * Calculate number of symbol table entries in section.
+	 */
+	*count = section.size / section.entsize;
+	return true;
+}
+
+bool
+elf_dynsym_count(elfobj_t *obj, uint64_t *count)
+{
+	struct elf_section section;
+	size_t symbol_size;
+
+	if (elf_section_by_name(obj, ".dynsym", &section) == false)
+		return false;
+
+	/*
+	 * Sanity checks
+	 */
+	if (section.entsize > section.size)
+		return false;
+
+	switch(obj->e_class) {
+	case elfclass32:
+		symbol_size = sizeof(Elf32_Sym);
+		break;
+	case elfclass64:
+		symbol_size = sizeof(Elf64_Sym);
+		break;
+	default:
+		return false;
+	}
+	/*
+	 * TODO: In the future we want forensics reconstruction mode
+	 * to handle custom symbol entries, which may not be the conventional
+	 * ElfN_Sym struct type.
+	 */
+	if (section.entsize != symbol_size)
+		return false;
+	/*
+	 * Calculate number of symbol table entries in section.
+	 */
+	*count = section.size / section.entsize;
+	return true;
+}
+
 /*
- * TODO:
- * The elf_read_address_ functions need to take into account
- * that there could be loadable segments after the data segment.
+ * XXX This cannot be called inside of elf_symtab_iterator_next() which is
+ * often where calls to elf_symtab_modify will be made. Make sure to call
+ * elf_symtab_commit() after the iterator has finished.
+ * TODO: Create an internal stack to store nested linked lists to fix
+ * this issue.
  */
+bool
+elf_symtab_commit(elfobj_t *obj)
+{
+	/*
+	 * Remove old list of symbol data, and re-create a new one
+	 * to represent any new changes to the internal representation
+	 * of symbol data stored in obj->lists.symtab, and obj->cache.symtab
+	 */
+	  if (LIST_EMPTY(&obj->list.symtab) == 0) {
+		struct elf_symbol_node *current, *next;
+
+		LIST_FOREACH_SAFE(current, &obj->list.symtab,
+		    _linkage, next) {
+			/*
+			 * If we forensically reconstructed .symtab then we are
+			 * going to have heap allocated symbol->name's so we must
+			 * free them.
+			 */
+			if (elf_flags(obj, ELF_SYMTAB_RECONSTRUCTION_F) == true)
+				free((char *)current->name);
+			free(current);
+		}
+	}
+	if (build_symtab_data(obj) == false) {
+		return false;
+	}
+	return true;
+}
+
+/*
+ * XXX This cannot be called inside of elf_dynsym_iterator_next() which is
+ * often where calls to elf_symtab_modify will be made. Make sure to call
+ * elf_symtab_commit() after the iterator has finished.
+ * TODO: Create an internal stack to store nested linked lists to fix
+ * this issue.
+ */
+bool
+elf_dynsym_commit(elfobj_t *obj)
+{
+	/*
+	 * Remove old list of symbol data, and re-create a new one
+	 * to represent any new changes to the internal representation
+	 * of symbol data stored in obj->lists.dynsym, and obj->cache.dynsym
+	 */
+	  if (LIST_EMPTY(&obj->list.dynsym) == 0) {
+		struct elf_symbol_node *current, *next;
+
+		LIST_FOREACH_SAFE(current, &obj->list.dynsym,
+		    _linkage, next) {
+			free(current);
+		}
+	}
+	if (build_dynsym_data(obj) == false) {
+		return false;
+	}
+	return true;
+}
+
+
+/*
+ * Functions for modifying ELF structures
+ * to be used with the ELF_LOAD_F_MODIFY flag
+ */
+
+bool
+elf_symtab_modify(elfobj_t *obj, uint64_t index, struct elf_symbol *symbol,
+    elf_error_t *error)
+{
+	uint64_t entcount;
+
+	if ((obj->load_flags & ELF_LOAD_F_MODIFY) == false) {
+		return elf_error_set(error,
+		    "elf_symtab_modify() requires ELF_LOAD_F_MODIFY be set\n");
+	}
+	if (elf_symtab_count(obj, &entcount) == false)
+		return elf_error_set(error, "elf_symtab_count() failed\n");
+
+	switch(obj->e_class) {
+	case elfclass32:
+		if (index >= entcount) {
+			return elf_error_set(error,
+			    "symbol index: %zu outside of range\n", index);
+		}
+		obj->symtab32[index].st_value = symbol->value;
+		obj->symtab32[index].st_shndx = symbol->shndx;
+		obj->symtab32[index].st_size = symbol->size;
+		obj->symtab32[index].st_other = symbol->visibility;
+		obj->symtab32[index].st_info = ELF32_ST_INFO(symbol->bind,
+		    symbol->type);
+		break;
+	case elfclass64:
+		if (index >= entcount) {
+			return elf_error_set(error,
+			    "symbol index: %zu outside of range\n", index);
+		}
+		obj->symtab64[index].st_value = symbol->value;
+		obj->symtab64[index].st_shndx = symbol->shndx;
+		obj->symtab64[index].st_size = symbol->size;
+		obj->symtab64[index].st_other = symbol->visibility;
+		obj->symtab64[index].st_info = ELF64_ST_INFO(symbol->bind,
+		    symbol->type);
+		break;
+	default:
+		return elf_error_set(error, "unknown elfclass: %d\n", obj->e_class);
+	}
+	return true;
+}
+
+bool
+elf_dynsym_modify(elfobj_t *obj, uint64_t index, struct elf_symbol *symbol,
+    elf_error_t *error)
+{
+	uint64_t entcount;
+
+	if ((obj->load_flags & ELF_LOAD_F_MODIFY) == false) {
+		return elf_error_set(error,
+		    "elf_dynsym_modify() requires ELF_LOAD_F_MODIFY be set\n");
+	}
+	if (elf_dynsym_count(obj, &entcount) == false)
+		return elf_error_set(error, "elf_symtab_count() failed\n");
+
+	switch(obj->e_class) {
+	case elfclass32:
+		if (index >= entcount) {
+			return elf_error_set(error,
+			    "symbol index: %zu outside of range\n", index);
+		}
+		obj->dynsym32[index].st_value = symbol->value;
+		obj->dynsym32[index].st_shndx = symbol->shndx;
+		obj->dynsym32[index].st_size = symbol->size;
+		obj->dynsym32[index].st_other = symbol->visibility;
+		obj->dynsym32[index].st_info = ELF32_ST_INFO(symbol->bind,
+		    symbol->type);
+		break;
+	case elfclass64:
+		if (index >= entcount) {
+			return elf_error_set(error,
+			    "symbol index: %zu outside of range\n", index);
+		}
+		obj->dynsym64[index].st_value = symbol->value;
+		obj->dynsym64[index].st_shndx = symbol->shndx;
+		obj->dynsym64[index].st_size = symbol->size;
+		obj->dynsym64[index].st_other = symbol->visibility;
+		obj->dynsym64[index].st_info = ELF64_ST_INFO(symbol->bind,
+		    symbol->type);
+		break;
+	default:
+		return elf_error_set(error, "unknown elfclass: %d\n", obj->e_class);
+	}
+	return true;
+}
+
+bool elf_segment_modify(elfobj_t *obj, uint64_t index,
+    struct elf_segment *segment, elf_error_t *error)
+{
+
+	if ((obj->load_flags & ELF_LOAD_F_MODIFY) == false) {
+		return elf_error_set(error,
+		    "elf_segment_modify() requires ELF_LOAD_F_MODIFY be set\n");
+	}
+	switch(obj->e_class) {
+	case elfclass32:
+		if (index >= elf_segment_count(obj)) {
+			return elf_error_set(error,
+			    "segment index: %zu outside of range\n", index);
+		}
+		obj->phdr32[index].p_type = segment->type;
+		obj->phdr32[index].p_flags = segment->flags;
+		obj->phdr32[index].p_offset = segment->offset;
+		obj->phdr32[index].p_paddr = segment->paddr;
+		obj->phdr32[index].p_vaddr = segment->vaddr;
+		obj->phdr32[index].p_filesz = segment->filesz;
+		obj->phdr32[index].p_memsz = segment->memsz;
+		obj->phdr32[index].p_align = segment->align;
+		break;
+	case elfclass64:
+		if (index >= elf_segment_count(obj)) {
+			return elf_error_set(error,
+			    "segment index: %zu outside of range\n", index);
+		}
+		obj->phdr64[index].p_type = segment->type;
+		obj->phdr64[index].p_flags = segment->flags;
+		obj->phdr64[index].p_offset = segment->offset;
+		obj->phdr64[index].p_paddr = segment->paddr;
+		obj->phdr64[index].p_vaddr = segment->vaddr;
+		obj->phdr64[index].p_filesz = segment->filesz;
+		obj->phdr64[index].p_memsz = segment->memsz;
+		obj->phdr64[index].p_align = segment->align;
+		break;
+	default:
+		return elf_error_set(error, "unknown elfclass: %d\n", obj->e_class);
+	}
+	return true;
+}
+
+bool
+elf_section_commit(elfobj_t *obj)
+{
+	elf_error_t error;
+	uint32_t i;
+
+	/*
+	 * Free up our internal representation of sections
+	 * which are sorted in an array of strings.
+	 */
+	for (i = 0; i < elf_section_count(obj); i++) {
+		free(obj->sections[i]->name);
+		free(obj->sections[i]);
+	}
+	free(obj->sections);
+	/*
+	 * Re-add our internal representation of the ELF sections.
+	 */
+	if (sort_elf_sections(obj, &error) == false)
+		return false;
+	return true;
+}
+
+bool elf_section_modify(elfobj_t *obj, uint64_t index,
+    struct elf_section *section, elf_error_t *error)
+{
+
+	if ((obj->load_flags & ELF_LOAD_F_MODIFY) == false) {
+		return elf_error_set(error,
+		    "elf_section_modify() requires ELF_LOAD_F_MODIFY be set\n");
+	}
+
+	if (index >= elf_section_count(obj)) {
+		return elf_error_set(error,
+		    "section index: %zu outside of range\n", index);
+	}
+	switch(obj->e_class) {
+	case elfclass32:
+		obj->shdr32[index].sh_type = section->type;
+		obj->shdr32[index].sh_flags = section->flags;
+		obj->shdr32[index].sh_addr = section->address;
+		obj->shdr32[index].sh_link = section->link;
+		obj->shdr32[index].sh_addralign = section->align;
+		obj->shdr32[index].sh_entsize = section->entsize;
+		obj->shdr32[index].sh_offset = section->offset;
+		obj->shdr32[index].sh_size = section->size;
+		break;
+	case elfclass64:
+		obj->shdr64[index].sh_type = section->type;
+		obj->shdr64[index].sh_flags = section->flags;
+		obj->shdr64[index].sh_addr = section->address;
+		obj->shdr64[index].sh_link = section->link;
+		obj->shdr64[index].sh_addralign = section->align;
+		obj->shdr64[index].sh_entsize = section->entsize;
+		obj->shdr64[index].sh_offset = section->offset;
+		obj->shdr64[index].sh_size = section->size;
+		break;
+	default:
+		return elf_error_set(error, "unknown elfclass: %d\n",
+		    obj->e_class);
+	}
+	return true;
+}
+
 bool
 elf_read_address(elfobj_t *obj, uint64_t addr, uint64_t *out, typewidth_t width)
 {
@@ -1375,6 +1735,7 @@ elf_symtab_iterator_init(struct elfobj *obj, struct elf_symtab_iterator *iter)
 {
 
 	iter->current = LIST_FIRST(&obj->list.symtab);
+	iter->index = 0;
 	return;
 }
 
@@ -1392,6 +1753,7 @@ elf_symtab_iterator_next(struct elf_symtab_iterator *iter,
 		return ELF_ITER_DONE;
 	memcpy(symbol, iter->current, sizeof(*symbol));
 	iter->current = LIST_NEXT(iter->current, _linkage);
+	iter->index++;
 	return ELF_ITER_OK;
 }
 
@@ -1432,6 +1794,7 @@ elf_dynsym_iterator_next(struct elf_dynsym_iterator *iter,
 		return ELF_ITER_DONE;
 	memcpy(symbol, iter->current, sizeof(*symbol));
 	iter->current = LIST_NEXT(iter->current, _linkage);
+	iter->index++;
 	return ELF_ITER_OK;
 }
 
@@ -2590,6 +2953,11 @@ final_load_stages:
 		elf_error_set(error, "failed to build dynamic symbol data");
 		goto err;
 	}
+	/*
+	 * 2nd arg is 'false' which indicates that we are creating the real symtab
+	 * linked list, and not a secondary list that is used for certain modification
+	 * operations internally.
+	 */
 	if (build_symtab_data(obj) == false) {
 		elf_error_set(error, "failed to build symtab symbol data");
 		goto err;

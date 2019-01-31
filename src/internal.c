@@ -51,6 +51,9 @@ elf_error_set(elf_error_t *error, const char *fmt, ...)
 {
 	va_list va;
 
+	if (error == NULL)
+		return false;
+
 	va_start(va, fmt);
 	vsnprintf(error->string, sizeof(error->string), fmt, va);
 	va_end(va);
@@ -212,7 +215,6 @@ build_symtab_data(struct elfobj *obj)
 	struct elf_symtab_list *list = &obj->list.symtab;
 
 	LIST_INIT(&obj->list.symtab);
-
 	/*
 	 * Since there is no .symtab in the binary we are only re-creating
 	 * the symbol entries internally to libelfmaster (Within memory)
@@ -1985,7 +1987,7 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 bool
 sort_elf_sections(elfobj_t *obj, elf_error_t *error)
 {
-	size_t section_count = obj->section_count;
+	size_t section_count = elf_section_count(obj);
 	size_t i;
 
 	obj->sections = (struct elf_section **)

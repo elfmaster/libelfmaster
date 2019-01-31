@@ -299,8 +299,8 @@ typedef struct elfobj {
 	 * lists
 	 */
 	struct {
-		LIST_HEAD(elf_symtab_list, elf_symbol_node) symtab;
-		LIST_HEAD(elf_dynsym_list, elf_symbol_node) dynsym;
+		LIST_HEAD(elf_symtab_list, elf_symbol_node) symtab, symtab_backup;
+		LIST_HEAD(elf_dynsym_list, elf_symbol_node) dynsym, dynsym_backup;
 		LIST_HEAD(elf_plt_list, elf_plt_node) plt;
 		LIST_HEAD(elf_shared_object_list, elf_shared_object_node) shared_objects;
 		LIST_HEAD(elf_section_list, elf_section_node) sections;
@@ -443,10 +443,12 @@ typedef struct elf_dynamic_entry {
 
 typedef struct elf_symtab_iterator {
 	struct elf_symbol_node *current;
+	unsigned int index;
 } elf_symtab_iterator_t;
 
 typedef struct elf_dynsym_iterator {
 	struct elf_symbol_node *current;
+	unsigned int index;
 } elf_dynsym_iterator_t;
 
 typedef struct elf_eh_frame_iterator {
@@ -769,4 +771,45 @@ ssize_t elf_scop_text_filesz(elfobj_t *);
 uint64_t elf_executable_text_offset(elfobj_t *);
 uint64_t elf_executable_text_base(elfobj_t *);
 
+/*
+ * 2nd arg is an output of the number of entries in .symtab
+ * returns true on success. Same thing for elf_dynsym_count
+ * except for the .dynsym symbol table.
+ */
+bool elf_symtab_count(elfobj_t *, uint64_t *);
+bool elf_dynsym_count(elfobj_t *, uint64_t *);
+
+/*
+ * obj->section_count accessor
+ */
+size_t elf_section_count(elfobj_t *);
+/*
+ * obj->ehdr->phnum accessor
+ */
+size_t elf_segment_count(elfobj_t *);
+
+/*
+ * Write accessor functions.
+ */
+bool elf_symtab_modify(elfobj_t *, uint64_t index, struct elf_symbol *, elf_error_t *);
+bool elf_dynsym_modify(elfobj_t *, uint64_t index, struct elf_symbol *, elf_error_t *);
+bool elf_segment_modify(elfobj_t *, uint64_t index, struct elf_segment *, elf_error_t *);
+bool elf_section_modify(elfobj_t *, uint64_t index, struct elf_section *, elf_error_t *);
+
+/*
+ * Must be used after elf_symtab_modify/elf_dynsym_modify, and cannot be used within calls
+ * elf_symtab_iterator_next/elf_dynsym_iterator_next since a commit would change the linked
+ * list that the symbol table iterator functions use.
+ */
+bool elf_symtab_commit(elfobj_t *);
+bool elf_dynsym_commit(elfobj_t *);
+
+/*
+ * We could have put this commit function directly into the code for elf_section_modify but it
+ * (thus not needing an elf_section_commit function) but it is computationally expensive if you
+ * are modifying more than one section, so its best to modify N sections, and then have a commit
+ * function call that updates the internal section header table only once. Every commit requires
+ * freeing the existing internal representation and then sorting a new array of strings.
+ */
+bool elf_section_commit(elfobj_t *);
 #endif
