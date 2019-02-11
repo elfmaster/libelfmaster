@@ -54,26 +54,6 @@
 	(((addr) + __alignof__ (struct cache_file_new) -1)	\
 	    & (~(__alignof__ (struct cache_file_new) - 1)))
 
-size_t
-elf_segment_count(elfobj_t *obj)
-{
-
-	switch(obj->e_class) {
-	case elfclass32:
-		return obj->ehdr32->e_phnum;
-	case elfclass64:
-		return obj->ehdr64->e_phnum;
-	}
-	return 0;
-}
-
-size_t
-elf_section_count(elfobj_t *obj)
-{
-
-	return obj->section_count;
-}
-
 bool
 elf_symtab_count(elfobj_t *obj, uint64_t *count)
 {
@@ -354,6 +334,12 @@ bool elf_segment_modify(elfobj_t *obj, uint64_t index,
 	return true;
 }
 
+bool
+elf_dynamic_modify(elfobj_t *obj, uint64_t index, struct elf_dynamic_entry *dyn,
+    elf_error_t *error)
+{
+
+}
 bool
 elf_section_commit(elfobj_t *obj)
 {
@@ -820,6 +806,43 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 	return "R_UNKNOWN";
 }
 
+/*
+ * Get a phdr segment by index
+ */
+bool
+elf_segment_by_index(struct elfobj *obj, uint64_t index, struct elf_segment *segment)
+{
+
+	switch(elf_class(obj)) {
+	case elfclass32:
+		if (index >= obj->ehdr32->e_phnum)
+			return false;
+		segment->type = obj->phdr32[index].p_type;
+		segment->flags = obj->phdr32[index].p_flags;
+		segment->offset = obj->phdr32[index].p_offset;
+		segment->vaddr = obj->phdr32[index].p_vaddr;
+		segment->paddr = obj->phdr32[index].p_paddr;
+		segment->filesz = obj->phdr32[index].p_filesz;
+		segment->memsz = obj->phdr32[index].p_memsz;
+		segment->align = obj->phdr32[index].p_align;
+		break;
+	case elfclass64:
+		if (index >= obj->ehdr64->e_phnum)
+			return false;
+		segment->type = obj->phdr64[index].p_type;
+		segment->flags = obj->phdr64[index].p_flags;
+		segment->offset = obj->phdr64[index].p_offset;
+		segment->vaddr = obj->phdr64[index].p_vaddr;
+		segment->paddr = obj->phdr64[index].p_paddr;
+		segment->filesz = obj->phdr64[index].p_filesz;
+		segment->memsz = obj->phdr64[index].p_memsz;
+		segment->align = obj->phdr64[index].p_align;
+		break;
+	default:
+		return false;
+	}
+	return true;
+}
 /*
  * Return executable text segment offset
  * for SCOP binaries

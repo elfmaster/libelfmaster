@@ -23,6 +23,7 @@ all:
 	$(CC) -O2 -g modify_dynsym.c ../src/libelfmaster.a -o modify_dynsym
 	$(CC) -O2 -g modify_segment.c ../src/libelfmaster.a -o modify_segment
 	$(CC) -O2 -g modify_section.c ../src/libelfmaster.a -o modify_section
+	$(CC) -O2 -g scount.c ../src/libelfmaster.a -o scount
 	$(CC) ../utils/stripx.c -o stripx
 	$(CC) -N -static -m32 -nostdlib nostdlib.c -o nostdlib32
 	$(CC) -N -static -nostdlib nostdlib.c -o nostdlib

@@ -719,6 +719,7 @@ load_dynamic_segment_data(struct elfobj *obj)
 		 * be spec'd out and designed properly and documented based
 		 * on more analysis and samples.
 		 */
+		obj->dtag_count++;
 		switch(entry.tag) {
 		case DT_PLTGOT:
 			if (dt_pltgot++ > 0)

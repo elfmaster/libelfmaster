@@ -83,8 +83,8 @@
 #define SYMTAB_RECONSTRUCT_COUNT 8192
 
 typedef struct elf_error {
-        char string[MAX_ERROR_STR_LEN];
-        int _errno;
+	char string[MAX_ERROR_STR_LEN];
+	int _errno;
 } elf_error_t;
 
 typedef enum elf_arch {
@@ -283,7 +283,7 @@ typedef struct elfobj {
 	/*
 	 * Handle merged text and data
 	 */
-#define ELF_PT_LOAD_MERGED_F 	(1 << 4)
+#define ELF_PT_LOAD_MERGED_F	(1 << 4)
 
 	struct pt_load *pt_load;
 	size_t load_count;
@@ -384,6 +384,7 @@ typedef struct elfobj {
 	size_t symtab_count;
 	size_t dynsym_count;
 	size_t note_size;
+	size_t dtag_count; /* dynamic tag count */
 	size_t dynamic_size;
 	size_t eh_frame_hdr_size;
 	size_t init_array_size;
@@ -437,7 +438,7 @@ typedef struct elf_dynamic_iterator {
 } elf_dynamic_iterator_t;
 
 typedef struct elf_dynamic_entry {
-	unsigned int tag;
+	Elf64_Sxword tag;
 	uint64_t value;
 } elf_dynamic_entry_t;
 
@@ -467,10 +468,10 @@ typedef struct elf_pltgot_iterator {
 	size_t gotsize;
 } elf_pltgot_iterator_t;
 
-#define ELF_PLTGOT_RESERVED_DYNAMIC_F 		(1 << 0)
-#define ELF_PLTGOT_RESERVED_LINKMAP_F 		(1 << 1)
-#define ELF_PLTGOT_RESERVED_DL_RESOLVE_F 	(1 << 2)
-#define ELF_PLTGOT_PLT_STUB_F 			(1 << 3)
+#define ELF_PLTGOT_RESERVED_DYNAMIC_F		(1 << 0)
+#define ELF_PLTGOT_RESERVED_LINKMAP_F		(1 << 1)
+#define ELF_PLTGOT_RESERVED_DL_RESOLVE_F	(1 << 2)
+#define ELF_PLTGOT_PLT_STUB_F			(1 << 3)
 #define ELF_PLTGOT_RESOLVED_F			(1 << 4)
 
 typedef struct elf_pltgot_entry {
@@ -526,7 +527,7 @@ typedef struct elf_shared_object_iterator {
  * API flags for loading.
  */
 #define ELF_LOAD_F_STRICT	(1UL << 0) //only load binaries if ALL headers are sane
-#define ELF_LOAD_F_SMART 	(1UL << 1) //(implicit flag) load any binary that the kernel can load and reconstruct
+#define ELF_LOAD_F_SMART	(1UL << 1) //(implicit flag) load any binary that the kernel can load and reconstruct
 					   //--although symbols and sections won't be available... see next flag
 #define ELF_LOAD_F_FORENSICS	(1UL << 2) //this flag will fully reconstruct all forensics relevant data similarly
 					   //if the section header tables and symbols are missing or are corrupted.
@@ -729,6 +730,30 @@ bool
 elf_flags(elfobj_t *, elf_obj_flags_t);
 
 /*
+ * Get string tables
+ */
+static inline char *
+elf_dynstr(elfobj_t *obj)
+{
+
+	return obj->dynstr;
+}
+
+static inline char *
+elf_shstrtab(elfobj_t *obj)
+{
+
+	return obj->shstrtab;
+}
+
+static inline char *
+elf_strtab(elfobj_t *obj)
+{
+
+	return obj->strtab;
+}
+
+/*
  * Is the ELF obj dynamically, statically linked, or neither (Meaning object or core file)
  */
 typedef enum elf_linking_type {
@@ -774,19 +799,42 @@ uint64_t elf_executable_text_base(elfobj_t *);
 /*
  * 2nd arg is an output of the number of entries in .symtab
  * returns true on success. Same thing for elf_dynsym_count
- * except for the .dynsym symbol table.
  */
 bool elf_symtab_count(elfobj_t *, uint64_t *);
 bool elf_dynsym_count(elfobj_t *, uint64_t *);
 
+static inline size_t
+elf_dtag_count(elfobj_t *obj)
+{
+
+	return obj->dtag_count;
+}
+
+static inline size_t
+elf_segment_count(elfobj_t *obj)
+{
+
+	switch(obj->e_class) {
+	case elfclass32:
+		return obj->ehdr32->e_phnum;
+	case elfclass64:
+		return obj->ehdr64->e_phnum;
+	}
+	return 0;
+}
+
+static inline size_t
+elf_section_count(elfobj_t *obj)
+{
+
+	return obj->section_count;
+}
+
+
 /*
- * obj->section_count accessor
+ * Modify an elf_segment entry
  */
-size_t elf_section_count(elfobj_t *);
-/*
- * obj->ehdr->phnum accessor
- */
-size_t elf_segment_count(elfobj_t *);
+bool elf_segment_by_index(elfobj_t *, uint64_t, struct elf_segment *);
 
 /*
  * Write accessor functions.
@@ -795,7 +843,7 @@ bool elf_symtab_modify(elfobj_t *, uint64_t index, struct elf_symbol *, elf_erro
 bool elf_dynsym_modify(elfobj_t *, uint64_t index, struct elf_symbol *, elf_error_t *);
 bool elf_segment_modify(elfobj_t *, uint64_t index, struct elf_segment *, elf_error_t *);
 bool elf_section_modify(elfobj_t *, uint64_t index, struct elf_section *, elf_error_t *);
-
+bool elf_dynamic_modify(elfobj_t *, uint64_t index, struct elf_dynamic_entry *, elf_error_t *);
 /*
  * Must be used after elf_symtab_modify/elf_dynsym_modify, and cannot be used within calls
  * elf_symtab_iterator_next/elf_dynsym_iterator_next since a commit would change the linked
