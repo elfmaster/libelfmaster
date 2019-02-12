@@ -334,9 +334,15 @@ bool elf_segment_modify(elfobj_t *obj, uint64_t index,
 	return true;
 }
 
+/*
+ * If bool extend == true, then the function allows the caller to add a dynamic
+ * entry that extends beyond the known size of the dynamic section. This often
+ * works to allow atleast two or three extra entries depending on the padding
+ * between .dynamic and the following section.
+ */
 bool
 elf_dynamic_modify(elfobj_t *obj, uint64_t index, struct elf_dynamic_entry *dyn,
-    elf_dyn_type_t dyn_type, elf_error_t *error)
+    bool extend, elf_error_t *error)
 {
 
 	if ((obj->load_flags & ELF_LOAD_F_MODIFY) == false) {
@@ -344,26 +350,18 @@ elf_dynamic_modify(elfobj_t *obj, uint64_t index, struct elf_dynamic_entry *dyn,
 		    "elf_dynamic_modify() requires ELF_LOAD_F_MODIFY be set\n");
 	}
 
-	if (index >= elf_dtag_count(obj)) {
+	if (extend == false && index >= elf_dtag_count(obj)) {
 		return elf_error_set(error,
 		    "dynamic entry index: %zu outside of range\n", index);
 	}
 	switch(obj->e_class) {
 	case elfclass32:
 		obj->dynamic32[index].d_tag = dyn->tag;
-		if (dyn_type == ELF_DYNAMIC_VAL) {
-			obj->dynamic32[index].d_un.d_val = dyn->value;
-		} else {
-			obj->dynamic32[index].d_un.d_ptr = dyn->value;
-		}
+		obj->dynamic32[index].d_un.d_val = dyn->value;
 		break;
 	case elfclass64:
 		obj->dynamic64[index].d_tag = dyn->tag;
-		if (dyn_type == ELF_DYNAMIC_VAL) {
-			obj->dynamic64[index].d_tag = dyn->value;
-		} else {
-			obj->dynamic64[index].d_un.d_ptr = dyn->value;
-		}
+		obj->dynamic64[index].d_un.d_val = dyn->value;
 		break;
 	default:
 		return elf_error_set(error, "unknown elfclass: %d\n", obj->e_class);

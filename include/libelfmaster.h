@@ -487,14 +487,6 @@ typedef enum elf_iterator_res {
 	ELF_ITER_NOTFOUND
 } elf_iterator_res_t;
 
-/*
- * For use with elf_dynamic_modify
- */
-typedef enum elf_dyn_type {
-	ELF_DYNAMIC_PTR,
-	ELF_DYNAMIC_VAL
-} elf_dyn_type_t;
-
 typedef struct elf_relocation_iterator {
 	unsigned int index;
 	elfobj_t *obj;
@@ -852,7 +844,7 @@ bool elf_dynsym_modify(elfobj_t *, uint64_t index, struct elf_symbol *, elf_erro
 bool elf_segment_modify(elfobj_t *, uint64_t index, struct elf_segment *, elf_error_t *);
 bool elf_section_modify(elfobj_t *, uint64_t index, struct elf_section *, elf_error_t *);
 bool elf_dynamic_modify(elfobj_t *, uint64_t index, struct elf_dynamic_entry *,
-    elf_dyn_type_t, elf_error_t *);
+    bool, elf_error_t *);
 /*
  * Must be used after elf_symtab_modify/elf_dynsym_modify, and cannot be used within calls
  * elf_symtab_iterator_next/elf_dynsym_iterator_next since a commit would change the linked
