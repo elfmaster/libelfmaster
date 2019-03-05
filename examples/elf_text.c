@@ -33,6 +33,7 @@ int main(int argc, char **argv)
 	if (ret > 0) {
 		printf("Total text segment size: %lu bytes\n", ret);
 	}
+	printf("Phdr table size: %ld\n", elf_phdr_table_size(&obj));
 	printf("elf_executable_text_base: %lx offset: %lx\n", elf_executable_text_base(&obj),
 	    elf_executable_text_offset(&obj));
 	elf_close_object(&obj);
