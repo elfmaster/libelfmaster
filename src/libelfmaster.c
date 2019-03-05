@@ -553,6 +553,8 @@ elf_text_filesz(elfobj_t *obj)
 }
 
 /*
+ * If its not a SCOP binary it calls elf_text_filesz()
+ * If its a SCOP binary:
  * Gets the sum total of all 3 LOAD segments for SCOP
  * binaries.
  */
@@ -564,6 +566,9 @@ elf_scop_text_filesz(elfobj_t *obj)
 	uint32_t count = 0;
 	size_t total = 0;
 
+	if (peu_probable(elf_flags(obj, ELF_SCOP_F) == false)) {
+		return elf_text_base(obj);
+	}
 	elf_segment_iterator_init(obj, &iter);
 	for (;;) {
 		elf_iterator_res_t res;

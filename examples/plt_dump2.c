@@ -35,6 +35,7 @@ int main(int argc, char **argv)
 		if (elf_plt_by_name(&obj, symbol.name, &plt) == true)
 			printf("%#08lx %s\n", plt.addr, plt.symname);
 	}
+	printf("Closing object\n");
 	elf_close_object(&obj);
 	return 0;
 }

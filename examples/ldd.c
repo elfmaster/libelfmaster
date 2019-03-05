@@ -46,5 +46,6 @@ int main(int argc, char **argv)
 			printf("%-30s -->\t%s\n", object.basename, object.path);
 		}
 	}
+	elf_close_object(&obj);
 	exit(0);
 }
