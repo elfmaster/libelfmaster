@@ -3031,12 +3031,19 @@ final_load_stages:
 
 	/*
 	 * must get the eh_frame ranges before calling build_symtab_data
-	 * incase we need to reconstruct symbol information from the FDE's
+	 * incase we need to reconstruct symbol information from the FDE's.
+	 * We should only be needing to get the FDE ranges if there are insane
+	 * section headers, otherwise there will be no need for us to parse
+	 * .eh_frame; the sole purpose if dw_get_eh_frame_ranges is to get
+	 * the data necessary to reconstruct .symtab.
 	 */
-	if ((obj->flags & ELF_EH_FRAME_F) != 0) {
-		if (dw_get_eh_frame_ranges(obj) < 0) {
-			elf_error_set(error, "failed to build FDE data from eh_frame");
-			goto err;
+	if (insane_section_headers(obj) == true &&
+            (load_flags & ELF_LOAD_F_FORENSICS)) {
+		if ((obj->flags & ELF_EH_FRAME_F) != 0) {
+			if (dw_get_eh_frame_ranges(obj) < 0) {
+				elf_error_set(error, "failed to build FDE data from eh_frame");
+				goto err;
+			}
 		}
 	}
 	if (build_dynsym_data(obj) == false) {
