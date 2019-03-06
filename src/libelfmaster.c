@@ -538,6 +538,21 @@ elf_linking_type(elfobj_t *obj)
 	    ELF_LINKING_STATIC;
 }
 
+size_t
+elf_ehdr_size(elfobj_t *obj)
+{
+
+	switch(elf_class(obj)) {
+	case elfclass32:
+		return sizeof(Elf32_Ehdr);
+		break;
+	case elfclass64:
+		return sizeof(Elf64_Ehdr);
+		break;
+	}
+	return 0;
+}
+
 ssize_t
 elf_phdr_table_size(elfobj_t *obj)
 {

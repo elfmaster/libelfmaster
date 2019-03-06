@@ -44,3 +44,10 @@ iteration.
 * Display forensically reconstructed sections in ascending order by sh_addr
 rather than the order they were reconstructed in.
 
+# eh_frame symbol reconstruction with text padding viruses
+
+With a text padding Virus, the parasite ends up in the last section header, which is
+on x86 usually .eh_frame. Because of this, libelfmaster sees the .eh_frame section
+and continues parsing into the parasite code resulting in corrupted FDE data and
+therefore fails. We must handle this situation somehow!
+

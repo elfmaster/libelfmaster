@@ -831,7 +831,7 @@ elf_section_count(elfobj_t *obj)
 }
 
 ssize_t elf_phdr_table_size(elfobj_t *);
-
+size_t elf_ehdr_size(elfobj_t *);
 
 /*
  * Modify an elf_segment entry
