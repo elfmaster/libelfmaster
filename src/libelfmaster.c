@@ -624,20 +624,20 @@ elf_scop_text_filesz(elfobj_t *obj)
 }
 
 const char *
-elf_pathname(elfobj_t *obj)
+elf_pathname(struct elfobj *obj)
 {
 
 	return obj->path;
 }
 
 const char *
-elf_basename(elfobj_t *obj)
+elf_basename(struct elfobj *obj)
 {
 	char *ptr;
 
-	ptr = strrchr(obj->path, '\n');
+	ptr = strrchr(obj->path, '/');
 	if (ptr != NULL)
-		ptr += 1;
+		return ptr + 1;
 	return NULL;
 }
 
