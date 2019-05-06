@@ -556,7 +556,6 @@ elf_ehdr_size(elfobj_t *obj)
 ssize_t
 elf_phdr_table_size(elfobj_t *obj)
 {
-	size_t phdr_size;
 	size_t tbl_size;
 
 	switch(elf_class(obj)) {
@@ -1053,6 +1052,31 @@ elf_data_offset(struct elfobj *obj)
 		}
 	}
 	return 0;
+}
+
+bool
+elf_data_segment(struct elfobj *obj, struct elf_segment *segment)
+{
+	size_t i;
+	bool res = false;
+
+	for (i = 0; i < obj->load_count; i++) {
+		if (obj->pt_load[i].flag & ELF_PT_LOAD_DATA_F) {
+			switch(obj->e_class) {
+			case elfclass32:
+				memcpy(segment, &obj->pt_load[i].phdr32, sizeof(*segment));
+				res = true;
+				break;
+			case elfclass64:
+				memcpy(segment, &obj->pt_load[i].phdr64, sizeof(*segment));
+				res = true;
+				break;
+			default:
+				return false;
+			}
+		}
+	}
+	return res;
 }
 
 void *
@@ -2556,8 +2580,8 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 							obj->text_segment_filesz = obj->phdr32[i].p_filesz;
 							memcpy(&obj->pt_load[obj->load_count].phdr32,
 							    &obj->phdr32[i], sizeof(Elf32_Phdr));
-							memcpy(&obj->pt_load[obj->load_count].phdr32,
-							    &obj->phdr32[i], sizeof(Elf32_Phdr));
+							memcpy(&obj->pt_load[obj->load_count + 1].phdr32,
+							    &obj->phdr32[i + 1], sizeof(Elf32_Phdr));
 							i += 1;
 							obj->load_count += 2;
 							continue;
@@ -2810,16 +2834,20 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 				   if (text_found == false && obj->phdr64[i].p_flags == PF_R) {
 					if (obj->phdr64[i + 1].p_flags == PF_R|PF_X &&
 					    obj->phdr64[i + 2].p_flags == PF_R) {
+						/*
+						 * separate-code SCOP binary with 3 LOAD's for
+						 * the text segment alone.
+						 */
 						obj->flags |= ELF_SCOP_F;
 						text_found = true;
 						obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
+						obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
 						obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_F;
-						obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
 						obj->pt_load[obj->load_count + 2].flag |= ELF_PT_LOAD_TEXT_F;
 						obj->pt_load[obj->load_count + 2].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
 						obj->text_address = obj->phdr64[i].p_vaddr;
 						obj->text_segment_filesz = obj->phdr64[i].p_filesz;
-						memcpy(&obj->pt_load[obj->load_count++].phdr64, &obj->phdr64[i],
+						memcpy(&obj->pt_load[obj->load_count].phdr64, &obj->phdr64[i],
 						    sizeof(Elf64_Phdr));
 						memcpy(&obj->pt_load[obj->load_count + 1].phdr64,
 						  &obj->phdr64[i + 1], sizeof(Elf64_Phdr));
@@ -2828,24 +2856,30 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 						i += 2;
 						obj->load_count += 3;
 						continue;
-					} else if (obj->phdr64[i + 1].p_flags == PF_R|PF_X &&
+					} else if (text_found == false && obj->phdr64[i + 1].p_flags == PF_R|PF_X &&
 						    obj->phdr64[i + 2].p_flags == PF_R|PF_W) {
+							/*
+							 * SCOP binary with only 2 LOAD's for the
+							 * text segment.
+							 */
 							text_found = true;
 							obj->flags |= ELF_SCOP_F;
 							obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
+							obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
 							obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_F;
-							obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
 							obj->text_address = obj->phdr64[i].p_vaddr;
 							obj->text_segment_filesz = obj->phdr64[i].p_filesz;
 							memcpy(&obj->pt_load[obj->load_count].phdr64,
 							    &obj->phdr64[i], sizeof(Elf64_Phdr));
-							memcpy(&obj->pt_load[obj->load_count].phdr64,
-							    &obj->phdr64[i], sizeof(Elf64_Phdr));
+							memcpy(&obj->pt_load[obj->load_count + 1].phdr64,
+							    &obj->phdr64[i + 1], sizeof(Elf64_Phdr));
 							i += 1;
 							obj->load_count += 2;
 							continue;
 					}
 				}
+				/*
+				 * Traditional single LOAD text segment */
 				obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
 				text_found = true;
 				memcpy(&obj->pt_load[obj->load_count++].phdr64, &obj->phdr64[i],
@@ -2881,6 +2915,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 					memcpy(&obj->pt_load[obj->load_count++].phdr64,
 					    &obj->phdr64[i], sizeof(Elf64_Phdr));
 					obj->data_segment_filesz = obj->phdr64[i].p_filesz;
+					obj->data_address = obj->phdr64[i].p_filesz;
 				}
 			}
 			if (data_found == false) {

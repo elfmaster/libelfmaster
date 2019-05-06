@@ -718,7 +718,10 @@ size_t elf_data_filesz(elfobj_t *);
  */
 uint64_t elf_text_offset(elfobj_t *);
 uint64_t elf_data_offset(elfobj_t *);
-
+/*
+ * Return data segment phdr in struct elf_segment arg
+ */
+bool elf_data_segment(elfobj_t *, struct elf_segment *);
 /*
  * r_type converted to string representing the relocation
  * type; i.e. "R_X86_64_JUMP_SLOT"
