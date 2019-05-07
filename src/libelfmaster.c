@@ -2530,28 +2530,17 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 				if (text_found == false && obj->phdr32[i].p_flags == PF_R) {
 					if (obj->phdr32[i + 1].p_flags == PF_R|PF_X &&
 					    obj->phdr32[i + 2].p_flags == PF_R) {
+						/*
+						 * SCOP binary with 3 LOAD's for the text
+						 * segment.
+						 */
 						obj->flags |= ELF_SCOP_F;
 						text_found = true;
 						obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
+						obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
 						obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_F;
-						obj->pt_load[obj->load_count + 1].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
 						obj->pt_load[obj->load_count + 2].flag |= ELF_PT_LOAD_TEXT_F;
 						obj->pt_load[obj->load_count + 2].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
-						/*
-						 * Consider a SCOP (Secure code partitioning) scenario
-						 * where all of the read-only sections are prepended before
-						 * the executable sections, and therefore there are only
-						 * two segments that make up the text segment instead of
-						 * three. This is a hypothetical but conceievable linking
-						 * configuration. SCOP is very new, and currently is in
-						 * the order of 3 PT_LOAD segments; the first being PF_R
-						 * the second being PF_R|PF_X and the 3rd being PF_R, this
-						 * supports the conventional order of the ELF sections from
-						 * a historic standpoint and will probably stay this way
-						 * for quite a while, but we must atleast be prepared for
-						 * other variations of this, and even more than what we are
-						 * currently doing here:
-						 */
 						obj->text_address = obj->phdr32[i].p_vaddr;
 						obj->text_segment_filesz = obj->phdr32[i].p_filesz;
 
@@ -2565,12 +2554,11 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 						obj->load_count += 3;
 						continue;
 					} else if (obj->phdr32[i + 1].p_flags == PF_R|PF_X &&
-							/*
-							 * Assuming the next segment would be the
-							 * data segment, hence PF_R|PF_W, and the
-							 * two segments before it SCOP text segments.
-							 */
 						    obj->phdr32[i + 2].p_flags == PF_R|PF_W) {
+						/*
+						 * SCOP binary with only 2 LOAD's for the text
+						 * segment
+						 */
 							text_found = true;
 							obj->flags |= ELF_SCOP_F;
 							obj->pt_load[obj->load_count].flag |= ELF_PT_LOAD_TEXT_F;
@@ -2631,6 +2619,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 					memcpy(&obj->pt_load[obj->load_count++].phdr32,
 					    &obj->phdr32[i], sizeof(Elf32_Phdr));
 					obj->data_segment_filesz = obj->phdr32[i].p_filesz;
+					obj->data_address = obj->phdr32[i].p_vaddr;
 				}
 
 			}
@@ -2915,7 +2904,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 					memcpy(&obj->pt_load[obj->load_count++].phdr64,
 					    &obj->phdr64[i], sizeof(Elf64_Phdr));
 					obj->data_segment_filesz = obj->phdr64[i].p_filesz;
-					obj->data_address = obj->phdr64[i].p_filesz;
+					obj->data_address = obj->phdr64[i].p_vaddr;
 				}
 			}
 			if (data_found == false) {
