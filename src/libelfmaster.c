@@ -2553,7 +2553,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 						i += 2;
 						obj->load_count += 3;
 						continue;
-					} else if (obj->phdr32[i + 1].p_flags == PF_R|PF_X &&
+					} else if (text_found == false && obj->phdr32[i + 1].p_flags == PF_R|PF_X &&
 						    obj->phdr32[i + 2].p_flags == PF_R|PF_W) {
 						/*
 						 * SCOP binary with only 2 LOAD's for the text
