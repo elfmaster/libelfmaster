@@ -841,6 +841,21 @@ elf_phoff(elfobj_t *obj)
 	return 0;
 }
 
+static inline uint16_t
+elf_ehsize(elfobj_t *obj)
+{
+
+	switch(obj->e_class) {
+	case elfclass32:
+		return obj->ehdr32->e_ehsize;
+	case elfclass64:
+		return obj->ehdr64->e_ehsize;
+	default:
+		break;
+	}
+	return 0;
+}
+
 static inline size_t
 elf_section_count(elfobj_t *obj)
 {
