@@ -31,7 +31,7 @@ int main(int argc, char **argv)
 			symtab = true;
 	}
 	if (elf_open_object(argv[1], &obj,
-	    ELF_LOAD_F_FORENSICS, &error) == false) {
+	    ELF_LOAD_F_STRICT, &error) == false) {
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}

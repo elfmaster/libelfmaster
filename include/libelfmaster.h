@@ -82,6 +82,9 @@
 
 #define SYMTAB_RECONSTRUCT_COUNT 8192
 
+#define ELF_ERRNO_INVALMAGIC	0
+#define ELF_ERRNO_INVALSHDRS	1
+
 typedef struct elf_error {
 	char string[MAX_ERROR_STR_LEN];
 	int _errno;
@@ -731,6 +734,22 @@ elf_reloc_type_string(elfobj_t *, uint32_t);
 
 bool
 elf_flags(elfobj_t *, elf_obj_flags_t);
+
+static inline uint64_t
+elf_error_code(elf_error_t e)
+{
+
+	return e._errno;
+}
+
+static inline bool
+elf_error_check(elf_error_t e, uint64_t code)
+{
+
+	if (elf_error_code(e) == code)
+		return true;
+	return false;
+}
 
 /*
  * Get string tables

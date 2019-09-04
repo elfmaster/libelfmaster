@@ -24,12 +24,14 @@ all:
 	$(CC) -O2 -g modify_segment.c ../src/libelfmaster.a -o modify_segment
 	$(CC) -O2 -g modify_section.c ../src/libelfmaster.a -o modify_section
 	$(CC) -O2 -g scount.c ../src/libelfmaster.a -o scount
+	$(CC) -O2 -g data_base.c ../src/libelfmaster.a -o data_base
 	$(CC) ../utils/stripx.c -o stripx
 	$(CC) -N -static -m32 -nostdlib nostdlib.c -o nostdlib32
 	$(CC) -N -static -nostdlib nostdlib.c -o nostdlib
 	$(CC) -O2 -g elf_text.c ../src/libelfmaster.a -o elf_text
+	$(CC) -Wl,-z,separate-code test.c -o test_scop_pie
 	$(CC) -no-pie -Wl,-z,separate-code test.c -o test_scop_binary
-
+	$(CC) -O2 -g pltgot.c -o pltgot ../src/libelfmaster.a
 	./stripx test_stripped
 	./stripx test32_stripped
 clean:

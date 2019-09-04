@@ -1241,6 +1241,7 @@ i386:
 #define GLIBC_START_CODE_64	"\x55\x48\x89\xe5\x48" /* enough to identify _start */
 #define GLIBC_START_CODE_64_v2	"\x31\xed\x49\x89\xd1" /* enough to identify _start */
 #define GLIBC_START_CODE_32	"\x31\xed\x5e\x89\xe1" /* enough to identify _start */
+
 static uint64_t
 original_ep(elfobj_t *obj)
 {
