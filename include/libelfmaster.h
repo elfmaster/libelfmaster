@@ -735,6 +735,7 @@ elf_reloc_type_string(elfobj_t *, uint32_t);
 bool
 elf_flags(elfobj_t *, elf_obj_flags_t);
 
+#if 0
 static inline uint64_t
 elf_error_code(elf_error_t e)
 {
@@ -750,7 +751,7 @@ elf_error_check(elf_error_t e, uint64_t code)
 		return true;
 	return false;
 }
-
+#endif
 /*
  * Get string tables
  */
