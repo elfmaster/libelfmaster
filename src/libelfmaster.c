@@ -909,6 +909,29 @@ elf_segment_by_index(struct elfobj *obj, uint64_t index, struct elf_segment *seg
 	}
 	return true;
 }
+
+/*
+ * Get a phdr segment by p_type
+ */
+bool
+elf_segment_by_p_type(struct elfobj *obj, uint64_t type, struct elf_segment *segment)
+{
+	elf_segment_iterator_t p_iter;
+
+	elf_segment_iterator_init(obj, &p_iter);
+	for (;;) {
+		elf_iterator_res_t ires = elf_segment_iterator_next(&p_iter, segment);
+		if (ires == ELF_ITER_ERROR)
+			break;
+		if (ires == ELF_ITER_DONE)
+			break;
+		if (segment->type == type) {
+			return true;
+		}
+	}
+	return false;
+}
+
 /*
  * Return executable text segment offset
  * for SCOP binaries

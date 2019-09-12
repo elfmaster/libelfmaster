@@ -890,7 +890,10 @@ size_t elf_ehdr_size(elfobj_t *);
  * Modify an elf_segment entry
  */
 bool elf_segment_by_index(elfobj_t *, uint64_t, struct elf_segment *);
-
+/*
+ * Will find the first ocurrence of a given p_type
+ */
+bool elf_segment_by_p_type(elfobj_t *, uint64_t, struct elf_segment *);
 /*
  * Write accessor functions.
  */
