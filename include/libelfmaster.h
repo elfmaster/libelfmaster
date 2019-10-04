@@ -561,6 +561,11 @@ const char * elf_error_msg(elf_error_t *);
 bool elf_section_by_name(elfobj_t *, const char *, struct elf_section *);
 
 /*
+ * Outputs index of shdr searched by name
+ */
+bool elf_section_index_by_name(elfobj_t *, const char *, uint64_t *);
+
+/*
  * Fills in 'struct elf_section *' on success.
  */
 bool elf_section_by_index(elfobj_t *, unsigned int index, struct elf_section *);
@@ -855,6 +860,36 @@ elf_phoff(elfobj_t *obj)
 		return obj->ehdr32->e_phoff;
 	case elfclass64:
 		return obj->ehdr64->e_phoff;
+	default:
+		break;
+	}
+	return 0;
+}
+
+static inline uint64_t
+elf_shoff(elfobj_t *obj)
+{
+
+	switch(obj->e_class) {
+	case elfclass32:
+		return obj->ehdr32->e_shoff;
+	case elfclass64:
+		return obj->ehdr64->e_shoff;
+	default:
+		break;
+	}
+	return 0;
+}
+
+static inline uint64_t
+elf_shnum(elfobj_t *obj)
+{
+
+	switch(obj->e_class) {
+	case elfclass32:
+		return obj->ehdr32->e_shnum;
+	case elfclass64:
+		return obj->ehdr64->e_shnum;
 	default:
 		break;
 	}

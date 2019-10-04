@@ -1558,18 +1558,18 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		 * FINI_ARRAY
 		 */
 		if (add_shstrtab_entry(obj, ".fini_array", &soffset) == false) {
- 			return elf_error_set(e, "add_shstrtab_entry failed");
-                }
+			return elf_error_set(e, "add_shstrtab_entry failed");
+		}
 
-                elf.shdr32.sh_addr = obj->dynseg.fini_array.addr;
-                elf.shdr32.sh_size = obj->dynseg.fini_array.size;
-                elf.shdr32.sh_link = 0;
-                elf.shdr32.sh_name = soffset;
-                elf.shdr32.sh_type = SHT_FINI_ARRAY;
-                elf.shdr32.sh_entsize = sizeof(uint32_t);
-                elf.shdr32.sh_info = 0;
-                elf.shdr32.sh_flags = SHF_WRITE|SHF_ALLOC;
-                add_section_entry(obj, &elf.shdr32);
+		elf.shdr32.sh_addr = obj->dynseg.fini_array.addr;
+		elf.shdr32.sh_size = obj->dynseg.fini_array.size;
+		elf.shdr32.sh_link = 0;
+		elf.shdr32.sh_name = soffset;
+		elf.shdr32.sh_type = SHT_FINI_ARRAY;
+		elf.shdr32.sh_entsize = sizeof(uint32_t);
+		elf.shdr32.sh_info = 0;
+		elf.shdr32.sh_flags = SHF_WRITE|SHF_ALLOC;
+		add_section_entry(obj, &elf.shdr32);
 
 		if (add_shstrtab_entry(obj, ".dynamic", &soffset) == false) {
 			return elf_error_set(e, "add_shstrtab_entry failed");
@@ -1657,6 +1657,12 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 			elf.shdr32.sh_name = soffset;
 			elf.shdr32.sh_link = obj->section_count;
 			add_section_entry(obj, &elf.shdr32);
+
+			if (add_shstrtab_entry(obj, ".shstrtab",
+			    &soffset) == false) {
+				return elf_error_set(e, sname, &soffset);
+			}
+
 		}
 		break;
 	case elfclass64:
@@ -1678,14 +1684,14 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		elf.shdr64.sh_addr = obj->dynseg.hash.addr;
 		elf.shdr64.sh_size = (obj->dynseg.dynsym.addr - elf_text_base(obj)) -
 		    (obj->dynseg.hash.addr - elf_text_base(obj));
-                elf.shdr64.sh_offset = (obj->dynseg.hash.addr - elf_text_base(obj));
-                elf.shdr64.sh_addralign = 4;
-                elf.shdr64.sh_info = 0;
-                elf.shdr64.sh_flags = SHF_ALLOC;
-                elf.shdr64.sh_name = soffset;
-                elf.shdr64.sh_entsize = sizeof(Elf64_Sym);
-                elf.shdr64.sh_type = SHT_GNU_HASH;
-                add_section_entry(obj, &elf.shdr64);
+		elf.shdr64.sh_offset = (obj->dynseg.hash.addr - elf_text_base(obj));
+		elf.shdr64.sh_addralign = 4;
+		elf.shdr64.sh_info = 0;
+		elf.shdr64.sh_flags = SHF_ALLOC;
+		elf.shdr64.sh_name = soffset;
+		elf.shdr64.sh_entsize = sizeof(Elf64_Sym);
+		elf.shdr64.sh_type = SHT_GNU_HASH;
+		add_section_entry(obj, &elf.shdr64);
 		total_sh_offset_len += elf.shdr64.sh_size;
 
 		if (add_shstrtab_entry(obj, ".dynsym", &soffset) == false) {
@@ -1775,7 +1781,7 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 		elf.shdr64.sh_link = 0;
 		elf.shdr64.sh_offset =
 		    elf.shdr64.sh_addr - elf_text_base(obj);
-                elf.shdr64.sh_info = 0;
+		elf.shdr64.sh_info = 0;
 		elf.shdr64.sh_flags = SHF_ALLOC|SHF_EXECINSTR;
 		elf.shdr64.sh_name = soffset;
 		elf.shdr64.sh_entsize = 16;
@@ -1974,6 +1980,11 @@ reconstruct_elf_sections(elfobj_t *obj, elf_error_t *e)
 			elf.shdr64.sh_name = soffset;
 			elf.shdr64.sh_link = obj->section_count;
 			add_section_entry(obj, &elf.shdr64);
+
+			if (add_shstrtab_entry(obj, ".shstrtab",
+			    &soffset) == false) {
+				return elf_error_set(e, "add_shstrtab_entry failed\n");
+			}
 		}
 		break;
 	default:
@@ -2035,9 +2046,9 @@ sort_elf_sections(elfobj_t *obj, elf_error_t *error)
 		}
 	}
 
-        /*
-         * Sorting an array of pointers to struct elf_section
-         */
+	/*
+	 * Sorting an array of pointers to struct elf_section
+	 */
 	qsort(obj->sections, section_count,
 	    sizeof(struct elf_section *), section_name_cmp);
 	return true;
@@ -2143,7 +2154,7 @@ dw_byte_encoding(uint8_t encoded_byte, uint8_t *encoding, uint8_t *value)
  * application. The encoded_value is the value that is encoded that we want
  * to decode using whatever decoding scheme indicated by the encoding_byte.
  * i.e. encoding_byte: eh_frame_hdr->fde_count_enc (Contains which type of encoding)
- *      encoded_value: eh_frame_hdr->fde_count (Contains the value to be decoded)
+ *	encoded_value: eh_frame_hdr->fde_count (Contains the value to be decoded)
  */
 static bool
 dw_decode_pointer(elfobj_t *obj, uint8_t encoding_byte,
@@ -2191,7 +2202,7 @@ dw_decode_pointer(elfobj_t *obj, uint8_t encoding_byte,
 	}
 
 	/*
- 	 * get value based on exception header encoding application
+	 * get value based on exception header encoding application
 	 */
 	switch(encoding.encoding) {
 	case DW_EH_PE_pcrel:
@@ -2232,7 +2243,7 @@ dw_decode_pointer(elfobj_t *obj, uint8_t encoding_byte,
 		*outval = encoded_value;
 		if (outval2 != NULL) {
 			*outval2 = dw_read_location(obj,
-		    	    obj->eh_frame_hdr_addr + 12 + pc, value_size, &res, NULL);
+			    obj->eh_frame_hdr_addr + 12 + pc, value_size, &res, NULL);
 		}
 		return res;
 	case DW_EH_PE_funcrel:
@@ -2279,7 +2290,7 @@ dw_get_eh_frame_ranges(struct elfobj *obj)
 		dw_read_location(obj, fde_table_vaddr + 8 * i, 8, &res, &fde_vec);
 		if (res == false) {
 			fprintf(stderr, "dw_read_location: %#lx failed\n",
-		    	    fde_table_vaddr + 8 * i);
+			    fde_table_vaddr + 8 * i);
 			return -1;
 		}
 		res = dw_decode_pointer(obj, eh_hdr->table_enc, fde_vec.initial_loc,

@@ -1151,6 +1151,30 @@ elf_symtab_string(struct elfobj *obj, uint64_t offset)
 	return &obj->strtab[offset];
 }
 
+bool
+elf_section_index_by_name(struct elfobj *obj, const char *name,
+    uint64_t *index)
+{
+	size_t shnum = elf_shnum(obj);
+	size_t i;
+
+	for (i = 0; i < shnum; i++) {
+		if (elf_class(obj) == elfclass32) {
+			if (strcmp(&obj->shstrtab[obj->shdr32[i].sh_name],
+			    name) == 0) {
+				*index = i;
+				return true;
+			}
+		} else if (elf_class(obj) == elfclass64) {
+			if (strcmp(&obj->shstrtab[obj->shdr64[i].sh_name],
+			    name) == 0) {
+				*index = i;
+				return true;
+			}
+		}
+	}
+	return false;
+}
 /*
  * Ultimately we should store sections in a cache too, no
  * point in adding the complexity of a binary search 'logN'
