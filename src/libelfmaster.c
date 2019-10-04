@@ -1592,6 +1592,44 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
     struct elf_shared_object *entry, elf_error_t *error)
 {
 	bool result;
+	const char *env = "LD_TRACE_LOADED_OBJECTS=1";
+
+	if (iter->flags & ELF_SO_LDSO_FAST) {
+		FILE *pd;
+		char cmd[PATH_MAX], buf[PATH_MAX * 2];
+		char *p, *ep;
+
+		if (iter->index++ == 0) {
+			entry->basename = malloc(PATH_MAX * 2);
+			if (entry->basename == NULL)
+				return ELF_ITER_ERROR;
+		}
+		snprintf(cmd, sizeof(cmd), "%s %s",
+		    env, iter->obj->path);
+		pd = popen(cmd, "r");
+		if (pd == NULL)
+			return ELF_ITER_ERROR;
+		while (fgets(buf, sizeof(buf), pd) != NULL) {
+			if (iter->flags & ELF_SO_RESOLVE_F) {
+				p = buf;
+				while (*p != 0x20)
+					p++;
+				ep = strchr(p, 0x20);
+				if (ep == NULL)
+					return ELF_ITER_ERROR;
+				*ep = '\0';
+				entry->basename = malloc(strlen(p) + 1);
+				if (entry->basename == NULL)
+					return ELF_ITER_ERROR;
+				strncpy(entry->basename, p, PATH_MAX * 2);
+				entry->basename[(PATH_MAX * 2) - 1] = '\0';
+				return ELF_ITER_OK;
+			}
+		}
+		pclose(pd);
+		free(entry->basename);
+		return ELF_ITER_DONE;a
+	}
 
 	if (iter->current == NULL && LIST_EMPTY(&iter->yield_list)) {
 		ldso_cleanup(iter);

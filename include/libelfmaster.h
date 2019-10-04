@@ -29,6 +29,7 @@
 
 #include <elf.h>
 #include <link.h>
+#include <limits.h>
 #include <stdint.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -505,6 +506,12 @@ typedef struct elf_relocation_iterator {
  * Get all dependencies recursively
  */
 #define ELF_SO_RESOLVE_ALL_F (1 << 1)
+/*
+ * Piggy back on top of the dynamic linkers own functionality
+ * to print transitively resolved shared library paths
+ * to stdout with environment variable LD_TRACE_LOADED_OBJECTS
+ */
+#define ELF_SO_LDSO_FAST (1 << 2)
 
 typedef struct elf_shared_object_iterator {
 	unsigned int index;
