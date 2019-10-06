@@ -218,4 +218,10 @@ bool phdr_sanity(elfobj_t *, void *);
  * Get the address range of every function found in .eh_frame
  */
 ssize_t dw_get_eh_frame_ranges(elfobj_t *);
+
+/*
+ * Parse a single line of the /bin/ldd output
+ */
+char * ldd_parse_line(struct elf_shared_object_iterator *, char **);
+
 #endif // _LIBELFMASTER_INTERNAL_H_

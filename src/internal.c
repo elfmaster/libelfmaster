@@ -70,6 +70,48 @@ section_name_cmp(const void *p0, const void *p1)
 	return strcmp(s0->name, s1->name);
 }
 
+char *
+ldd_parse_line(struct elf_shared_object_iterator *iter, char **saveptr)
+{
+	char cmd[PATH_MAX], buf[PATH_MAX * 2];
+	char *p, *ep;
+	const char *env = "LD_TRACE_LOADED_OBJECTS=1";
+
+	if (iter->index++ == 0) {
+		*saveptr = malloc(PATH_MAX * 2);
+		iter->chunk = *saveptr;
+		if (iter->chunk == NULL)
+			return NULL;
+		snprintf(cmd, sizeof(cmd), "%s %s",
+		    env, iter->obj->path);
+		iter->pd = popen(cmd, "r");
+		if (iter->pd == NULL)
+			return NULL;
+	}
+	while (fgets(buf, sizeof(buf), iter->pd) != NULL) {
+		p = strchr(buf, '/');
+		if (p == NULL) {
+			for (p = buf; *p == '\t'; p++)
+				;
+			ep = strchr(p, ' ');
+			if (ep == NULL)
+				return NULL;
+			*ep = '\0';
+			strncpy(iter->chunk, p, PATH_MAX * 2);
+			iter->chunk[(PATH_MAX * 2) - 1] = '\0';
+			return iter->chunk;
+		}
+		ep = strchr(p, ' ');
+		if (ep == NULL)
+			return NULL;
+		*ep = '\0';
+		memset(iter->chunk, 0, PATH_MAX * 2);
+		strncpy(iter->chunk, p, PATH_MAX * 2);
+		iter->chunk[(PATH_MAX * 2) - 1] = '\0';
+		return iter->chunk;
+	}
+	return NULL;
+}
 /*
  * Same for x86 and i386
  */

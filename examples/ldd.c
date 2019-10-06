@@ -25,7 +25,7 @@ int main(int argc, char **argv)
 	}
 
 	if (elf_shared_object_iterator_init(&obj, &so_iter,
-	    NULL, ELF_SO_RESOLVE_ALL_F, &error) == false) {
+	    NULL, ELF_SO_LDSO_FAST_F, &error) == false) {
 		fprintf(stderr, "elf_shared_object_iterator_init failed: %s\n",
 		    elf_error_msg(&error));
 		return -1;

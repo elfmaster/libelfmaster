@@ -511,13 +511,15 @@ typedef struct elf_relocation_iterator {
  * to print transitively resolved shared library paths
  * to stdout with environment variable LD_TRACE_LOADED_OBJECTS
  */
-#define ELF_SO_LDSO_FAST (1 << 2)
+#define ELF_SO_LDSO_FAST_F (1 << 2)
 
 typedef struct elf_shared_object_iterator {
 	unsigned int index;
 	elfobj_t *obj;
 	int fd;
 	void *mem;
+	char *chunk;
+	FILE *pd;
 	struct stat st;
 	struct cache_file *cache;
 	struct cache_file_new *cache_new;
