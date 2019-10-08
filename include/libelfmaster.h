@@ -499,7 +499,7 @@ typedef struct elf_relocation_iterator {
 } elf_relocation_iterator_t;
 
 /*
- * Resolve basenames to full paths using ld.so.cache parsing
+ * Resolve top-level basenames to full paths using ld.so.cache parsing
  */
 #define ELF_SO_RESOLVE_F (1 << 0)
 /*
@@ -510,6 +510,12 @@ typedef struct elf_relocation_iterator {
  * Piggy back on top of the dynamic linkers own functionality
  * to print transitively resolved shared library paths
  * to stdout with environment variable LD_TRACE_LOADED_OBJECTS
+ * This flag currently only supports complete resolution-- meaning
+ * that it will resolve all shared library dependencies for a
+ * binary, and not just the top-level shared libs who's basenames
+ * exist in the dynamic segment as DT_NEEDED entries. This
+ * is significantly faster performing than the ELF_SO_RESOLVE_F_ALL
+ * flag, and cannot be used in conjunction with ELF_SO_RESOLVE_F.
  */
 #define ELF_SO_LDSO_FAST_F (1 << 2)
 

@@ -2,6 +2,7 @@ CC=gcc
 all:
 	$(CC) -O0 -g -fPIC -pie elfparse.c ../src/libelfmaster.a -o elfparse
 	$(CC) -O0 -g ldd.c ../src/libelfmaster.a -o ldd
+	$(CC) -O0 -g ldd2.c ../src/libelfmaster.a -o ldd2
 	$(CC) -O2 -g read_mem.c ../src/libelfmaster.a -o read_mem
 	$(CC) -O2 -g plt_dump.c ../src/libelfmaster.a -o plt_dump
 	$(CC) -O2 -g plt_dump2.c ../src/libelfmaster.a -o plt_dump2
