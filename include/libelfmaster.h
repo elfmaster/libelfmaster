@@ -525,7 +525,7 @@ typedef struct elf_relocation_iterator {
  * since that is the only flag that will yield the vdso
  * basename.
  */
-#define ELF_SO_IGNORE_VDSO (1 << 3)
+#define ELF_SO_IGNORE_VDSO_F (1 << 3)
 
 typedef struct elf_shared_object_iterator {
 	unsigned int index;

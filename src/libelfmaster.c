@@ -1614,6 +1614,16 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 		    && strchr(entry->path, '/') == NULL) {
 			if (strstr(entry->path, "linux-vdso") != NULL) {
 				entry->path = ldd_parse_line(iter, NULL);
+				if (entry->path == NULL) {
+					free(ptr);
+					return ELF_ITER_DONE;
+				}
+				entry->basename = strchr(entry->path, '/');
+				if (entry->basename != NULL) {
+					entry->basename += 1;
+				} else {
+					entry->basename = entry->path;
+				}
 			}
 		}
 		if (entry->path != NULL) {
@@ -1625,7 +1635,7 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 			}
 			return ELF_ITER_OK;
 		}
-		free(ptr);
+		free(iter->chunk);
 		return ELF_ITER_DONE;
 	}
 
