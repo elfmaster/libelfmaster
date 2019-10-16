@@ -519,6 +519,14 @@ typedef struct elf_relocation_iterator {
  */
 #define ELF_SO_LDSO_FAST_F (1 << 2)
 
+/*
+ * Use this flag to ignore VDSO since it will not actually
+ * have a full path. Combine this flag with ELF_SO_LDSO_FAST_F
+ * since that is the only flag that will yield the vdso
+ * basename.
+ */
+#define ELF_SO_IGNORE_VDSO (1 << 3)
+
 typedef struct elf_shared_object_iterator {
 	unsigned int index;
 	elfobj_t *obj;

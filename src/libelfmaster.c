@@ -1176,9 +1176,15 @@ elf_section_index_by_name(struct elfobj *obj, const char *name,
 	return false;
 }
 /*
- * Ultimately we should store sections in a cache too, no
+ * TODO Ultimately we should store sections in a cache too, no
  * point in adding the complexity of a binary search 'logN'
- * when we can have 'O(1)'
+ * when we can have 'O(1)' We should also store the sections
+ * in a list and set a flag for when there are more than one
+ * of the same section name, in which case the list should
+ * be traversed instead of using the binary search or cache
+ * which can't contain duplicates. Or better yet we could
+ * create a chained hash map. See how writing comments can
+ * work you through problems?
  */
 bool
 elf_section_by_name(struct elfobj *obj, const char *name,
@@ -1598,10 +1604,25 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 	if (iter->flags & ELF_SO_LDSO_FAST_F) {
 		char *ptr;
 		entry->path = ldd_parse_line(iter, &ptr);
+		/*
+		 * If a line is yielded with linux-vdso.so.1, it
+		 * should have no full path, so confirm that there
+		 * is no '/' character, and then follow up with a
+		 * strstr call to be certain we have found linux-vdso.so.*
+		 */
+		if ((iter->flags & ELF_SO_IGNORE_VDSO) && entry->path != NULL
+		    && strchr(entry->path, '/') == NULL) {
+			if (strstr(entry->path, "linux-vdso") != NULL) {
+				entry->path = ldd_parse_line(iter, NULL);
+			}
+		}
 		if (entry->path != NULL) {
 			entry->basename = strrchr(entry->path, '/');
-			if (entry->basename == NULL)
+			if (entry->basename != NULL) {
+				entry->basename += 1;
+			} else {
 				entry->basename = entry->path;
+			}
 			return ELF_ITER_OK;
 		}
 		free(ptr);

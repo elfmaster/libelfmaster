@@ -77,7 +77,7 @@ ldd_parse_line(struct elf_shared_object_iterator *iter, char **saveptr)
 	char *p, *ep;
 	const char *env = "LD_TRACE_LOADED_OBJECTS=1";
 
-	if (iter->index++ == 0) {
+	if (iter->index++ == 0 && *saveptr != NULL) {
 		*saveptr = malloc(PATH_MAX * 2);
 		iter->chunk = *saveptr;
 		if (iter->chunk == NULL)
