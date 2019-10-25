@@ -1601,23 +1601,27 @@ elf_shared_object_iterator_next(struct elf_shared_object_iterator *iter,
 
 	entry->path = NULL;
 
+	/*
+	 * TODO rewrite this ELF_SO_LDSO_FAST_F
+	 * chunk of code so that it uses a while loop
+	 * instead of a goto to ldso_fast. This type
+	 * of special casing gets sloppy.
+	 */
 	if (iter->flags & ELF_SO_LDSO_FAST_F) {
-		char *ptr;
-		entry->path = ldd_parse_line(iter, &ptr);
+		entry->path = ldd_parse_line(iter);
+
 		/*
 		 * If a line is yielded with linux-vdso.so.1, it
 		 * should have no full path, so confirm that there
 		 * is no '/' character, and then follow up with a
 		 * strstr call to be certain we have found linux-vdso.so.*
 		 */
-		if ((iter->flags & ELF_SO_IGNORE_VDSO) && entry->path != NULL
+		if ((iter->flags & ELF_SO_IGNORE_VDSO_F) && entry->path != NULL
 		    && strchr(entry->path, '/') == NULL) {
 			if (strstr(entry->path, "linux-vdso") != NULL) {
-				entry->path = ldd_parse_line(iter, NULL);
-				if (entry->path == NULL) {
-					free(ptr);
+				entry->path = ldd_parse_line(iter);
+				if (entry->path == NULL)
 					return ELF_ITER_DONE;
-				}
 				entry->basename = strchr(entry->path, '/');
 				if (entry->basename != NULL) {
 					entry->basename += 1;
@@ -2716,7 +2720,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 				}
 
 			}
-			if (data_found == false) {
+			if (data_found == false && obj->load_count >= (size_t)obj->ehdr32->e_phnum - 1) {
 				obj->pt_load[possible_merge_index].flag = ELF_PT_LOAD_DATA_F|ELF_PT_LOAD_TEXT_F|
 				    ELF_PT_LOAD_MERGED_F;
 				obj->flags |= ELF_MERGED_SEGMENTS_F;
@@ -2910,7 +2914,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 				}
 			} else if (obj->phdr64[i].p_type == PT_LOAD && obj->phdr64[i].p_offset == 0) {
 				/*
-				 * NOTE: Read coments in the i386 PT_LOAD parsing above
+				 * NOTE: Read comments in the i386 PT_LOAD parsing above
 				 * as it applies to this next chunk of code here as well for x64.
 				 */
 				   if (text_found == false && obj->phdr64[i].p_flags == PF_R) {
@@ -3000,7 +3004,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 					obj->data_address = obj->phdr64[i].p_vaddr;
 				}
 			}
-			if (data_found == false) {
+			if (data_found == false && obj->load_count >= (size_t)obj->ehdr64->e_phnum - 1) {
 				obj->pt_load[possible_merge_index].flag = ELF_PT_LOAD_DATA_F|ELF_PT_LOAD_TEXT_F|
 				    ELF_PT_LOAD_MERGED_F;
 				obj->flags |= ELF_MERGED_SEGMENTS_F;

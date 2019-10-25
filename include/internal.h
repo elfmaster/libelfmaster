@@ -222,6 +222,13 @@ ssize_t dw_get_eh_frame_ranges(elfobj_t *);
 /*
  * Parse a single line of the /bin/ldd output
  */
-char * ldd_parse_line(struct elf_shared_object_iterator *, char **);
+char * ldd_parse_line(struct elf_shared_object_iterator *);
+
+/*
+ * Verify that a shared object basename is top-level only, meaning
+ * it exists in the dynamic segment's DT_NEEDED list only within
+ * the root executable.
+ */
+bool verify_so_is_toplevel(const char *, elfobj_t *);
 
 #endif // _LIBELFMASTER_INTERNAL_H_

@@ -70,16 +70,37 @@ section_name_cmp(const void *p0, const void *p1)
 	return strcmp(s0->name, s1->name);
 }
 
+/*
+ * Get the toplevel basenames from DT_NEEDED in the
+ * dynamic segment. This is fast since it just uses
+ * the linked list cache.
+ */
+bool
+verify_so_is_toplevel(const char *basename, elfobj_t *obj)
+{
+	elf_shared_object_iterator_t so_iter;
+	elf_error_t error;
+	struct elf_shared_object entry;
+
+	elf_shared_object_iterator_init(obj, &so_iter, NULL, 0, &error);
+	while (elf_shared_object_iterator_next(&so_iter, &entry, &error)
+	    == ELF_ITER_OK) {
+		if (strcmp(basename, entry.basename) == 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
 char *
-ldd_parse_line(struct elf_shared_object_iterator *iter, char **saveptr)
+ldd_parse_line(struct elf_shared_object_iterator *iter)
 {
 	char cmd[PATH_MAX], buf[PATH_MAX * 2];
 	char *p, *ep;
 	const char *env = "LD_TRACE_LOADED_OBJECTS=1";
 
-	if (iter->index++ == 0 && *saveptr != NULL) {
-		*saveptr = malloc(PATH_MAX * 2);
-		iter->chunk = *saveptr;
+	if (iter->index++ == 0) {
+		iter->chunk = malloc(PATH_MAX * 2);
 		if (iter->chunk == NULL)
 			return NULL;
 		snprintf(cmd, sizeof(cmd), "%s %s",
