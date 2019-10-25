@@ -599,7 +599,7 @@ elf_scop_text_filesz(elfobj_t *obj)
 	size_t total = 0;
 
 	if (peu_probable(elf_flags(obj, ELF_SCOP_F) == false)) {
-		return elf_text_base(obj);
+		return elf_text_filesz(obj);
 	}
 	elf_segment_iterator_init(obj, &iter);
 	for (;;) {
