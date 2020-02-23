@@ -19,13 +19,14 @@ int main(int argc, char **argv)
 		exit(EXIT_SUCCESS);
 	}
 
-	if (elf_open_object(argv[1], &obj, ELF_LOAD_F_FORENSICS, &error) == false) {
+	if (elf_open_object(argv[1], &obj, ELF_LOAD_F_LXC_MODE|ELF_LOAD_F_FORENSICS, &error) == false) {
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
 
+	elf_lxc_set_rootfs(&obj, "/cont/arch/rootfs");
 	if (elf_shared_object_iterator_init(&obj, &so_iter,
-	    NULL, ELF_SO_LDSO_FAST_F|ELF_SO_IGNORE_VDSO_F|ELF_SO_RESOLVE_F, &error) == false) {
+	    "/cont/arch/rootfs/etc/ld.so.cache", /*ELF_SO_LDSO_FAST_F|ELF_SO_IGNORE_VDSO_F|*/ELF_SO_RESOLVE_F|ELF_SO_RESOLVE_ALL_F, &error) == false) {
 		fprintf(stderr, "elf_shared_object_iterator_init failed: %s\n",
 		    elf_error_msg(&error));
 		return -1;
