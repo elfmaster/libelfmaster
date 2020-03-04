@@ -86,6 +86,8 @@
 #define ELF_ERRNO_INVALMAGIC	0
 #define ELF_ERRNO_INVALSHDRS	1
 
+#define ELF_LXC_ROOTFS_VAR "LXC_ROOTFS_VAR_LIBELFMASTER"
+
 typedef struct elf_error {
 	char string[MAX_ERROR_STR_LEN];
 	int _errno;
@@ -560,6 +562,7 @@ typedef struct elf_shared_object_iterator {
 #define ELF_LOAD_F_MODIFY	(1UL << 3) //Used for modifying binaries
 #define ELF_LOAD_F_ULEXEC	(1UL << 4) //Used for ulexec based debugging API
 #define ELF_LOAD_F_MAP_WRITE	(1UL << 5)
+#define ELF_LOAD_F_LXC_MODE	(1UL << 6) // Used when scanning binaries within an LXC container
 
 /*
  * Loads an ELF object of any type, for reading or modifying.
@@ -977,4 +980,13 @@ bool elf_dynsym_commit(elfobj_t *);
  * freeing the existing internal representation and then sorting a new array of strings.
  */
 bool elf_section_commit(elfobj_t *);
+
+/*
+ * Set the environment variable that libelfmaster reads to get
+ * the LXC containers rootfs in order to resolve shared libaries
+ * from this location internally.
+ */
+bool elf_lxc_set_rootfs(elfobj_t *, const char *);
+bool elf_lxc_get_rootfs(elfobj_t *, char *, const size_t);
+
 #endif

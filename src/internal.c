@@ -42,6 +42,8 @@
 #include "dwarf.h"
 #include "misc.h"
 
+static char *
+ldso_strdup(struct elf_shared_object_iterator *, const char *);
 
 /*
  * TODO Why is this defined in internal.c?
@@ -508,6 +510,18 @@ ldso_cache_bsearch(struct elf_shared_object_iterator *iter,
 			right = middle - 1;
 		}
 	}
+
+	if (iter->obj->load_flags & ELF_LOAD_F_LXC_MODE) {
+		char lxc_path[PATH_MAX];
+
+		if (elf_lxc_get_rootfs(iter->obj, lxc_path, PATH_MAX / 2) == false) {
+			if (strlen(lxc_path) + strlen(best) >= PATH_MAX)
+				return false;
+		}
+		strcat(lxc_path, best);
+		best = ldso_strdup(iter, lxc_path);
+	}
+
 	return best;
 }
 
@@ -660,10 +674,9 @@ ldso_recursive_cache_resolve(struct elf_shared_object_iterator *iter,
 		 * object iterator will use the linked list cache.
 		 */
 		current->path = ldso_strdup(iter, path);
-		if (current->path == NULL) {
+		if (current->path == NULL)
 			goto err;
-		}
-		if (ldso_insert_yield_entry(iter, current->path) == false){
+		if (ldso_insert_yield_entry(iter, current->path) == false) {
 			goto err;
 		}
 		if (ldso_recursive_cache_resolve(iter, current->basename) == false){
