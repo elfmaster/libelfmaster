@@ -45,6 +45,61 @@
 static char *
 ldso_strdup(struct elf_shared_object_iterator *, const char *);
 
+bool
+check_static_pie(struct elfobj *elfobj)
+{
+	elf_segment_iterator_t p_iter;
+	struct elf_segment segment;
+	struct elf_section shdr;
+	elf_iterator_res_t ires;
+	bool has_dynamic_segment = false;
+	bool has_interp_segment = false;
+
+	/*
+	 * A binary built with gcc -static-pie is not going to
+	 * have a .plt section, even though it has many other
+	 * characteristics of a dynamically linked object.
+	 */
+	if (elf_section_by_name(elfobj, ".plt", &shdr) == true)
+		return false;
+	/*
+	 * A gcc -static-pie binary is of type ET_DYN since
+	 * it is PIC code.
+	 */
+	if (elf_type(elfobj) != ET_DYN)
+		return false;
+
+	elf_segment_iterator_init(elfobj, &p_iter);
+	for (;;) {
+		ires = elf_segment_iterator_next(&p_iter, &segment);
+		if (ires == ELF_ITER_DONE)
+			break;
+		if (ires == ELF_ITER_ERROR)
+			return false;
+		if (segment.type == PT_INTERP)
+			has_interp_segment = true;
+		if (segment.type == PT_DYNAMIC)
+			has_dynamic_segment = true;
+	}
+	if (has_interp_segment == false && has_dynamic_segment == true) {
+		/*
+		 * NO interpreter, but yes there is a dynamic segment--
+		 * yet there is no .plt section, and this is of type ET_DYN
+		 * so yes its a -static-pie executable.
+		 */
+		return true;
+	} else if (has_interp_segment == false & has_dynamic_segment == false) {
+		/*
+		 * Pay attention to other static PIE types, including
+		 * those that ElfMaster (me) published in June of 2019 on
+		 * making statically linked executables PIE, in which case
+		 * there is no dynamic segment.
+		 */
+		return true;
+	}
+	return false;
+}
+
 /*
  * TODO Why is this defined in internal.c?
  */

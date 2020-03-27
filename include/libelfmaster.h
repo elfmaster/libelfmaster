@@ -813,6 +813,7 @@ elf_strtab(elfobj_t *obj)
 typedef enum elf_linking_type {
 	ELF_LINKING_DYNAMIC,
 	ELF_LINKING_STATIC,
+	ELF_LINKING_STATIC_PIE,
 	ELF_LINKING_UNDEF /* Means its neither, such as an ET_REL or ET_CORE */
 } elf_linking_type_t;
 

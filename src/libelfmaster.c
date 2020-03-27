@@ -560,7 +560,8 @@ elf_linking_type(elfobj_t *obj)
 
 	if (obj->type != ET_EXEC && obj->type != ET_DYN)
 		return ELF_LINKING_UNDEF;
-
+	if (check_static_pie(obj) == true)
+		return ELF_LINKING_STATIC_PIE;
 	return (obj->flags & ELF_DYNAMIC_F) ? ELF_LINKING_DYNAMIC :
 	    ELF_LINKING_STATIC;
 }

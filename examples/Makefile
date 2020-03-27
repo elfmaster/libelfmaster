@@ -24,8 +24,8 @@ all:
 	$(CC) -O2 -g modify_dynsym.c ../src/libelfmaster.a -o modify_dynsym
 	$(CC) -O2 -g modify_segment.c ../src/libelfmaster.a -o modify_segment
 	$(CC) -O2 -g modify_section.c ../src/libelfmaster.a -o modify_section
+	$(CC) -O2 -g check_static_pie.c ../src/libelfmaster.a -o check_static_pie
 	$(CC) -O2 -g scount.c ../src/libelfmaster.a -o scount
-	$(CC) -O2 -g data_base.c ../src/libelfmaster.a -o data_base
 	$(CC) ../utils/stripx.c -o stripx
 	$(CC) -N -static -m32 -nostdlib nostdlib.c -o nostdlib32
 	$(CC) -N -static -nostdlib nostdlib.c -o nostdlib
@@ -36,4 +36,4 @@ all:
 	./stripx test_stripped
 	./stripx test32_stripped
 clean:
-	rm elfparse ldd plt_dump plt_dump2 sections eh_frame test test2 test32bit_pie test_pie test_stripped test32bit stripx symbols checksec test32_stripped test_scop_binary elf_text nostdlib nostdlib32 test_scop test32_scop
+	rm elfparse ldd plt_dump plt_dump2 sections eh_frame test test2 test32bit_pie check_static_pie test_pie test_stripped test32bit stripx symbols checksec test32_stripped test_scop_binary elf_text nostdlib nostdlib32 test_scop test32_scop

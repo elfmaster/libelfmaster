@@ -231,4 +231,9 @@ char * ldd_parse_line(struct elf_shared_object_iterator *);
  */
 bool verify_so_is_toplevel(const char *, elfobj_t *);
 
+/*
+ * See if a binaries linking is static PIE
+ */
+bool check_static_pie(elfobj_t *);
+
 #endif // _LIBELFMASTER_INTERNAL_H_
