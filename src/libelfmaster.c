@@ -1320,6 +1320,7 @@ bool
 elf_symbol_by_index(struct elfobj *obj, unsigned int index,
     struct elf_symbol *out, const int which)
 {
+	struct elf_section shdr;
 	union {
 		Elf32_Sym *symtab32;
 		Elf64_Sym *symtab64;
@@ -1342,6 +1343,12 @@ elf_symbol_by_index(struct elfobj *obj, unsigned int index,
 		    &obj->dynstr[e.symtab32->st_name];
 		out->value = e.symtab32->st_value;
 		out->size = e.symtab32->st_size;
+		if (ELF32_ST_TYPE(e.symtab32->st_info) == STT_SECTION) {
+			if (elf_section_by_index(obj, e.symtab32->st_shndx, &shdr) == false)
+				return false;
+			out->name = shdr.name;
+			out->value = shdr.address;
+		}
 		out->shndx = e.symtab32->st_shndx;
 		out->bind = ELF32_ST_BIND(e.symtab32->st_info);
 		out->type = ELF32_ST_TYPE(e.symtab32->st_info);
@@ -1354,6 +1361,12 @@ elf_symbol_by_index(struct elfobj *obj, unsigned int index,
 		    &obj->dynstr[e.symtab64->st_name];
 		out->value = e.symtab64->st_value;
 		out->size = e.symtab64->st_size;
+		if (ELF64_ST_TYPE(e.symtab64->st_info) == STT_SECTION) {
+			if (elf_section_by_index(obj, e.symtab64->st_shndx, &shdr) == false)
+				return false;
+			out->name = shdr.name;
+			out->value = shdr.address;
+		}
 		out->shndx = e.symtab64->st_shndx;
 		out->bind = ELF64_ST_BIND(e.symtab64->st_info);
 		out->type = ELF64_ST_TYPE(e.symtab64->st_info);
