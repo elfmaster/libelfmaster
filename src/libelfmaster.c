@@ -2418,8 +2418,11 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 	 */
 	memset(obj, 0, sizeof(*obj));
 	obj->load_flags = load_flags;
-	obj->path = path;
-
+	obj->path = strdup(path);
+	if (obj->path == NULL) {
+		elf_error_set(error, "strdup: %s", strerror(errno));
+		return false;
+	}
 	if (load_flags & ELF_LOAD_F_MODIFY) {
 		mmap_flags = MAP_SHARED;
 	}
