@@ -31,23 +31,19 @@ int main(int argc, char **argv)
 			symtab = true;
 	}
 	if (elf_open_object(argv[1], &obj,
-	    ELF_LOAD_F_STRICT, &error) == false) {
+	    ELF_LOAD_F_FORENSICS, &error) == false) {
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
-	if (dynamic == true) {
-		elf_dynsym_iterator_init(&obj, &ds_iter);
-		while (elf_dynsym_iterator_next(&ds_iter, &symbol) == ELF_ITER_OK) {
-			printf("%s: %#lx-%#lx\n",symbol.name, symbol.value,
-			    symbol.value + symbol.size);
-		}
+	elf_dynsym_iterator_init(&obj, &ds_iter);
+	while (elf_dynsym_iterator_next(&ds_iter, &symbol) == ELF_ITER_OK) {
+		printf("%s: %#lx-%#lx\n",symbol.name, symbol.value,
+		    symbol.value + symbol.size);
 	}
-	if (symtab == true) {
-		elf_symtab_iterator_init(&obj, &sm_iter);
-		while (elf_symtab_iterator_next(&sm_iter, &symbol) == ELF_ITER_OK) {
-			printf("%s: %#lx-%#lx\n",symbol.name, symbol.value,
-			    symbol.value + symbol.size);
-		}
+	elf_symtab_iterator_init(&obj, &sm_iter);
+	while (elf_symtab_iterator_next(&sm_iter, &symbol) == ELF_ITER_OK) {
+		printf("%s: %#lx-%#lx\n",symbol.name, symbol.value,
+		    symbol.value + symbol.size);
 	}
 	elf_close_object(&obj);
 }
