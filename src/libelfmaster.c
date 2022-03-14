@@ -461,6 +461,35 @@ bool elf_section_modify(elfobj_t *obj, uint64_t index,
 }
 
 bool
+elf_write_address(elfobj_t *obj, uint64_t addr, uint64_t value, typewidth_t width)
+{
+        elf_segment_iterator_t iter;
+        struct elf_segment segment;
+
+        elf_segment_iterator_init(obj, &iter);
+        while (elf_segment_iterator_next(&iter, &segment) == ELF_ITER_OK) {
+                if (addr < segment.vaddr || addr >= segment.vaddr + segment.filesz)
+                        continue;
+                switch(width) {
+                case ELF_DWORD:
+                        *(uint32_t *)&obj->mem[segment.offset + addr - segment.vaddr] = value;
+                        break;
+                case ELF_QWORD:
+                        *(uint64_t *)&obj->mem[segment.offset + addr - segment.vaddr] = value;
+                        break;
+                case ELF_WORD:
+                        *(uint16_t *)&obj->mem[segment.offset + addr - segment.vaddr] = value;
+			break;
+                case ELF_BYTE:
+                        *(uint8_t *)&obj->mem[segment.offset + addr - segment.vaddr] = value;
+                        break;
+                }
+                return true;
+        }
+        return false;
+}
+
+bool
 elf_read_address(elfobj_t *obj, uint64_t addr, uint64_t *out, typewidth_t width)
 {
 	elf_segment_iterator_t iter;
@@ -1320,6 +1349,7 @@ bool
 elf_symbol_by_index(struct elfobj *obj, unsigned int index,
     struct elf_symbol *out, const int which)
 {
+	struct elf_section shdr;
 	union {
 		Elf32_Sym *symtab32;
 		Elf64_Sym *symtab64;
@@ -1342,6 +1372,12 @@ elf_symbol_by_index(struct elfobj *obj, unsigned int index,
 		    &obj->dynstr[e.symtab32->st_name];
 		out->value = e.symtab32->st_value;
 		out->size = e.symtab32->st_size;
+		if (ELF32_ST_TYPE(e.symtab32->st_info) == STT_SECTION) {
+			if (elf_section_by_index(obj, e.symtab32->st_shndx, &shdr) == false)
+				return false;
+			out->name = shdr.name;
+			out->value = shdr.address;
+		}
 		out->shndx = e.symtab32->st_shndx;
 		out->bind = ELF32_ST_BIND(e.symtab32->st_info);
 		out->type = ELF32_ST_TYPE(e.symtab32->st_info);
@@ -1354,6 +1390,12 @@ elf_symbol_by_index(struct elfobj *obj, unsigned int index,
 		    &obj->dynstr[e.symtab64->st_name];
 		out->value = e.symtab64->st_value;
 		out->size = e.symtab64->st_size;
+		if (ELF64_ST_TYPE(e.symtab64->st_info) == STT_SECTION) {
+			if (elf_section_by_index(obj, e.symtab64->st_shndx, &shdr) == false)
+				return false;
+			out->name = shdr.name;
+			out->value = shdr.address;
+		}
 		out->shndx = e.symtab64->st_shndx;
 		out->bind = ELF64_ST_BIND(e.symtab64->st_info);
 		out->type = ELF64_ST_TYPE(e.symtab64->st_info);
@@ -2405,8 +2447,11 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 	 */
 	memset(obj, 0, sizeof(*obj));
 	obj->load_flags = load_flags;
-	obj->path = path;
-
+	obj->path = strdup(path);
+	if (obj->path == NULL) {
+		elf_error_set(error, "strdup: %s", strerror(errno));
+		return false;
+	}
 	if (load_flags & ELF_LOAD_F_MODIFY) {
 		mmap_flags = MAP_SHARED;
 	}
