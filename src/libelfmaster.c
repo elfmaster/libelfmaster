@@ -3235,6 +3235,23 @@ err:
 	return false;
 }
 
+char *
+elf_interpreter_path(elfobj_t *obj)
+{
+	struct elf_segment segment;
+	elf_segment_iterator_t p_iter;
+	char *path;
+
+	elf_segment_iterator_init(obj, &p_iter);
+	while (elf_segment_iterator_next(&p_iter, &segment) == ELF_ITER_OK) {
+		if (segment.type == PT_INTERP) {
+			path = elf_offset_pointer(obj, segment.offset);
+			return path;
+		}
+	}
+	return NULL;
+}
+
 void
 elf_close_object(elfobj_t *obj)
 {

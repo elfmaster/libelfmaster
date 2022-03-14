@@ -2,9 +2,10 @@ prefix=/opt/elfmaster
 includedir=/opt/elfmaster/include
 libdir=/opt/elfmaster/lib
 
-Name: Backtrace I/O pdb parsing library
-Description: Library for the loading and parsing of pdb files
-URL: http://backtrace.io/
+Name: Advanced ELF binary parsing API
+Description: Library for the loading, parsing, modifying and
+forensic reconstruction of ELF binaries.
+URL: https://github.com/elfmaster/libelfmaster
 Version: 0.1.0
 Cflags: -D__x86_64__ -I${includedir} -D_GNU_SOURCE
 

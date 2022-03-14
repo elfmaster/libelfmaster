@@ -33,6 +33,7 @@ all:
 	$(CC) -Wl,-z,separate-code test.c -o test_scop_pie
 	$(CC) -no-pie -Wl,-z,separate-code test.c -o test_scop_binary
 	$(CC) -O2 -g pltgot.c -o pltgot ../src/libelfmaster.a
+	$(CC) phoff.c -o phoff ../src/libelfmaster.a
 	./stripx test_stripped
 	./stripx test32_stripped
 clean:

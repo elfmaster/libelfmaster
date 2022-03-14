@@ -990,4 +990,5 @@ bool elf_section_commit(elfobj_t *);
 bool elf_lxc_set_rootfs(elfobj_t *, const char *);
 bool elf_lxc_get_rootfs(elfobj_t *, char *, const size_t);
 
+char * elf_interpreter_path(elfobj_t *);
 #endif
