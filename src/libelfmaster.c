@@ -463,30 +463,30 @@ bool elf_section_modify(elfobj_t *obj, uint64_t index,
 bool
 elf_write_address(elfobj_t *obj, uint64_t addr, uint64_t value, typewidth_t width)
 {
-        elf_segment_iterator_t iter;
-        struct elf_segment segment;
+	elf_segment_iterator_t iter;
+	struct elf_segment segment;
 
-        elf_segment_iterator_init(obj, &iter);
-        while (elf_segment_iterator_next(&iter, &segment) == ELF_ITER_OK) {
-                if (addr < segment.vaddr || addr >= segment.vaddr + segment.filesz)
-                        continue;
-                switch(width) {
-                case ELF_DWORD:
-                        *(uint32_t *)&obj->mem[segment.offset + addr - segment.vaddr] = value;
-                        break;
-                case ELF_QWORD:
-                        *(uint64_t *)&obj->mem[segment.offset + addr - segment.vaddr] = value;
-                        break;
-                case ELF_WORD:
-                        *(uint16_t *)&obj->mem[segment.offset + addr - segment.vaddr] = value;
+	elf_segment_iterator_init(obj, &iter);
+	while (elf_segment_iterator_next(&iter, &segment) == ELF_ITER_OK) {
+		if (addr < segment.vaddr || addr >= segment.vaddr + segment.filesz)
+			continue;
+		switch(width) {
+		case ELF_DWORD:
+			*(uint32_t *)&obj->mem[segment.offset + addr - segment.vaddr] = value;
 			break;
-                case ELF_BYTE:
-                        *(uint8_t *)&obj->mem[segment.offset + addr - segment.vaddr] = value;
-                        break;
-                }
-                return true;
-        }
-        return false;
+		case ELF_QWORD:
+			*(uint64_t *)&obj->mem[segment.offset + addr - segment.vaddr] = value;
+			break;
+		case ELF_WORD:
+			*(uint16_t *)&obj->mem[segment.offset + addr - segment.vaddr] = value;
+			break;
+		case ELF_BYTE:
+			*(uint8_t *)&obj->mem[segment.offset + addr - segment.vaddr] = value;
+			break;
+		}
+		return true;
+	}
+	return false;
 }
 
 bool
@@ -1321,7 +1321,7 @@ elf_section_by_address(struct elfobj *obj, uint64_t addr, struct elf_section *ou
 	return false;
 }
 
-bool
+bool __attribute__((deprecated))
 elf_symbol_by_value(struct elfobj *obj, uint64_t addr, struct elf_symbol *out)
 {
 	struct elf_symbol symbol;
@@ -1338,6 +1338,36 @@ elf_symbol_by_value(struct elfobj *obj, uint64_t addr, struct elf_symbol *out)
 	elf_symtab_iterator_init(obj, &symtab_iter);
 	while (elf_symtab_iterator_next(&symtab_iter, &symbol) == ELF_ITER_OK) {
 		if (addr >= symbol.value && addr < symbol.value + symbol.size) {
+			memcpy(out, &symbol, sizeof(symbol));
+			return true;
+		}
+	}
+	return false;
+}
+
+bool
+elf_symbol_by_range(struct elfobj *obj, uint64_t addr, struct elf_symbol *out)
+{
+	return elf_symbol_by_value(obj, addr, out);
+}
+
+bool
+elf_symbol_by_value_lookup(struct elfobj *obj, uint64_t addr, struct elf_symbol *out)
+{
+	struct elf_symbol symbol;
+	elf_symtab_iterator_t symtab_iter;
+	elf_dynsym_iterator_t dynsym_iter;
+
+	elf_dynsym_iterator_init(obj, &dynsym_iter);
+	while (elf_dynsym_iterator_next(&dynsym_iter, &symbol) == ELF_ITER_OK) {
+		if (addr == symbol.value) {
+			memcpy(out, &symbol, sizeof(symbol));
+			return true;
+		}
+	}
+	elf_symtab_iterator_init(obj, &symtab_iter);
+	while (elf_symtab_iterator_next(&symtab_iter, &symbol) == ELF_ITER_OK) {
+		if (addr == symbol.value) {
 			memcpy(out, &symbol, sizeof(symbol));
 			return true;
 		}
@@ -3237,7 +3267,7 @@ final_load_stages:
 	 * the data necessary to reconstruct .symtab.
 	 */
 	if (insane_section_headers(obj) == true &&
-            (load_flags & ELF_LOAD_F_FORENSICS)) {
+	    (load_flags & ELF_LOAD_F_FORENSICS)) {
 		if ((obj->flags & ELF_EH_FRAME_F) != 0) {
 			if (dw_get_eh_frame_ranges(obj) < 0) {
 				elf_error_set(error, "failed to build FDE data from eh_frame");

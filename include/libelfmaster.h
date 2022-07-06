@@ -649,7 +649,20 @@ bool elf_symbol_by_name(elfobj_t *, const char *, struct elf_symbol *);
 
 bool elf_symbol_by_index(elfobj_t *, unsigned int, struct elf_symbol *, const int);
 
-bool elf_symbol_by_value(elfobj_t *, uint64_t, struct elf_symbol *);
+/*
+ * TODO:
+ * This function is named incorrectly. It should be named
+ * elf_symbol_by_range() as it returns the symbol if the second
+ * argument is within the range of that symbol: i.e. between sym.val and
+ * sym.val + sym.size.
+ * We don't want to break backwards code that uses it, so we should deprecate
+ * it and create two new functions: elf_symbol_by_range() (Which does the same
+ * thing) elf_symbol_by_value_lookup() (Which looks if a symbol exists for a
+ * given sym value)
+ */
+bool __attribute__((deprecated)) elf_symbol_by_value(elfobj_t *, uint64_t, struct elf_symbol *);
+bool elf_symbol_by_range(elfobj_t *, uint64_t, struct elf_symbol *);
+bool elf_symbol_by_value_lookup(elfobj_t *, uint64_t, struct elf_symbol *);
 
 /*
  * Return a pointer to an offset into the memory mapped ELF file.
