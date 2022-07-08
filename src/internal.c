@@ -205,9 +205,17 @@ build_plt_data(struct elfobj *obj)
 	struct elf_plt_node *plt_node;
 	uint64_t plt_addr;
 	elf_iterator_res_t res;
+	bool secure_plt = false;
 
-	if (elf_section_by_name(obj, ".plt", &plt) == false) {
-		return false;
+	/*
+	 * Must check for .plt.sec first to handle -fcf-protection
+	 */
+	if (elf_section_by_name(obj, ".plt.sec", &plt) == false) {
+		if (elf_section_by_name(obj, ".plt", &plt) == false) {
+			return false;
+		}
+	} else {
+		secure_plt = true;
 	}
 	/*
 	 * We can use the relocation iterator at this point, since all of its
@@ -225,11 +233,13 @@ build_plt_data(struct elfobj *obj)
 	/*
 	 * First PLT entry is always PLT-0, even though objdump always
 	 * names it with same symbol name as the next entry.
+	 * (NOTE: if .plt.sec is in use then there isn't a PLT-0)
 	 */
-	plt_node->addr = plt.address;
-	plt_node->symname = (char *)"PLT-0";
-	LIST_INSERT_HEAD(&obj->list.plt, plt_node, _linkage);
-
+	if (secure_plt == false) {
+		plt_node->addr = plt.address;
+		plt_node->symname = (char *)"PLT-0";
+		LIST_INSERT_HEAD(&obj->list.plt, plt_node, _linkage);
+	}
 	/*
 	 * Also hash the PLT entries by symbol name.
 	 */
