@@ -226,16 +226,17 @@ build_plt_data(struct elfobj *obj)
 		return false;
 	}
 
-	plt_node = malloc(sizeof(*plt_node));
-	if (plt_node == NULL)
-		return false;
-
 	/*
 	 * First PLT entry is always PLT-0, even though objdump always
 	 * names it with same symbol name as the next entry.
 	 * (NOTE: if .plt.sec is in use then there isn't a PLT-0)
 	 */
 	if (secure_plt == false) {
+		plt_node = malloc(sizeof(*plt_node));
+		if (plt_node == NULL) {
+			perror("malloc");
+			return false;
+		}
 		plt_node->addr = plt.address;
 		plt_node->symname = (char *)"PLT-0";
 		LIST_INSERT_HEAD(&obj->list.plt, plt_node, _linkage);
@@ -246,7 +247,7 @@ build_plt_data(struct elfobj *obj)
 	e.key = (char *)plt_node->symname;
 	e.data = (void *)plt_node;
 	hsearch_r(e, ENTER, &ep, &obj->cache.plt);
-	plt_addr = plt.address + plt.entsize;
+	plt_addr = (secure_plt == true) ? plt.address : plt.address + plt.entsize;
 
 	for (;;) {
 		res = elf_relocation_iterator_next(&r_iter, &r_entry);
