@@ -236,6 +236,7 @@ struct pt_load {
  * itself (obviously).
  */
 typedef struct elfobj {
+	int fd;
 	elf_arch_t arch;
 	elf_class_t e_class;
 	elf_obj_flags_t flags;
@@ -1006,4 +1007,5 @@ bool elf_lxc_set_rootfs(elfobj_t *, const char *);
 bool elf_lxc_get_rootfs(elfobj_t *, char *, const size_t);
 
 char * elf_interpreter_path(elfobj_t *);
+int elf_fd(elfobj_t *);
 #endif

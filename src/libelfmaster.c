@@ -54,6 +54,13 @@
 	(((addr) + __alignof__ (struct cache_file_new) -1)	\
 	    & (~(__alignof__ (struct cache_file_new) - 1)))
 
+int
+elf_fd(elfobj_t *obj)
+{
+
+	return obj->fd;
+}
+
 bool
 elf_lxc_set_rootfs(elfobj_t *obj, const char *lxcpath)
 {
@@ -2488,7 +2495,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 	if (load_flags & ELF_LOAD_F_STRICT) {
 		__strict = true;
 	}
-	fd = open(path, open_flags);
+	obj->fd = fd = open(path, open_flags);
 	if (fd < 0) {
 		elf_error_set(error, "open: %s", strerror(errno));
 		return false;
