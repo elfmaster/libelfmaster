@@ -1647,7 +1647,7 @@ elf_shared_object_iterator_init(struct elfobj *obj,
 	 * old format with the new format in it
 	 * only the new format
 	 */
-	if (memcmp(iter->mem, CACHEMAGIC, strlen(CACHEMAGIC))) {
+	if (memcmp(iter->mem, CACHEMAGIC, strlen(CACHEMAGIC)) == 0) {
 		/*
 		 * old format
 		 */
@@ -1658,6 +1658,7 @@ elf_shared_object_iterator_init(struct elfobj *obj,
 		    + iter->cache->nlibs * sizeof(struct file_entry));
 		iter->cache_new = (struct cache_file_new *)
 		    ((char *)iter->cache + offset);
+
 		if ((size_t)iter->st.st_size < (offset + sizeof(struct cache_file_new))
 		    || memcmp(iter->cache_new->magic, CACHEMAGIC_VERSION_NEW,
 		    strlen(CACHEMAGIC_VERSION_NEW)) != 0) {
