@@ -1008,4 +1008,6 @@ bool elf_lxc_get_rootfs(elfobj_t *, char *, const size_t);
 
 char * elf_interpreter_path(elfobj_t *);
 int elf_fd(elfobj_t *);
+
+elf_arch_t elf_arch(elfobj_t *);
 #endif

@@ -54,6 +54,13 @@
 	(((addr) + __alignof__ (struct cache_file_new) -1)	\
 	    & (~(__alignof__ (struct cache_file_new) - 1)))
 
+elf_arch_t
+elf_arch(elfobj_t *obj)
+{
+
+	return obj->arch;
+}
+
 int
 elf_fd(elfobj_t *obj)
 {
