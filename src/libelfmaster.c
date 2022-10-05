@@ -656,12 +656,15 @@ elf_text_filesz(elfobj_t *obj)
 }
 
 /*
- * If its not a SCOP binary it calls elf_text_filesz()
- * If its a SCOP binary:
- * Gets the sum total of all 3 LOAD segments for SCOP
- * binaries.
+ * If its not a SCOP binary it calls elf_text_filesz() If its a SCOP binary:
+ * Gets the sum total of all 3 LOAD segments for SCOP binaries.  XXX DEPRECATED
+ * XXX -- Bad function naming convention. The function name would appear to
+ * suggest that the function is getting the filesz of the R+X segment, rather
+ * than all three SCOP segments (R, R+X, R). However some older projects will
+ * need it here. Deprecating it
  */
-ssize_t
+
+size_t __attribute__ ((deprecated))
 elf_scop_text_filesz(elfobj_t *obj)
 {
 	elf_segment_iterator_t iter;
@@ -1012,6 +1015,42 @@ elf_executable_text_offset(struct elfobj *obj)
 {
 
 	return elf_executable_text_base(obj) - elf_text_base(obj);
+}
+
+uint64_t
+elf_executable_text_filesz(struct elfobj *obj)
+{
+	struct elf_segment segment;
+	elf_segment_iterator_t iter;
+	elf_iterator_res_t res;
+
+	if (peu_probable(elf_flags(obj, ELF_SCOP_F) == false))
+		return elf_text_base(obj);
+
+        elf_segment_iterator_init(obj, &iter);
+        for (;;) {
+                res = elf_segment_iterator_next(&iter, &segment);
+                if (res == ELF_ITER_OK) {
+                        if (segment.flags & PF_X) {
+                                if (segment.type == PT_LOAD) {
+					/*
+					 * This helps us verify that the segment was
+					 * marked executable by the linker. We want
+					 * to see that the section flags line up with
+					 * the segment flags, as re-assurance.
+					 */
+					struct elf_section section;
+
+                                        if (elf_section_by_address(obj, segment.vaddr,
+                                            &section) == true) {
+                                                if (section.flags & SHF_EXECINSTR)
+                                                        return segment.filesz;
+                                        }
+				}
+			}
+		}
+	}
+	return 0;
 }
 /*
  *

@@ -863,7 +863,7 @@ bool elf_read_offset(elfobj_t *, uint64_t, uint64_t *, typewidth_t);
 
 bool elf_write_address(elfobj_t *, uint64_t, uint64_t, typewidth_t width);
 
-ssize_t elf_scop_text_filesz(elfobj_t *);
+size_t __attribute__((deprecated)) elf_scop_text_filesz(elfobj_t *);
 uint64_t elf_executable_text_offset(elfobj_t *);
 uint64_t elf_executable_text_base(elfobj_t *);
 
