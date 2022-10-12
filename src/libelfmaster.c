@@ -762,9 +762,56 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 	/*
 	 * For now we only support printing relocations for x86 arch
 	 */
-	if (elf_machine(obj) != EM_386 && elf_machine(obj) != EM_X86_64)
+	if (elf_machine(obj) != EM_386 && elf_machine(obj) != EM_X86_64 &&
+	    elf_machine(obj) != EM_AARCH64 && elf_machine(obj) != EM_ARM)
 		return "R_UNKNOWN";
 
+	if (elf_machine(obj) == EM_AARCH64 || elf_machine(obj) == EM_ARM) {
+		switch(obj->e_class) {
+		case elfclass32:
+			switch(r_type) {
+			case R_ARM_NONE:
+				return "R_ARM_NONE";
+			case R_ARM_PC24:
+				return "R_ARM_PC24";
+			case R_ARM_ABS32:
+				return "R_ARM_ABS32";
+			case R_ARM_REL32:
+				return "R_ARM_REL32";
+			case R_ARM_PC13:
+				return "R_ARM_PC13";
+			case R_ARM_ABS16:
+				return "R_ARM_ABS16";
+			case R_ARM_THM_ABS5:
+				return "R_ARM_ABS5";
+			case R_ARM_ABS8:
+				return "R_ARM_ABS8";
+			case R_ARM_SBREL32:
+				return "R_ARM_SBREL32";
+			case R_ARM_THM_PC22:
+				return "R_ARM_THM_PC22";
+			case R_ARM_AMP_VCALL9:
+				return "R_ARM_AMP_VCALL9";
+			case R_ARM_TLS_DESC:
+				return "R_ARM_TLS_DESC";
+			case R_ARM_THM_SWI8:
+				return "R_ARM_THM_SWI8";
+			case R_ARM_XPC25:
+				return "R_ARM_XPC25";
+			case R_ARM_THM_XPC22:
+				return "R_ARM_XPC22";
+			case R_ARM_TLS_DTPMOD32:
+				return "R_ARM_TLS_DTPMOD32";
+			/*
+			 * Unfinished, god forbid. there are so many
+			 * ARM relocations :(
+			 */
+			}
+		case elfclass64:
+			return "R_AARCH64_UNKNOWN";
+		}
+		return "R_AARCH64_UNKNOWN";
+	}
 	switch(obj->e_class) {
 	case elfclass32:
 		switch(r_type) {
@@ -945,7 +992,6 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 	}
 	return "R_UNKNOWN";
 }
-
 /*
  * Get a phdr segment by index
  */
@@ -1025,7 +1071,7 @@ elf_executable_text_filesz(struct elfobj *obj)
 	elf_iterator_res_t res;
 
 	if (peu_probable(elf_flags(obj, ELF_SCOP_F) == false))
-		return elf_text_base(obj);
+		return elf_text_filesz(obj);
 
         elf_segment_iterator_init(obj, &iter);
         for (;;) {
@@ -2430,15 +2476,20 @@ elf_pltgot_iterator_next(struct elf_pltgot_iterator *iter, struct elf_pltgot_ent
 		break;
 	}
 
-	if (iter->obj->arch == i386) {
+	if (iter->obj->arch == i386 || iter->obj->arch == arm) {
 		uint32_t *ptr = iter->pltgot;
 
 		entry->value = ptr[iter->index];
-	} else if (iter->obj->arch == x64) {
+	} else if (iter->obj->arch == x64 || iter->obj->arch == aarch64) {
 		uint64_t *ptr = iter->pltgot;
 
 		entry->value = ptr[iter->index];
 	}
+	/*
+	 * NOTE: A note on (obj->flags & ELF_SECURE_PLT_F) flag:
+	 * Even when .plt.sec (-fcf-protection) is used, the GOT will still
+	 * contain PLT stubs pointing into the original .plt section.
+	 */
 	if (elf_section_by_name(iter->obj, ".plt", &section) == true) {
 		if (entry->value >= section.address &&
 		    entry->value < section.address + section.size)
@@ -2578,6 +2629,12 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 		break;
 	case EM_386:
 		obj->arch = i386;
+		break;
+	case EM_ARM:
+		obj->arch = arm;
+		break;
+	case EM_AARCH64:
+		obj->arch = aarch64;
 		break;
 	default:
 		obj->arch = unsupported;
@@ -2784,6 +2841,7 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 				 * When observing the text segment (Traditionally a single PT_LOAD segment)
 				 * we must also consider SCOP (Secure code partitioning):
 				 * http://www.bitlackeys.org/papers/secure_code_partitioning_2018.txt
+				 * aka -Wl,-z,separate-code (Linker security feature)
 				 */
 			} else if (obj->phdr32[i].p_type == PT_LOAD && obj->phdr32[i].p_offset == 0) {
 				if (text_found == false && obj->phdr32[i].p_flags == PF_R) {
@@ -2801,6 +2859,14 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 						obj->pt_load[obj->load_count + 2].flag |= ELF_PT_LOAD_TEXT_F;
 						obj->pt_load[obj->load_count + 2].flag |= ELF_PT_LOAD_TEXT_RDONLY_F;
 						obj->text_address = obj->phdr32[i].p_vaddr;
+						/*
+						 * For backwards compatibility we say the text_segment_filesz
+						 * is the size of the first PT_LOAD segment, although in this
+						 * case it is not. obj->text_segment_filesz is never to be
+						 * accessed directly. Use elf_executable_text_filesz() to
+						 * retrieve the size of the PF_X|PF_R segment (The real text).
+						 * It will work on both SCOP and non-SCOP binaries.
+						 */
 						obj->text_segment_filesz = obj->phdr32[i].p_filesz;
 
 						memcpy(&obj->pt_load[obj->load_count].phdr32,

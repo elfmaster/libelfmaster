@@ -59,6 +59,22 @@ struct cache_file {
 #define CACHEMAGIC_NEW "glibc-ld.so.cache"
 #define CACHE_VERSION "1.1"
 
+/*
+ * Definitions of cache flags taken from glibc's sysdeps/ldconfig.h
+ * XXX re-name-space these definitions? i.e. FLAG_ANY becomes
+ * ELF_LDSO_FLAG_ANY
+ */
+#define FLAG_ANY                        -1
+#define FLAG_TYPE_MASK                  0x00ff
+#define FLAG_LIBC4                      0x0000
+#define FLAG_ELF                        0x0001
+#define FLAG_ELF_LIBC5                  0x0002
+#define FLAG_ELF_LIBC6                  0x0003
+#define FLAG_X8664_LIBX32               0x0800
+#define FLAG_ARM_LIBHF                  0x0900
+#define FLAG_AARCH64_LIB64              0x0a00
+#define FLAG_ARM_LIBSF                  0x0b00
+
 #define ELF_LDSO_CACHE_OLD (1 << 0)
 #define ELF_LDSO_CACHE_NEW (1 << 1)
 
