@@ -96,8 +96,6 @@ typedef struct elf_error {
 typedef enum elf_arch {
 	i386,
 	x64,
-	arm,
-	aarch64,
 	unsupported
 } elf_arch_t;
 
@@ -126,8 +124,7 @@ typedef enum elf_obj_flags {
 	ELF_FORENSICS_F =		(1 << 16),  /* elf sections at the least are reconstructed */
 	ELF_DT_DEBUG_F =		(1 << 17),
 	ELF_SCOP_F =			(1 << 18), /* secure code partitioning */
-	ELF_MERGED_SEGMENTS_F =		(1 << 19),  /* Merged text+data segment: gcc -nostdlib -N -static */
-	ELF_SECURE_PLT_F =		(1 << 20)   /* -fcf-protection implements .plt.sec section. */
+	ELF_MERGED_SEGMENTS_F =		(1 << 19)  /* Merged text+data segment, i.e. gcc -nostdlib -N -static test.c -o test */
 } elf_obj_flags_t;
 
 /*
@@ -869,7 +866,6 @@ bool elf_write_address(elfobj_t *, uint64_t, uint64_t, typewidth_t width);
 size_t __attribute__((deprecated)) elf_scop_text_filesz(elfobj_t *);
 uint64_t elf_executable_text_offset(elfobj_t *);
 uint64_t elf_executable_text_base(elfobj_t *);
-uint64_t elf_executable_text_filesz(elfobj_t *);
 
 /*
  * 2nd arg is an output of the number of entries in .symtab
