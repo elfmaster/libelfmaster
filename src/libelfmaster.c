@@ -1024,9 +1024,6 @@ elf_executable_text_filesz(struct elfobj *obj)
 	elf_segment_iterator_t iter;
 	elf_iterator_res_t res;
 
-	if (peu_probable(elf_flags(obj, ELF_SCOP_F) == false))
-		return elf_text_base(obj);
-
         elf_segment_iterator_init(obj, &iter);
         for (;;) {
                 res = elf_segment_iterator_next(&iter, &segment);
@@ -1103,8 +1100,10 @@ elf_executable_text_base(struct elfobj *obj)
 
 /*
  * In the event of SCOP we will give the base address
- * of the first LOAD segment that is RDONLY. For more
- * granularity use the elf_executable_text_base()
+ * of the first LOAD segment that is RDONLY, which in
+ * a non-SCOP binary is the always the executable text
+ * segment.
+ * use the elf_executable_text_base()
  * function when elf_flags(obj, ELF_SCOP_F) == true
  * If you need to locate the base of where the executable
  * region actually begins.
@@ -1115,8 +1114,7 @@ elf_text_base(struct elfobj *obj)
 	size_t i;
 
 	for (i = 0; i < obj->load_count; i++) {
-		if ((obj->pt_load[i].flag & ELF_PT_LOAD_TEXT_F) |
-		    (obj->pt_load[i].flag & ELF_PT_LOAD_TEXT_RDONLY_F)) {
+		if (obj->pt_load[i].flag & ELF_PT_LOAD_TEXT_F) {
 			switch(obj->e_class) {
 			case elfclass32:
 				return obj->pt_load[i].phdr32.p_vaddr;
@@ -1138,8 +1136,7 @@ elf_text_offset(struct elfobj *obj)
 	size_t i;
 
 	for (i = 0; i < obj->load_count; i++) {
-		if ((obj->pt_load[i].flag & ELF_PT_LOAD_TEXT_F) |
-		    (obj->pt_load[i].flag & ELF_PT_LOAD_TEXT_RDONLY_F)) {
+		if (obj->pt_load[i].flag & ELF_PT_LOAD_TEXT_F) {
 			switch(obj->e_class) {
 			case elfclass32:
 				return obj->pt_load[i].phdr32.p_offset;

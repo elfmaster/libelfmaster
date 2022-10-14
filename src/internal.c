@@ -215,6 +215,7 @@ build_plt_data(struct elfobj *obj)
 			return false;
 		}
 	} else {
+		obj->flags |= ELF_SECURE_PLT_F
 		secure_plt = true;
 	}
 	/*
