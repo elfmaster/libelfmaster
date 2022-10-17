@@ -83,8 +83,8 @@ check_static_pie(struct elfobj *elfobj)
 	 *
 	 */
 	if (has_pt_tls == false)
-		return false;	
-	
+		return false;
+
 	if (has_interp_segment == false && has_dynamic_segment == true) {
 		/*
 		 * NO interpreter, but yes there is a dynamic segment--
