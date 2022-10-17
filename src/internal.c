@@ -54,14 +54,8 @@ check_static_pie(struct elfobj *elfobj)
 	elf_iterator_res_t ires;
 	bool has_dynamic_segment = false;
 	bool has_interp_segment = false;
+	bool has_pt_tls = false;
 
-	/*
-	 * A binary built with gcc -static-pie is not going to
-	 * have a .plt section, even though it has many other
-	 * characteristics of a dynamically linked object.
-	 */
-	if (elf_section_by_name(elfobj, ".plt", &shdr) == true)
-		return false;
 	/*
 	 * A gcc -static-pie binary is of type ET_DYN since
 	 * it is PIC code.
@@ -76,11 +70,21 @@ check_static_pie(struct elfobj *elfobj)
 			break;
 		if (ires == ELF_ITER_ERROR)
 			return false;
+		if(segment.type == PT_TLS)
+			has_pt_tls = true;
 		if (segment.type == PT_INTERP)
 			has_interp_segment = true;
 		if (segment.type == PT_DYNAMIC)
 			has_dynamic_segment = true;
 	}
+
+	/* 
+	 * gcc -static-pie binary will produce contain a PT_TLS segment 
+	 *
+	 */
+	if (has_pt_tls == false)
+		return false;
+
 	if (has_interp_segment == false && has_dynamic_segment == true) {
 		/*
 		 * NO interpreter, but yes there is a dynamic segment--
