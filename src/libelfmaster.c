@@ -1041,6 +1041,18 @@ elf_executable_text_filesz(struct elfobj *obj)
 					 */
 					struct elf_section section;
 
+					/*
+					 * If the segment address segment.vaddr is within
+					 * the range of an ELF section who is also claiming
+					 * it has executable perms, then we can avoid finding
+					 * a segment that was marked executable by an attacker
+					 * and assume the linker made the right choice in marking
+					 * the section as executable progbits.
+					 *
+					 * ON THE FLIP SIDE: If an attacker were to modify the
+					 * perm flags of the section that our address resides in...
+					 * well we might not find the right segment.
+					 */
                                         if (elf_section_by_address(obj, segment.vaddr,
                                             &section) == true) {
                                                 if (section.flags & SHF_EXECINSTR)
