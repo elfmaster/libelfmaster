@@ -1025,7 +1025,7 @@ elf_executable_text_filesz(struct elfobj *obj)
 	elf_iterator_res_t res;
 
 	if (peu_probable(elf_flags(obj, ELF_SCOP_F) == false))
-		return elf_text_base(obj);
+		return elf_text_filesz(obj);
 
         elf_segment_iterator_init(obj, &iter);
         for (;;) {
