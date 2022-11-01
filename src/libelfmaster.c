@@ -1031,7 +1031,8 @@ elf_segment_by_index(struct elfobj *obj, uint64_t index, struct elf_segment *seg
 }
 
 /*
- * Get a phdr segment by p_type
+ * Get a phdr segment by p_type --
+ * find the first segment of that type and return.
  */
 bool
 elf_segment_by_p_type(struct elfobj *obj, uint64_t type, struct elf_segment *segment)
