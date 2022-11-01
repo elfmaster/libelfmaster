@@ -869,7 +869,7 @@ bool elf_write_address(elfobj_t *, uint64_t, uint64_t, typewidth_t width);
 size_t __attribute__((deprecated)) elf_scop_text_filesz(elfobj_t *);
 uint64_t elf_executable_text_offset(elfobj_t *);
 uint64_t elf_executable_text_base(elfobj_t *);
-
+uint64_t elf_executable_text_filesz(elfobj_t *);
 /*
  * 2nd arg is an output of the number of entries in .symtab
  * returns true on success. Same thing for elf_dynsym_count
