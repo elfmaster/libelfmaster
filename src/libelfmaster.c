@@ -709,9 +709,7 @@ elf_basename(struct elfobj *obj)
 	char *ptr;
 
 	ptr = strrchr(obj->path, '/');
-	if (ptr != NULL)
-		return ptr + 1;
-	return NULL;
+	return (ptr == NULL) ? obj->path : ptr + 1;
 }
 
 const char *
