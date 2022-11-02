@@ -43,6 +43,6 @@ arm:
 	$(CC_AARCH64) -N -static -nostdlib nostdlib.c -o nostdlib_aarch64
 	$(CC_AARCH64) -Wl,-z,separate-code test.c -o test_scop_pie_aarch64
 	$(CC_AARCH64) -no-pie -Wl,-z,separate-code test.c -o test_scop_binary_aarch64
-
+	$(CC_AARCH64) -g -fPIC -pie elfparse.c ../src/libelfmaster.a -o elfparse
 clean:
 	rm elfparse ldd plt_dump plt_dump2 sections eh_frame test test2 test32bit_pie check_static_pie test_pie test_stripped test32bit stripx symbols checksec test32_stripped test_scop_binary elf_text nostdlib nostdlib32 test_scop test32_scop

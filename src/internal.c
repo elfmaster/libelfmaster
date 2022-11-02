@@ -199,6 +199,18 @@ ldd_parse_line(struct elf_shared_object_iterator *iter)
  */
 #define ELF_RELOC_JUMP_SLOT 7
 
+/*
+ * For ARM, i.e. R_AARCH64_JUMP_SLOT 1026
+ */
+#define ELF_AARCH64_JUMP_SLOT 1026
+#define ELF_ARM_JUMP_SLOT 22
+
+/*
+ * On aarch64 the PLT-0 entry is 32 bytes.
+ * And it is NOT plt.entsize
+ */
+#define ELF_AARCH64_PLT0_ENTSIZE 32
+
 bool
 build_plt_data(struct elfobj *obj)
 {
@@ -210,7 +222,23 @@ build_plt_data(struct elfobj *obj)
 	uint64_t plt_addr;
 	elf_iterator_res_t res;
 	bool secure_plt = false;
+	size_t plt0_entsize;
+	int jmpslot_reloc;
 
+	switch(elf_arch(obj)) {
+	case x64:
+	case i386:
+		jmpslot_reloc = ELF_RELOC_JUMP_SLOT;
+		break;
+	case aarch64:
+		jmpslot_reloc = ELF_AARCH64_JUMP_SLOT;
+		break;
+	case arm:
+		jmpslot_reloc = ELF_ARM_JUMP_SLOT;
+		break;
+	default:
+		return false;
+	}
 	/*
 	 * Must check for .plt.sec first to handle -fcf-protection
 	 */
@@ -253,14 +281,16 @@ build_plt_data(struct elfobj *obj)
 		e.data = (void *)plt_node;
 		hsearch_r(e, ENTER, &ep, &obj->cache.plt);
 	}
-	plt_addr = (secure_plt == true) ? plt.address : plt.address + plt.entsize;
+	plt0_entsize = elf_arch(obj) == aarch64 ? ELF_AARCH64_PLT0_ENTSIZE : plt.entsize;
+	plt_addr = (secure_plt == true) ? plt.address : plt.address + plt0_entsize;
+
 	for (;;) {
 		res = elf_relocation_iterator_next(&r_iter, &r_entry);
 		if (res == ELF_ITER_ERROR)
 			return false;
 		if (res == ELF_ITER_DONE)
 			break;
-		if (r_entry.type != ELF_RELOC_JUMP_SLOT)
+		if (r_entry.type != jmpslot_reloc)
 			continue;
 		plt_node = malloc(sizeof(*plt_node));
 		if (plt_node == NULL)
