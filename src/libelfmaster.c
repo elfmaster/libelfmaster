@@ -2518,7 +2518,7 @@ elf_section_iterator_next(struct elf_section_iterator *iter,
  * Secure ELF loader.
  */
 bool
-elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
+elf_open_object(const char *path, elfobj_t *obj, uint64_t load_flags,
     elf_error_t *error)
 {
 	int fd;
