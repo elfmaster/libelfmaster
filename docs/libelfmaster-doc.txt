@@ -1,0 +1,69 @@
+This documentation is currently under construction.
+
+Table of Contents
+
+[Under Construction]
+
+- Topic: Openning ELF binaries.
+   + Openning an ELF binary of any type for reading or writing is carried out with:
+      
+     ++ bool elf_open_object(const char *path, elfobj_t *obj, uint64_t load_flags, elf_error_t *error)
+        ++ Arguments           
+           +++ path: File path of the candidate ELF binary.
+           +++ obj: A pointer of type 'elfobj_t' which will be passed into other libelfmaster functions for further analysis.
+                    This object is an opaque type whose fields should only be accessed by the libelfmaster API. To avoid memory leaks, when
+              	    you are done using the 'obj', call elf_close_object(elfobj_t *obj) to free/unmap the underlying memory references associated with
+                    the object. 
+
+           +++ load_flags: A set (bitwise OR'ed) or single constant used to define how the ELF binary should be loaded/processed by libelfmaster.
+               
+               +++ ELF_LOAD_F_STRICT : Only load the binary if ALL headers have structural and logical integrity.
+               +++ ELF_LOAD_F_SMART : Load any binary that the kernel can load.
+	       +++ ELF_LOAD_F_FORENSICS : Perform section header and symbol table reconstruction if they are either missing or corrupt.
+               +++ ELF_LOAD_F_MODIFY : Enables binary modification.
+               +++ ELF_LOAD_F_ULEXEC : Used for userland execution debugging API.
+               +++ ELF_LOAD_F_MAP_WRITE : Undocumented.
+               +++ ELF_LOAD_F_LXC_MODE :  Used when scanning binaries within an LXC container.
+
+           +++ error : An error object to be written to by libelfmaster API should an error occur in a function that recieves it as a parameter.
+
+        ++ Return
+           +++ A boolean value of 'true' is returned when the binary was successfully loaded and 'false' when it is not.
+
+- Topic: Error handling.
+  + Where `elf_error_t *error` parameter is available for a given function, error handling can be performed by checking if the return value is of type
+    boolean 'false' and retrieving the error message via `elf_error_msg(&error)`, where `error` is of type `elf_error_t` and was previously passed to the       function presently being error handled.
+	
+	elf_path = argv[1];
+	if(!elf_open_object(elf_path, &elfbin, ELF_LOAD_F_FORENSICS, &error)) {
+		fprintf(stderr, "%s\n", elf_error_msg(&error));
+		return FAIL;
+	}
+
+
+- Topic: Closing ELF binaries.
+
+  + Closing resources associate with type `elfobj_t` is achieved by calling `elf_close_object(elfobj_t *obj)`. Resources include
+    memory allocations for holding the underlying ELF file (achieved by mmap() syscall) and the associated file descriptor.
+
+    ++ void elf_close_object(elfobj_t *obj)
+       +++ Arguments
+           ++++ obj: A pointer of type elfobj_t that was initiated with `elf_open_object()`.
+       +++ Return
+           Nothing is returned.
+
+- Topic: Retrieving ELF attributes
+
+  + ELF attributes such as those found in the `e_ident` (see ELF manpages) can be retrieved with "getter" functions that access 'elfobj_t' type objects.
+    
+    ++ Retrieving ELF architecture.
+       +++ libelfmaster utilizes enum type 'elf_arch_t' (defined in `libelfmaster.h`) which currently has three 
+	   integral constants: 'i386', 'x64', and 'unsupported'. Constant `i386` corresponds to 32-bit architecture, 
+           second 64-bit architecture and finally unsupported, for architectures libelfmaster does not recognize.
+
+           ++++ elf_arch_t elf_arch(elfobj_t *obt)
+                +++++ Arguments:
+		      ++++++ obj: A pointer of type elfobj_t that was initiated with `elf_open_object()`.
+                +++++ Return:
+                      Returns on of the enum type elf_arch_t constants (discussed above) to signify the architecture identified with the binary.
+
