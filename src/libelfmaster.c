@@ -82,7 +82,7 @@ elf_lxc_set_rootfs(elfobj_t *obj, const char *lxcpath)
 bool
 elf_lxc_get_rootfs(elfobj_t *obj, char *out, const size_t maxlen)
 {
-	char *v = secure_getenv(ELF_LXC_ROOTFS_VAR);
+	char *v = getenv(ELF_LXC_ROOTFS_VAR);
 
 	(void) obj;
 
@@ -2598,8 +2598,15 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 		elf_error_set(error, "strdup: %s", strerror(errno));
 		return false;
 	}
+	/*
+	 * In some cases we want to use ELF_LOAD_F_MODIFY in conjunction with
+	 * ELF_LOAD_F_PRIV_MAP. This allows us to modify the private mapping
+	 * of our executable, but it won't stick to disk. Otherwise MAP_SHARED
+	 * is used and allows us to write to disk.
+	 */
 	if (load_flags & ELF_LOAD_F_MODIFY) {
-		mmap_flags = MAP_SHARED;
+		mmap_flags = (load_flags & ELF_LOAD_F_PRIV_MAP) ? MAP_PRIVATE :
+		    MAP_SHARED;
 	}
 	if (load_flags & ELF_LOAD_F_STRICT) {
 		__strict = true;

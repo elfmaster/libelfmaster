@@ -567,7 +567,7 @@ typedef struct elf_shared_object_iterator {
 #define ELF_LOAD_F_ULEXEC	(1UL << 4) //Used for ulexec based debugging API
 #define ELF_LOAD_F_MAP_WRITE	(1UL << 5)
 #define ELF_LOAD_F_LXC_MODE	(1UL << 6) // Used when scanning binaries within an LXC container
-
+#define ELF_LOAD_F_PRIV_MAP	(1UL << 7) // Used in conjunction with ELF_LOAD_F_MODIFY but uses private mapping.
 /*
  * Loads an ELF object of any type, for reading or modifying.
  * arg1: file path
@@ -962,6 +962,13 @@ elf_section_count(elfobj_t *obj)
 {
 
 	return obj->section_count;
+}
+
+static inline size_t
+elf_dynamic_size(elfobj_t *obj)
+{
+
+	return obj->dynamic_size;
 }
 
 ssize_t elf_phdr_table_size(elfobj_t *);

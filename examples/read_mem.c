@@ -29,9 +29,8 @@ int main(int argc, char **argv)
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
-
-	elf_symbol_by_name(&obj, "main", &sym);
-	res = elf_read_address(&obj, sym.value, &qw, ELF_QWORD);
+	
+	res = elf_read_address(&obj, 0x10fe8, &qw, ELF_QWORD);
 	if (res == true)
 		printf("read value: %lx\n", qw);
 	return 0;
