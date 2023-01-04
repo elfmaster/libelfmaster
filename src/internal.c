@@ -198,6 +198,10 @@ ldd_parse_line(struct elf_shared_object_iterator *iter)
  * Same for x86 and i386
  */
 #define ELF_RELOC_JUMP_SLOT 7
+/*
+ * Since sh_entsize for 32-bit binaries can't be relied upon for iterating over entries in .plt.
+ */
+#define PLT_STUB_LEN 16
 
 bool
 build_plt_data(struct elfobj *obj)
@@ -252,7 +256,7 @@ build_plt_data(struct elfobj *obj)
 		e.data = (void *)plt_node;
 		hsearch_r(e, ENTER, &ep, &obj->cache.plt);
 	}
-	plt_addr = (secure_plt == true) ? plt.address : plt.address + plt.entsize;
+	plt_addr = (secure_plt == true) ? plt.address : plt.address + PLT_STUB_LEN;
 	for (;;) {
 		res = elf_relocation_iterator_next(&r_iter, &r_entry);
 		if (res == ELF_ITER_ERROR)
@@ -270,7 +274,7 @@ build_plt_data(struct elfobj *obj)
 		e.key = (char *)plt_node->symname;
 		e.data = (void *)plt_node;
 		hsearch_r(e, ENTER, &ep, &obj->cache.plt);
-		plt_addr += plt.entsize;
+		plt_addr += PLT_STUB_LEN;
 	}
 	return true;
 }
