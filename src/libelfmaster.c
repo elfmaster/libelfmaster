@@ -963,6 +963,7 @@ elf_segment_by_index(struct elfobj *obj, uint64_t index, struct elf_segment *seg
 		segment->filesz = obj->phdr32[index].p_filesz;
 		segment->memsz = obj->phdr32[index].p_memsz;
 		segment->align = obj->phdr32[index].p_align;
+		segment->index = index;
 		break;
 	case elfclass64:
 		if (index >= obj->ehdr64->e_phnum)
@@ -975,6 +976,7 @@ elf_segment_by_index(struct elfobj *obj, uint64_t index, struct elf_segment *seg
 		segment->filesz = obj->phdr64[index].p_filesz;
 		segment->memsz = obj->phdr64[index].p_memsz;
 		segment->align = obj->phdr64[index].p_align;
+		segment->index = index;
 		break;
 	default:
 		return false;
