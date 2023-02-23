@@ -963,6 +963,7 @@ elf_segment_by_index(struct elfobj *obj, uint64_t index, struct elf_segment *seg
 		segment->filesz = obj->phdr32[index].p_filesz;
 		segment->memsz = obj->phdr32[index].p_memsz;
 		segment->align = obj->phdr32[index].p_align;
+		segment->index = index;
 		break;
 	case elfclass64:
 		if (index >= obj->ehdr64->e_phnum)
@@ -975,6 +976,7 @@ elf_segment_by_index(struct elfobj *obj, uint64_t index, struct elf_segment *seg
 		segment->filesz = obj->phdr64[index].p_filesz;
 		segment->memsz = obj->phdr64[index].p_memsz;
 		segment->align = obj->phdr64[index].p_align;
+		segment->index = index;
 		break;
 	default:
 		return false;
@@ -1332,6 +1334,7 @@ elf_section_by_index(struct elfobj *obj, uint32_t index,
 		if (index >= obj->ehdr32->e_shnum)
 			return false;
 		out->name = &obj->shstrtab[obj->shdr32[index].sh_name];
+		out->type = obj->shdr32[index].sh_type;
 		out->link = obj->shdr32[index].sh_link;
 		out->info = obj->shdr32[index].sh_info;
 		out->flags = obj->shdr32[index].sh_flags;
@@ -1339,11 +1342,13 @@ elf_section_by_index(struct elfobj *obj, uint32_t index,
 		out->entsize = obj->shdr32[index].sh_entsize;
 		out->offset = obj->shdr32[index].sh_offset;
 		out->address = obj->shdr32[index].sh_addr;
+		out->size = obj->shdr32[index].sh_size;
 		break;
 	case elfclass64:
 		if (index >= obj->ehdr64->e_shnum)
 			return false;
 		out->name = &obj->shstrtab[obj->shdr64[index].sh_name];
+		out->type = obj->shdr64[index].sh_type;
 		out->link = obj->shdr64[index].sh_link;
 		out->info = obj->shdr64[index].sh_info;
 		out->flags = obj->shdr64[index].sh_flags;
@@ -1351,6 +1356,7 @@ elf_section_by_index(struct elfobj *obj, uint32_t index,
 		out->entsize = obj->shdr64[index].sh_entsize;
 		out->offset = obj->shdr64[index].sh_offset;
 		out->address = obj->shdr64[index].sh_addr;
+		out->size = obj->shdr64[index].sh_size;
 		break;
 	default:
 		return false;
