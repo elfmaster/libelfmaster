@@ -2652,6 +2652,9 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 		obj->entry_point = obj->ehdr32->e_entry;
 		obj->type = obj->ehdr32->e_type;
 		obj->segment_count = obj->ehdr32->e_phnum;
+		// simply refuse to iterate
+		if ((obj->ehdr32->e_phnum * sizeof(Elf32_Phdr)) >= obj->size)
+			obj->segment_count = 0;
 		obj->flags |= (obj->ehdr32->e_shnum > 0 ? ELF_SHDRS_F : 0);
 
 		if (obj->ehdr32->e_shstrndx > obj->ehdr32->e_shnum - 1) {
@@ -2719,6 +2722,11 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 		obj->pt_load = calloc(INITIAL_LOAD_COUNT, sizeof(struct pt_load));
 		if (obj->pt_load == NULL) {
 			elf_error_set(error, "calloc: %s", strerror(errno));
+			goto err;
+		}
+		if (obj->ehdr32->e_phnum * sizeof(Elf32_Phdr)) >= obj->size){
+			elf_error_set(error, "invalid e_phnum: %u = the file size is not that big",
+					obj->ehdr32->e_phnum);
 			goto err;
 		}
 		phdr_count = INITIAL_LOAD_COUNT;
@@ -2951,6 +2959,9 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 		obj->entry_point = obj->ehdr64->e_entry;
 		obj->type = obj->ehdr64->e_type;
 		obj->segment_count = obj->ehdr64->e_phnum;
+		// simply refuse to iterate
+		if ((obj->ehdr64->e_phnum * sizeof(Elf64_Phdr)) > obj->size)
+			obj->segment_count = 0;
 		obj->flags |= (obj->ehdr64->e_shnum > 0 ? ELF_SHDRS_F : 0);
 
 		if (obj->ehdr64->e_shstrndx > obj->ehdr64->e_shnum - 1) {
@@ -3017,7 +3028,11 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 			elf_error_set(error, "calloc: %s", strerror(errno));
 			goto err;
 		}
-
+		if (obj->ehdr64->e_phnum * sizeof(Elf64_Phdr)) >= obj->size){
+			elf_error_set(error, "invalid e_phnum: %u = the file size is not that big",
+					obj->ehdr64->e_phnum);
+			goto err;
+		}
 		phdr_count = INITIAL_LOAD_COUNT;
 		for (i = 0; i < obj->ehdr64->e_phnum; i++) {
 			if (obj->load_count >= phdr_count) {
