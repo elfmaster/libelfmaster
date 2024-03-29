@@ -1419,12 +1419,33 @@ bool
 elf_section_by_address(struct elfobj *obj, uint64_t addr, struct elf_section *out)
 {
 	struct elf_section section;
+	struct elf_section data_section;
+	struct elf_section bss_section;
 	elf_section_iterator_t iter;
 
 	elf_section_iterator_init(obj, &iter);
 	while (elf_section_iterator_next(&iter, &section) == ELF_ITER_OK) {
 		if (addr >= section.address && addr < section.address + section.size) {
 			memcpy(out, &section, sizeof(section));
+			return true;
+		}
+	}
+
+	/*
+	 * NOTE:
+	 * Handling corner case where glibc binaries store an initialized fptr
+	 * in the 8 byte alignment between the end of the .data section and the
+	 * beginning of the .bss section. When this happens (So far only observed
+	 * in x86_64 linux on /bin/ls and other executables in /bin.)
+	 */
+	if (elf_arch(obj) == x64) {
+		if (elf_section_by_name(obj, ".data", &data_section) == false)
+			return false;
+		if (elf_section_by_name(obj, ".bss", &bss_section) == false)
+			return false;
+		if (addr == data_section.address + data_section.size &&
+	    	    addr + 8 == bss_section.address) {
+			memcpy(out, &data_section, sizeof(*out));
 			return true;
 		}
 	}
