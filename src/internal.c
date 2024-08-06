@@ -387,8 +387,8 @@ build_symtab_data(struct elfobj *obj)
 	 * and can reconstruct the address and size of the local functions
 	 * that correspond to each FDE within .eh_frame.
 	 */
-	if ((obj->load_flags & ELF_LOAD_F_FORENSICS) &&
-	    insane_section_headers(obj) == true) {
+	if (((obj->load_flags & ELF_LOAD_F_FORENSICS) &&
+	    insane_section_headers(obj) == true) || elf_flags(obj, ELF_SYMTAB_F) == false) {
 		struct elf_symbol_node *symbol;
 		struct elf_eh_frame fde;
 		elf_eh_frame_iterator_t  eh_iter;
@@ -422,6 +422,8 @@ build_symtab_data(struct elfobj *obj)
 			}
 			LIST_INSERT_HEAD(list, symbol, _linkage);
 		}
+		obj->symtab_count = obj->fde_count;
+		assert(obj->symtab_count <= SYMTAB_RECONSTRUCT_COUNT);
 		return true;
 	}
 	/*
@@ -2472,6 +2474,7 @@ dw_get_eh_frame_ranges(struct elfobj *obj)
 		fprintf(stderr, "dw_decode_pointer failed\n");
 		return -1;
 	}
+	printf("fde_count: %d\n", fde_count);
 	LIST_INIT(&obj->list.eh_frame_entries);
 	for (i = 0; i < fde_count; i++) {
 		struct elf_eh_frame_node *eh_node;

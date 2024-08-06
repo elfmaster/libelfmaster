@@ -37,6 +37,7 @@
 #include <search.h>
 #include <sys/queue.h>
 #include <sys/stat.h>
+#include <assert.h>
 
 #define peu_probable __glibc_unlikely
 

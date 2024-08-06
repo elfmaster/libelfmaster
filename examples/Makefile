@@ -40,6 +40,7 @@ x86:
 	./stripx test_stripped
 	./stripx test32_stripped
 arm:
+	$(CC_AARCH64) -O0 -ggdb symbols.c ../src/libelfmaster.a -o symbols
 	$(CC_AARCH64) -N -static -nostdlib nostdlib.c -o nostdlib_aarch64
 	$(CC_AARCH64) -Wl,-z,separate-code test.c -o test_scop_pie_aarch64
 	$(CC_AARCH64) -no-pie -Wl,-z,separate-code test.c -o test_scop_binary_aarch64

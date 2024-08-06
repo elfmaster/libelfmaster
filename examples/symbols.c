@@ -35,11 +35,13 @@ int main(int argc, char **argv)
 		fprintf(stderr, "%s\n", elf_error_msg(&error));
 		return -1;
 	}
+#if 0
 	elf_dynsym_iterator_init(&obj, &ds_iter);
 	while (elf_dynsym_iterator_next(&ds_iter, &symbol) == ELF_ITER_OK) {
 		printf("%s: %#lx-%#lx\n",symbol.name, symbol.value,
 		    symbol.value + symbol.size);
 	}
+#endif
 	elf_symtab_iterator_init(&obj, &sm_iter);
 	while (elf_symtab_iterator_next(&sm_iter, &symbol) == ELF_ITER_OK) {
 		printf("%s: %#lx-%#lx\n",symbol.name, symbol.value,

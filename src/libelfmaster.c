@@ -1072,12 +1072,12 @@ elf_executable_text_filesz(struct elfobj *obj)
 	if (peu_probable(elf_flags(obj, ELF_SCOP_F) == false))
 		return elf_text_filesz(obj);
 
-        elf_segment_iterator_init(obj, &iter);
-        for (;;) {
-                res = elf_segment_iterator_next(&iter, &segment);
-                if (res == ELF_ITER_OK) {
-                        if (segment.flags & PF_X) {
-                                if (segment.type == PT_LOAD) {
+	elf_segment_iterator_init(obj, &iter);
+	for (;;) {
+		res = elf_segment_iterator_next(&iter, &segment);
+		if (res == ELF_ITER_OK) {
+			if (segment.flags & PF_X) {
+				if (segment.type == PT_LOAD) {
 					/*
 					 * This helps us verify that the segment was
 					 * marked executable by the linker. We want
@@ -1098,11 +1098,11 @@ elf_executable_text_filesz(struct elfobj *obj)
 					 * perm flags of the section that our address resides in...
 					 * well we might not find the right segment.
 					 */
-                                        if (elf_section_by_address(obj, segment.vaddr,
-                                            &section) == true) {
-                                                if (section.flags & SHF_EXECINSTR)
-                                                        return segment.filesz;
-                                        }
+					if (elf_section_by_address(obj, segment.vaddr,
+					    &section) == true) {
+						if (section.flags & SHF_EXECINSTR)
+							return segment.filesz;
+					}
 				}
 			}
 		}
@@ -2053,7 +2053,29 @@ begin:
 	} else if (obj->dynsym_count == 0) {
 		which = SHT_SYMTAB;
 	} else if (obj->dynsym_count > 0 && obj->symtab_count > 0) {
+		size_t symcount;
+		/*
+		 * obj->symtab_count gets set even when the syms are
+		 * forensically reconstructed from .eh_frame. This will
+		 * cause us problems since the new symbol table won't 
+		 * align with the relocation entries that no longer have
+		 * the original symtab to correspond too.
+		 *
+		 * However elf_symtab_count() will return 0 if there isn't
+		 * an actual .symtab section. 
+		 *
+		 * If elf_symtab_count() returns false and obj->symtab_count
+		 * is > 0, then we know that symbols were forensically
+		 * reconstructed and we should bail out.
+		 */
 		which = SHT_SYMTAB;
+		if (elf_symtab_count(obj, &symcount) == false) {
+			struct elf_rel_helper_node *next;
+	
+			LIST_FOREACH_SAFE(current, &iter->list, _linkage, next);
+				free(current);
+			return ELF_ITER_DONE;
+		}
 	} else if (obj->dynsym_count == 0 && obj->symtab_count == 0) {
 		/*
 		 * If no symbol tables are found then let's cleanly bail out
@@ -2124,7 +2146,6 @@ begin:
 			struct elf_symbol symbol;
 			const unsigned int symidx =
 			    ELF64_R_SYM(current->rela64[i].r_info);
-
 			if (elf_symbol_by_index(obj, symidx, &symbol, which) == false) {
 				goto err;
 			}
@@ -3390,6 +3411,13 @@ final_load_stages:
 		 * from, we will have to reconstruct our own.
 		 */
 		obj->symtab_count = SYMTAB_RECONSTRUCT_COUNT;
+	} else if (insane_section_headers(obj) == false &&
+	    elf_flags(obj, ELF_SYMTAB_F) == false && (load_flags & ELF_LOAD_F_FORENSICS)) {
+		/*
+		 * If .symtab is simply missing due to /bin/strip lets still attempt
+		 * reconstructing it.
+		 */
+		obj->symtab_count = SYMTAB_RECONSTRUCT_COUNT;
 	}
 
 	hcreate_r(obj->symtab_count, &obj->cache.symtab);
@@ -3406,6 +3434,14 @@ final_load_stages:
 	 */
 	if (insane_section_headers(obj) == true &&
 	    (load_flags & ELF_LOAD_F_FORENSICS)) {
+		if ((obj->flags & ELF_EH_FRAME_F) != 0) {
+			if (dw_get_eh_frame_ranges(obj) < 0) {
+				elf_error_set(error, "failed to build FDE data from eh_frame");
+				goto err;
+			}
+		}
+	} else if ((load_flags & ELF_LOAD_F_FORENSICS) &&
+	    elf_flags(obj, ELF_SYMTAB_F) == false) {
 		if ((obj->flags & ELF_EH_FRAME_F) != 0) {
 			if (dw_get_eh_frame_ranges(obj) < 0) {
 				elf_error_set(error, "failed to build FDE data from eh_frame");
