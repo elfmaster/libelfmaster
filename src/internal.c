@@ -251,6 +251,13 @@ build_plt_data(struct elfobj *obj)
 		secure_plt = true;
 	}
 	/*
+	 * Rarely, but too often nonetheless the entsize is set to 0
+	 * in some ELF's .plt
+	 */
+	if (plt.entsize == 0) {
+		plt.entsize = 16; // for ARM/ARM64/x86_32/x86_64 16 is the default size
+	}
+	/*
 	 * We can use the relocation iterator at this point, since all of its
 	 * necessary components have been set already within elfobj *
 	 */
@@ -295,6 +302,7 @@ build_plt_data(struct elfobj *obj)
 		plt_node = malloc(sizeof(*plt_node));
 		if (plt_node == NULL)
 			return false;
+		DEBUG_LOG("Adding PLT entry(%s): %#lx\n", r_entry.symname, plt_addr);
 		plt_node->addr = plt_addr;
 		plt_node->symname = r_entry.symname;
 		LIST_INSERT_HEAD(&obj->list.plt, plt_node, _linkage);
