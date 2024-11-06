@@ -3540,4 +3540,5 @@ elf_close_object(elfobj_t *obj)
 		msync(obj->mem, obj->size, MS_SYNC);
 	}
 	munmap(obj->mem, obj->size);
+	close(obj->fd);
 }
