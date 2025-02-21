@@ -858,6 +858,7 @@ load_dynamic_segment_data(struct elfobj *obj)
 		 * reconstruction. We must also adjust elf_data_base and elf_text_base
 		 * to account for SCOP binaries.
 		 */
+#if 0
 		if (entry.value >=
 		    elf_text_base(obj) + elf_text_filesz(obj)) {
 			if (entry.value >= elf_data_base(obj) &&
@@ -872,6 +873,7 @@ load_dynamic_segment_data(struct elfobj *obj)
 				return false;
 			}
 		}
+#endif 
 		obj->dynstr = (char *)&obj->mem[entry.value - elf_text_base(obj)];
 		if (obj->dynstr == NULL)
 			return false;
@@ -1439,7 +1441,7 @@ i386:
 #define GLIBC_START_CODE_x86_64	"\x55\x48\x89\xe5\x48" /* enough to identify _start */
 #define GLIBC_START_CODE_x86_64_v2	"\x31\xed\x49\x89\xd1" /* enough to identify _start */
 #define GLIBC_START_CODE_x86_32	"\x31\xed\x5e\x89\xe1" /* enough to identify _start */
-#define GLIBC_START_CODE_aarch64 "\x1f\x20\x03\xd5\x1d\x00\x80\xd2" /* enough to identify _start */
+#define GLIBC_START_CODE_aarch64 "\x1d\x00\x80\xd2\x1e\x00\x80\xd2" /* enough to identify _start */
 
 static uint64_t
 original_ep(elfobj_t *obj)
@@ -2482,7 +2484,6 @@ dw_get_eh_frame_ranges(struct elfobj *obj)
 		fprintf(stderr, "dw_decode_pointer failed\n");
 		return -1;
 	}
-	printf("fde_count: %d\n", fde_count);
 	LIST_INIT(&obj->list.eh_frame_entries);
 	for (i = 0; i < fde_count; i++) {
 		struct elf_eh_frame_node *eh_node;

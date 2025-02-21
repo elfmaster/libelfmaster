@@ -800,6 +800,8 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 				return "R_ARM_XPC22";
 			case R_ARM_TLS_DTPMOD32:
 				return "R_ARM_TLS_DTPMOD32";
+			default:
+				return "R_ARM_UNKNOWN";
 			/*
 			 * Unfinished, god forbid. there are so many
 			 * ARM relocations :(
@@ -808,7 +810,6 @@ elf_reloc_type_string(struct elfobj *obj, uint32_t r_type)
 		case elfclass64:
 			return "R_AARCH64_UNKNOWN";
 		}
-		return "R_AARCH64_UNKNOWN";
 	}
 	switch(obj->e_class) {
 	case elfclass32:
