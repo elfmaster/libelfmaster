@@ -292,13 +292,8 @@ build_plt_data(struct elfobj *obj)
 		e.data = (void *)plt_node;
 		hsearch_r(e, ENTER, &ep, &obj->cache.plt);
 	}
-<<<<<<< HEAD
 	plt0_entsize = elf_arch(obj) == aarch64 ? ELF_AARCH64_PLT0_ENTSIZE : plt.entsize;
 	plt_addr = (secure_plt == true) ? plt.address : plt.address + plt0_entsize;
-
-=======
-	plt_addr = (secure_plt == true) ? plt.address : plt.address + PLT_STUB_LEN;
->>>>>>> origin/master
 	for (;;) {
 		res = elf_relocation_iterator_next(&r_iter, &r_entry);
 		if (res == ELF_ITER_ERROR)
