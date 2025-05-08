@@ -3490,7 +3490,7 @@ final_load_stages:
 		elf_error_set(error, "failed to build symtab symbol data");
 		goto err;
 	}
-	if (obj->flags & ELF_PLT_F) {
+	if ((obj->flags & ELF_PLT_F) && (obj->flags & ELF_DYNSYM_F)) {
 		if (build_plt_data(obj) == false) {
 			elf_error_set(error, "failed to build plt cache and list");
 			goto err;
