@@ -2307,12 +2307,42 @@ elf_plt_iterator_next(struct elf_plt_iterator *iter, struct elf_plt *entry)
 }
 
 
+bool
+elf_dynamic_set_value(struct elf_dynamic_iterator *iter, uint64_t value)
+{
+	if (((ssize_t)iter->index - 1) < 0)
+		return false;
+	switch(iter->e_class) {
+	case elfclass32:
+		iter->dynamic32[iter->index].d_un.d_val = value;
+		break;
+	case elfclass64:
+		iter->dynamic64[iter->index].d_un.d_val = value;
+		break;
+	default:
+		break;
+	}
+	return true;
+}
+
 void
 elf_dynamic_iterator_init(struct elfobj *obj, struct elf_dynamic_iterator *iter)
 {
 
 	iter->obj = obj;
 	iter->index = 0;
+	switch(obj->e_class) {
+	case elfclass32:
+		iter->e_class = elfclass32;
+		iter->dynamic32 = obj->dynamic32;
+		break;
+	case elfclass64:
+		iter->e_class = elfclass64;
+		iter->dynamic64 = obj->dynamic64;
+		break;
+	default:
+		break;
+	}
 	return;
 }
 

@@ -37,8 +37,8 @@ x86:
 	$(CC) -O2 -g pltgot.c -o pltgot ../src/libelfmaster.a
 	$(CC) -O2 -g scop_check.c -o scop_check ../src/libelfmaster.a
 	$(CC) phoff.c -o phoff ../src/libelfmaster.a
-	./stripx test_stripped
-	./stripx test32_stripped
+	strip test_stripped
+	strip test32_stripped
 arm:
 	$(CC_AARCH64) -O0 -ggdb symbols.c ../src/libelfmaster.a -o symbols
 	$(CC_AARCH64) -N -static -nostdlib nostdlib.c -o nostdlib_aarch64

@@ -27,6 +27,10 @@
 #ifndef _LIBELFMASTER_H_
 #define _LIBELFMASTER_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <elf.h>
 #include <link.h>
 #include <limits.h>
@@ -446,6 +450,11 @@ typedef struct elf_note_entry {
 typedef struct elf_dynamic_iterator {
 	unsigned int index;
 	elfobj_t *obj;
+	elf_class_t e_class;
+	union {
+		Elf32_Dyn *dynamic32;
+		Elf64_Dyn *dynamic64;
+	};
 } elf_dynamic_iterator_t;
 
 typedef struct elf_dynamic_entry {
@@ -622,6 +631,7 @@ bool elf_note_iterator_init(elfobj_t *, elf_note_iterator_t *);
 elf_iterator_res_t elf_note_iterator_next(elf_note_iterator_t *, elf_note_entry_t *,
     elf_error_t *);
 
+bool elf_dynamic_set_value(struct elf_dynamic_iterator *, uint64_t);
 void elf_dynamic_iterator_init(elfobj_t *, elf_dynamic_iterator_t *);
 elf_iterator_res_t elf_dynamic_iterator_next(elf_dynamic_iterator_t *, elf_dynamic_entry_t *);
 
@@ -1021,4 +1031,9 @@ char * elf_interpreter_path(elfobj_t *);
 int elf_fd(elfobj_t *);
 
 elf_arch_t elf_arch(elfobj_t *);
+
+
+#ifdef __cplusplus
+}
+#endif
 #endif

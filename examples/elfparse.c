@@ -35,6 +35,10 @@ int main(int argc, char **argv)
 	unsigned int count = 0;
 	bool scop = false;
 
+	if (argc < 2) {
+		printf("Usage: elfparse <program>\n");
+		return -1;
+	}
 	if (elf_open_object(argv[1], &obj, ELF_LOAD_F_FORENSICS,
 	    &error) == false) {
 		printf("%s\n", elf_error_msg(&error));
