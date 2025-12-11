@@ -39,9 +39,11 @@ extern "C" {
 #include <unistd.h>
 #include <stdbool.h>
 #include <search.h>
-#include <sys/queue.h>
+
 #include <sys/stat.h>
 #include <assert.h>
+
+#include "queue.h"
 
 #define peu_probable __glibc_unlikely
 

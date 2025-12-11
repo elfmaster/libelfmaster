@@ -672,7 +672,7 @@ elf_scop_text_filesz(elfobj_t *obj)
 	uint32_t count = 0;
 	size_t total = 0;
 
-	if (peu_probable(elf_flags(obj, ELF_SCOP_F) == false)) {
+	if (elf_flags(obj, ELF_SCOP_F) == false) {
 		return elf_text_filesz(obj);
 	}
 	elf_segment_iterator_init(obj, &iter);
@@ -1072,7 +1072,7 @@ elf_executable_text_filesz(struct elfobj *obj)
 	elf_segment_iterator_t iter;
 	elf_iterator_res_t res;
 
-	if (peu_probable(elf_flags(obj, ELF_SCOP_F) == false))
+	if (elf_flags(obj, ELF_SCOP_F) == false)
 		return elf_text_filesz(obj);
 
 	elf_segment_iterator_init(obj, &iter);
@@ -1132,7 +1132,7 @@ elf_executable_text_base(struct elfobj *obj)
 	 * and glorious cymatic. Expanding space and time in ageless
 	 * fields of natures own sweetness and pain.
 	 */
-	if (peu_probable(elf_flags(obj, ELF_SCOP_F) == false)) {
+	if (elf_flags(obj, ELF_SCOP_F) == false) {
 		return elf_text_base(obj);
 	}
 	elf_segment_iterator_init(obj, &iter);

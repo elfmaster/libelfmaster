@@ -590,7 +590,7 @@ ldso_cache_bsearch(struct elf_shared_object_iterator *iter,
 			key = iter->cache->libs[middle].key;
 		}
 		ret = ldso_cache_cmp(name, iter->cache_data + key);
-		if (unlikely(ret == 0)) {
+		if (ret == 0) {
 			left = middle;
 			while (middle > 0) {
 				if (iter->cache_flags & ELF_LDSO_CACHE_NEW) {
