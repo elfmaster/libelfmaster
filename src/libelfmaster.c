@@ -2314,10 +2314,10 @@ elf_dynamic_set_value(struct elf_dynamic_iterator *iter, uint64_t value)
 		return false;
 	switch(iter->e_class) {
 	case elfclass32:
-		iter->dynamic32[iter->index].d_un.d_val = value;
+		iter->dynamic32[iter->index - 1].d_un.d_val = value;
 		break;
 	case elfclass64:
-		iter->dynamic64[iter->index].d_un.d_val = value;
+		iter->dynamic64[iter->index - 1].d_un.d_val = value;
 		break;
 	default:
 		break;
