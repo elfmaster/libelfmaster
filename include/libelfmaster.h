@@ -56,6 +56,8 @@ extern "C" {
     #endif
 #endif
 
+#define peu_probable __glibc_unlikely
+
 #define MAX_ERROR_STR_LEN 128
 
 /*
