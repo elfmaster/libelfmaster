@@ -39,11 +39,22 @@ extern "C" {
 #include <unistd.h>
 #include <stdbool.h>
 #include <search.h>
-#include <sys/queue.h>
 #include <sys/stat.h>
 #include <assert.h>
 
-#define peu_probable __glibc_unlikely
+#include "queue.h"
+
+#ifndef __glibc_unlikely
+    #ifdef MUSL_BUILD
+        /* On musl: no branch prediction, just pass through the condition */
+        #define __glibc_unlikely(cond) (cond)
+        #define __glibc_likely(cond)   (cond)
+    #else
+        /* On glibc: use GCC builtins for actual hinting */
+        #define __glibc_unlikely(cond) __builtin_expect(!!(cond), 0)
+        #define __glibc_likely(cond)   __builtin_expect(!!(cond), 1)
+    #endif
+#endif
 
 #define MAX_ERROR_STR_LEN 128
 
