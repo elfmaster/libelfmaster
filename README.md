@@ -1,4 +1,27 @@
 # libelfmaster
+
+## Standard build
+
+### GIT clone it
+
+$ git clone git@github.com:elfmaster/libelfmaster
+$ cd libelfmaster/src
+
+## Build it
+
+$ make
+$ sudo make install
+
+## musl build
+
+libelfmaster can also be built with MUSL. [Shiva](https://github.com/advanced-microcode-patching/shiva) is built with
+MUSL Libc and requires a musl libelfmaster on newer builds.
+
+$ sudo apt-get install musl musl-dev musl-tools
+$ make musl
+$ sudo make musl-install
+
+
 ## Update as of 11/17/18 -- I have a local branch with many new fixes that will be finished and committed by the end of December, been very busy.
 
 ## Secure ELF parsing library
