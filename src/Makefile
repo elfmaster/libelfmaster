@@ -57,10 +57,9 @@ install: all
 musl:
 	$(MAKE) all CC=$(MUSL_CC) AR=$(AR) CFLAGS="-DMUSL_BUILD $(CFLAGS)"
 
-# Optional: Install musl-built libraries (to a separate prefix to avoid mixing with glibc builds)
 musl-install: musl
-	@echo "Installing musl-built libraries to $(INSTALL_PREFIX)-musl..."
-	@sudo mkdir -p $(INSTALL_LIB)-musl
+	@echo "Installing musl-built libraries to $(INSTALL_PREFIX)"
+	@sudo mkdir -p $(INSTALL_LIB)
 	@sudo install -m 644 $(STATIC_LIB) $(INSTALL_LIB)/
 	@sudo install -m 755 $(SHARED_LIB) $(INSTALL_LIB)/
 	@sudo install -D -m 644 $(INCLUDE_DIR)/libelfmaster.h $(INSTALL_INC)/libelfmaster.h
