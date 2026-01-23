@@ -1441,17 +1441,20 @@ elf_section_by_address(struct elfobj *obj, uint64_t addr, struct elf_section *ou
 	/*
 	 * NOTE:
 	 * Handling corner case where glibc binaries store an initialized fptr
-	 * in the 8 byte alignment between the end of the .data section and the
+	 * in the 8 (to 16) byte alignment between the end of the .data section and the
 	 * beginning of the .bss section. When this happens (So far only observed
-	 * in x86_64 linux on /bin/ls and other executables in /bin.)
+	 * in x86_64 linux glibc binaries sometimes. 
+	 * Essentially there is a sub-section between .data and .bss (That is unnamed)
+	 * In /usr/bin/nc for example the argp_err_exit_status glibc-internal variable
+	 * is stored in this 16bit padding.
 	 */
 	if (elf_arch(obj) == x64) {
 		if (elf_section_by_name(obj, ".data", &data_section) == false)
 			return false;
 		if (elf_section_by_name(obj, ".bss", &bss_section) == false)
 			return false;
-		if (addr == data_section.address + data_section.size &&
-	    	    addr + 8 == bss_section.address) {
+		if (addr >= data_section.address + data_section.size &&
+		    addr < bss_section.address) {
 			memcpy(out, &data_section, sizeof(*out));
 			return true;
 		}
