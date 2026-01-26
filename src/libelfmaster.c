@@ -2687,6 +2687,14 @@ elf_open_object(const char *path, struct elfobj *obj, uint64_t load_flags,
 	bool __strict = false;
 
 	/*
+	 * If ELF_LOAD_F_PRIV_MAP is set then open() flags should be O_RDONLY
+	 * even if ELF_LOAD_F_MODIFY is also set (Which can be a desired flag
+	 * combination in some cases).
+	 */
+	if (load_flags & ELF_LOAD_F_PRIV_MAP) {
+		open_flags = O_RDONLY;
+	}
+	/*
 	 * We count on this being initialized for various sanity checks.
 	 */
 	memset(obj, 0, sizeof(*obj));
