@@ -2086,7 +2086,7 @@ begin:
 	} else if (obj->dynsym_count > 0 && obj->symtab_count > 0) {
 		size_t symcount;
 		/*
-		 * obj->symtab_count gets set even when the syms are
+		 * NOTES: obj->symtab_count gets set even when the syms are
 		 * forensically reconstructed from .eh_frame. This will
 		 * cause us problems since the new symbol table won't 
 		 * align with the relocation entries that no longer have
@@ -2099,13 +2099,33 @@ begin:
 		 * is > 0, then we know that symbols were forensically
 		 * reconstructed and we should bail out.
 		 */
-		which = SHT_SYMTAB;
-		if (elf_symtab_count(obj, &symcount) == false) {
-			struct elf_rel_helper_node *next;
+
+		/*
+		 * First though is this a dynamic relocation of some type?
+		 * .rel(a).dyn, .rel(a).plt. If so then the symbol table should
+		 * be .dynsym otherwise it should be .symtab.
+		 */
+		if (strstr(current->section_name, ".plt") ||
+		    strstr(current->section_name, ".dyn")) {
+			if (obj->flags & ELF_DYNAMIC_F)
+				which = SHT_DYNSYM;
+		} else {
+			which = SHT_SYMTAB;
+			/*
+			 * This is a non-dynamic relocation section: i.e .rela.text
+			 * if elf_symtab_count() returns 0 it means that there is no
+			 * .symtab section. The only reason that symtab_count is > 0
+			 * is because it was forensically reconstructed internally and
+			 * it would be no good to any relocations since the symbol names
+			 * will have changed. If that's the case lets return done.
+			 */
+			if (elf_symtab_count(obj, &symcount) == false) {
+				struct elf_rel_helper_node *next;
 	
-			LIST_FOREACH_SAFE(current, &iter->list, _linkage, next);
-				free(current);
-			return ELF_ITER_DONE;
+				LIST_FOREACH_SAFE(current, &iter->list, _linkage, next);
+					free(current);
+				return ELF_ITER_DONE;
+			}
 		}
 	} else if (obj->dynsym_count == 0 && obj->symtab_count == 0) {
 		/*
@@ -2119,11 +2139,7 @@ begin:
 			free(current);
 		return ELF_ITER_DONE;
 	}
-	if (strstr(current->section_name, ".plt") ||
-	    strstr(current->section_name, ".dynamic")) {
-		if (obj->flags & ELF_DYNAMIC_F)
-			which = SHT_DYNSYM;
-	}
+
 	if (iter->obj->e_class == elfclass32) {
 		unsigned int i = iter->index++;
 		const size_t entsz = current->addend ? sizeof(Elf32_Rela) :
