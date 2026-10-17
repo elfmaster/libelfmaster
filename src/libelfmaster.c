@@ -2210,7 +2210,7 @@ begin:
 			if (elf_symbol_by_index(obj, symidx, &symbol, which) == false)
 				goto err;
 			entry->offset = current->rel64[i].r_offset;
-			entry->type = ELF64_R_TYPE(current->rel64[i].r_offset);
+			entry->type = ELF64_R_TYPE(current->rel64[i].r_info);
 			entry->addend = 0;
 			entry->symname = (char *)symbol.name;
 			entry->shdrname = current->section_name;
