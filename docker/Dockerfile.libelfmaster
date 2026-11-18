@@ -1,0 +1,58 @@
+### libelfmaster docker based image ###
+# Build: docker build -t "libelfmaster:latest" -f Dockerfile.libelfmaster .
+# Run:   docker run --rm -it -v ${PWD}/data:/tmp/data "libelfmaster:latest"
+#
+# Maintainer: https://github.com/watbulb
+###
+FROM ubuntu:latest
+
+# Environment
+ENV INSTALL_PREFIX=/opt/elfmaster
+ENV USER=appuser
+ENV HOME=/home/appuser
+ENV BASE=${INSTALL_PREFIX}
+
+# Dependencies
+RUN \
+    apt-get update && apt-get install --no-install-recommends -y \
+        git   \
+        vim   \
+        bash  \
+        make  \
+        gzip  \
+        libck-dev  \
+        libcapstone-dev \
+        pkg-config \
+        ca-certificates \
+        gcc-9-multilib  \
+        g++-9-multilib
+
+# Create an non-root container user
+RUN \
+    groupadd -g 999 appuser && \
+    useradd  -m -r -u 999 -g appuser -s '/bin/bash' appuser
+
+# Grab libelfmaster
+RUN mkdir -p ${INSTALL_PREFIX} && chown -R ${USER}:${USER} ${INSTALL_PREFIX}
+USER    ${USER}
+WORKDIR ${HOME}
+RUN git clone https://github.com/elfmaster/libelfmaster
+
+# Compile libelfmaster
+WORKDIR ${HOME}/libelfmaster
+RUN CC=gcc-9 CXX=g++-9 ./configure --prefix=${INSTALL_PREFIX}
+RUN \
+    make -j$(nproc) && make CC=gcc-9 CXX=g++-9 -C ./examples && \
+    make INSTALL_PREFIX=${INSTALL_PREFIX} install && \
+    cp -fr ./examples ${INSTALL_PREFIX} 
+
+# Cleanup dependencies (some)
+USER root
+RUN apt-get purge -y gcc-9-multilib g++-9-multilib ca-certificates && apt-get autoremove -y
+RUN apt-get clean
+
+# Fin.
+USER       ${USER}
+WORKDIR    ${BASE}
+SHELL      ["/bin/bash"]
+ENTRYPOINT ["/bin/bash", "-i"]
