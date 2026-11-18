@@ -1453,6 +1453,11 @@ original_ep(elfobj_t *obj)
 	uint8_t *inst, *marker;
 	size_t i;
 
+	// If we can't figure out the elf_text_offset + elf_text_filesz, then the following
+	// loop will cause errors, prevent this case
+	if (elf_text_offset(obj) + elf_text_filesz(obj) <= 0)
+		return 0;
+
 	for (i = 0, marker = inst = ptr; inst; inst++, i++) {
 		if (i >= (elf_text_offset(obj) + elf_text_filesz(obj) - 6))
 			return 0;
