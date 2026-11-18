@@ -325,8 +325,12 @@ build_dynsym_data(struct elfobj *obj)
 	Elf32_Sym *dsym32;
 	Elf64_Sym *dsym64;
 	struct elf_dynsym_list *list = &obj->list.dynsym;
+	size_t dynstr_sz = obj->dynseg.dynstr.size;
 
 	LIST_INIT(&obj->list.dynsym);
+
+	if (obj->dynstr == NULL || dynstr_sz == 0)
+		return true; /* no dynstr to resolve names from */
 
 	for (i = 0; i < obj->dynsym_count; i++) {
 		struct elf_symbol_node *symbol = malloc(sizeof(*symbol));
@@ -337,7 +341,11 @@ build_dynsym_data(struct elfobj *obj)
 		switch(obj->e_class) {
 		case elfclass32:
 			dsym32 = obj->dynsym32;
-			symbol->name = &obj->dynstr[dsym32[i].st_name];
+			if (dsym32[i].st_name < dynstr_sz) {
+				symbol->name = &obj->dynstr[dsym32[i].st_name];
+			} else {
+				symbol->name = "invalid_name_index";
+			}
 			symbol->value = dsym32[i].st_value;
 			symbol->shndx = dsym32[i].st_shndx;
 			symbol->size = dsym32[i].st_size;
@@ -347,7 +355,11 @@ build_dynsym_data(struct elfobj *obj)
 			break;
 		case elfclass64:
 			dsym64 = obj->dynsym64;
-			symbol->name = &obj->dynstr[dsym64[i].st_name];
+			if (dsym64[i].st_name < dynstr_sz) {
+				symbol->name = &obj->dynstr[dsym64[i].st_name];
+			} else {
+				symbol->name = "invalid_name_index";
+			}
 			symbol->value = dsym64[i].st_value;
 			symbol->shndx = dsym64[i].st_shndx;
 			symbol->size = dsym64[i].st_size;
@@ -853,31 +865,22 @@ load_dynamic_segment_data(struct elfobj *obj)
 		if (entry.tag != DT_STRTAB)
 			continue;
 		/*
-		 * we must handle anomalies where .dynstr
-		 * is not stored in the text segment. I've seen this before
-		 * with strange linker script configs where .dynstr is writable
-		 * and in the data segment. For now return false if .dynstr is
-		 * not in the text segment and we are performing forensics
-		 * reconstruction. We must also adjust elf_data_base and elf_text_base
-		 * to account for SCOP binaries.
+		 * Resolve DT_STRTAB (a virtual address) to a file offset.
+		 * Use elf_address_pointer() which properly handles multi-
+		 * segment layouts (e.g. 3 LOAD segments where .dynstr lives
+		 * in a separate RW segment rather than the text segment).
+		 * Falls back to the legacy text-base subtraction if the
+		 * segment walk fails.
 		 */
-#if 0
-		if (entry.value >=
-		    elf_text_base(obj) + elf_text_filesz(obj)) {
-			if (entry.value >= elf_data_base(obj) &&
-			    entry.value < elf_data_base(obj) + elf_data_filesz(obj)) {
-				obj->dynstr = (char *)&obj->mem[entry.value -
-				    elf_data_base(obj)];
-				if (obj->dynstr == NULL)
-					return false;
-			} else {
-				fprintf(stderr,
-				    ".dynstr points outside of text and data segment\n");
-				return false;
+		obj->dynstr = (char *)elf_address_pointer(obj, entry.value);
+		if (obj->dynstr == NULL) {
+			/* Fallback: legacy text-base calculation */
+			if (entry.value >= elf_text_base(obj)) {
+				size_t off = entry.value - elf_text_base(obj);
+				if (off < obj->size)
+					obj->dynstr = (char *)&obj->mem[off];
 			}
 		}
-#endif 
-		obj->dynstr = (char *)&obj->mem[entry.value - elf_text_base(obj)];
 		if (obj->dynstr == NULL)
 			return false;
 	}
@@ -944,9 +947,12 @@ load_dynamic_segment_data(struct elfobj *obj)
 		case DT_SYMTAB:
 			if (dt_symtab++ > 0)
 				break;
-			if (entry.value < elf_text_base(obj) ||
-			    entry.value > elf_text_base(obj) +
-			    elf_text_filesz(obj) - ptr_width - 1) {
+			/*
+			 * DT_SYMTAB can reside in any LOAD segment, not just
+			 * the text segment (e.g. 3-segment layouts). Only flag
+			 * as anomalous if it can't be resolved at all.
+			 */
+			if (elf_address_pointer(obj, entry.value) == NULL) {
 				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
 			}
 			obj->dynseg.dynsym.addr = entry.value;
@@ -954,9 +960,12 @@ load_dynamic_segment_data(struct elfobj *obj)
 		case DT_STRTAB:
 			if (dt_strtab++ > 0)
 				break;
-			if (entry.value < elf_text_base(obj) ||
-			    entry.value > elf_text_base(obj) +
-			    elf_text_filesz(obj) - 1) {
+			/*
+			 * DT_STRTAB can reside in any LOAD segment (e.g.
+			 * writable .dynstr in a separate RW LOAD segment).
+			 * Only flag as anomalous if unreachable.
+			 */
+			if (elf_address_pointer(obj, entry.value) == NULL) {
 				obj->anomalies |= INVALID_F_VITAL_DTAG_VALUE;
 			}
 			obj->dynseg.dynstr.addr = entry.value;
